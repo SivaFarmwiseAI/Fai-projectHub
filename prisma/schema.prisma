@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  role         String
+  email        String   @unique
+  avatarColor  String   @default("#3b82f6")
+  passwordHash String   @default("")
+  department   String   @default("")
+  roleType     String   @default("Member") // CEO | Team Lead | Member
+  createdAt    DateTime @default(now())
+
+  assignedProjects ProjectAssignee[]
+  submissions      Submission[]
+  feedback         Feedback[]
+
+  @@map("users")
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  title        String
+  type         String   // "engineering" or "research"
+  requirement  String
+  status       String   @default("active") // active, completed, killed
+  priority     String   @default("medium") // low, medium, high, critical
+  currentPhase String   @default("")
+  timeboxDays  Int      @default(14)
+  startDate    DateTime @default(now())
+  techStack    String   @default("[]") // JSON string
+  aiPlan       String   @default("{}") // JSON string
+  createdAt    DateTime @default(now())
+
+  assignees   ProjectAssignee[]
+  phases      Phase[]
+  submissions Submission[]
+  checkpoints Checkpoint[]
+
+  @@map("projects")
+}
+
+model ProjectAssignee {
+  id        String  @id @default(cuid())
+  projectId String
+  userId    String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_assignees")
+}
+
+model Phase {
+  id        String @id @default(cuid())
+  projectId String
+  phaseName String
+  status    String @default("pending") // pending, active, completed
+  checklist String @default("[]") // JSON string array of checklist items
+  order     Int
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("phases")
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  phaseId     String
+  projectId   String
+  userId      String
+  title       String
+  type        String   // document, code, architecture, notebook, demo
+  description String
+  link        String   @default("")
+  createdAt   DateTime @default(now())
+
+  phase    Phase      @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  project  Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback Feedback[]
+
+  @@map("submissions")
+}
+
+model Feedback {
+  id           String   @id @default(cuid())
+  submissionId String
+  fromUserId   String
+  text         String
+  isAi         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fromUser   User       @relation(fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  @@map("feedback")
+}
+
+model Checkpoint {
+  id        String   @id @default(cuid())
+  projectId String
+  decision  String   // "continue" or "kill"
+  notes     String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("checkpoints")
+}
