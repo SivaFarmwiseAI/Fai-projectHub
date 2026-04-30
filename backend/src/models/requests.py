@@ -29,6 +29,7 @@ class UpdateUserRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     role: Optional[str] = None
+    role_type: Optional[str] = None
     department: Optional[str] = None
     avatar_color: Optional[str] = None
 

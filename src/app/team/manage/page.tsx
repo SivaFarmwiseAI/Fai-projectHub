@@ -15,15 +15,15 @@ import {
   Trash2,
   Check,
   X,
-  Code2,
-  BrainCircuit,
   ChevronDown,
   Plus,
   Building2,
   Briefcase,
   Settings2,
+  Layers,
 } from "lucide-react";
-import { users as usersApi, type User } from "@/lib/api-client";
+import { users as usersApi, departments as deptsApi, roles as rolesApi, type User, type Department, type Role } from "@/lib/api-client";
+import { useAuth } from "@/contexts/auth-context";
 
 const AVATAR_COLORS = [
   "#3b82f6",
@@ -35,16 +35,6 @@ const AVATAR_COLORS = [
   "#06b6d4",
   "#84cc16",
 ];
-
-function countByDepartment(members: User[]) {
-  const engineering = members.filter((m) =>
-    /engineer|developer|full.?stack|backend|frontend|devops/i.test(m.role ?? "")
-  ).length;
-  const dsml = members.filter((m) =>
-    /data.?scien|ml|machine.?learn|ai|analyst/i.test(m.role ?? "")
-  ).length;
-  return { engineering, dsml };
-}
 
 // ── Searchable Dropdown Component ──
 function SearchableDropdown({
@@ -164,25 +154,74 @@ function SearchableDropdown({
   );
 }
 
+const ROLE_TYPES = ["Member", "Team Lead", "Admin", "CEO"];
+
 export default function ManageTeamPage() {
+  const { isCEO, isAdmin } = useAuth();
+  const canManageRoleType = isCEO || isAdmin;
+
   const [members, setMembers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [deptObjects, setDeptObjects] = useState<Department[]>([]);
+  const [roleObjects, setRoleObjects] = useState<Role[]>([]);
+  const roles = roleObjects.map(r => r.name);
+  const departments = deptObjects.map(d => d.name);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", role: "", department: "", email: "" });
+  const [editForm, setEditForm] = useState({ name: "", role: "", role_type: "", department: "", email: "" });
   const [, forceUpdate] = useState(0);
 
-  useEffect(() => {
-    usersApi.list().then(r => {
-      setMembers(r.users);
-      setRoles([...new Set(r.users.map(u => u.role).filter(Boolean))]);
-      setDepartments([...new Set(r.users.map(u => u.department).filter(Boolean))]);
+  function addRole(name: string) {
+    if (roles.includes(name)) return;
+    const optimistic: Role = { id: name, name, member_count: 0, is_active: true };
+    setRoleObjects(prev => [...prev, optimistic]);
+    rolesApi.create({ name }).then(r => {
+      setRoleObjects(prev => prev.map(x => x.id === name ? r.role : x));
     }).catch(() => {});
+    forceUpdate(p => p + 1);
+  }
+
+  function removeRole(name: string) {
+    setRoleObjects(prev => prev.filter(r => r.name !== name));
+  }
+
+  function addDept(name: string) {
+    if (departments.includes(name)) return;
+    const optimistic: Department = { id: name, name, member_count: 0, is_active: true, color: "#6366f1" };
+    setDeptObjects(prev => [...prev, optimistic]);
+    deptsApi.create({ name }).then(r => {
+      setDeptObjects(prev => prev.map(x => x.id === name ? r.department : x));
+    }).catch(() => {});
+    forceUpdate(p => p + 1);
+  }
+
+  function removeDept(name: string) {
+    setDeptObjects(prev => prev.filter(d => d.name !== name));
+  }
+
+  useEffect(() => {
+    Promise.all([
+      usersApi.list(),
+      deptsApi.list(),
+      rolesApi.list(),
+    ]).then(([usersRes, deptsRes, rolesRes]) => {
+      setMembers(usersRes.users);
+      setDeptObjects(deptsRes.departments);
+      setRoleObjects(rolesRes.roles);
+    }).catch(() => {
+      // fallback: derive from user list if departments/roles tables not yet migrated
+      usersApi.list().then(r => {
+        setMembers(r.users);
+        const fallbackRoles = [...new Set(r.users.map(u => u.role).filter(Boolean))];
+        const fallbackDepts = [...new Set(r.users.map(u => u.department).filter(Boolean))];
+        setRoleObjects(fallbackRoles.map(n => ({ id: n, name: n, member_count: 0, is_active: true } as Role)));
+        setDeptObjects(fallbackDepts.map(n => ({ id: n, name: n, member_count: 0, is_active: true, color: "#6366f1" } as Department)));
+      }).catch(() => {});
+    });
   }, []);
 
   // New member form state
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("");
+  const [newRoleType, setNewRoleType] = useState("Member");
   const [newDepartment, setNewDepartment] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -192,18 +231,19 @@ export default function ManageTeamPage() {
   const [showMasters, setShowMasters] = useState(false);
 
   const teamMembers = members;
-  const { engineering, dsml } = countByDepartment(teamMembers);
 
-  // Group by department
+  // Group by department using actual department field
   const deptCounts: Record<string, number> = {};
   teamMembers.forEach((m) => {
-    deptCounts[m.department] = (deptCounts[m.department] || 0) + 1;
+    const dept = m.department || "Unassigned";
+    deptCounts[dept] = (deptCounts[dept] || 0) + 1;
   });
+  const topDepts = Object.entries(deptCounts).sort((a, b) => b[1] - a[1]);
 
   // --- Edit handlers ---
   function startEditing(user: User) {
     setEditingId(user.id);
-    setEditForm({ name: user.name, role: user.role ?? "", department: user.department ?? "", email: user.email });
+    setEditForm({ name: user.name, role: user.role ?? "", role_type: user.role_type ?? "Member", department: user.department ?? "", email: user.email });
   }
 
   function cancelEditing() {
@@ -211,11 +251,13 @@ export default function ManageTeamPage() {
   }
 
   function saveEditing(id: string) {
-    usersApi.update(id, { name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email }).catch(() => {});
+    const payload: Partial<User> = { name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email };
+    if (canManageRoleType) payload.role_type = editForm.role_type;
+    usersApi.update(id, payload).catch(() => {});
     setMembers((prev) =>
       prev.map((m) =>
         m.id === id
-          ? { ...m, name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email }
+          ? { ...m, ...payload }
           : m
       )
     );
@@ -247,13 +289,15 @@ export default function ManageTeamPage() {
         email: newEmail.trim(),
         password: newPassword.trim(),
         role: newRole.trim(),
-        role_type: "member",
+        role_type: canManageRoleType ? newRoleType : "Member",
         department: newDepartment.trim(),
         avatar_color: newColor,
       });
       setMembers((prev) => [...prev, r.user]);
-      setRoles((prev) => [...new Set([...prev, r.user.role])]);
-      setDepartments((prev) => [...new Set([...prev, r.user.department])]);
+      if (r.user.role && !roles.includes(r.user.role))
+        setRoleObjects(prev => [...prev, { id: r.user.id, name: r.user.role, member_count: 1, is_active: true } as Role]);
+      if (r.user.department && !departments.includes(r.user.department))
+        setDeptObjects(prev => [...prev, { id: r.user.id, name: r.user.department, member_count: 1, is_active: true, color: "#6366f1" } as Department]);
       setNewName("");
       setNewRole("");
       setNewDepartment("");
@@ -321,7 +365,7 @@ export default function ManageTeamPage() {
                       </Badge>
                       {!inUse && (
                         <button
-                          onClick={() => { setRoles(prev => prev.filter(r => r !== role)); forceUpdate((p) => p + 1); }}
+                          onClick={() => removeRole(role)}
                           className="text-gray-300 hover:text-red-500 transition-colors"
                           title="Remove role"
                         >
@@ -341,9 +385,8 @@ export default function ManageTeamPage() {
                     if (e.key === "Enter") {
                       const input = e.currentTarget;
                       if (input.value.trim()) {
-                        setRoles(prev => [...new Set([...prev, input.value.trim()])]);
+                        addRole(input.value.trim());
                         input.value = "";
-                        forceUpdate((p) => p + 1);
                       }
                     }
                   }}
@@ -355,9 +398,8 @@ export default function ManageTeamPage() {
                   onClick={() => {
                     const input = document.getElementById("new-role-master") as HTMLInputElement;
                     if (input?.value.trim()) {
-                      setRoles(prev => [...new Set([...prev, input.value.trim()])]);
+                      addRole(input.value.trim());
                       input.value = "";
-                      forceUpdate((p) => p + 1);
                     }
                   }}
                 >
@@ -395,7 +437,7 @@ export default function ManageTeamPage() {
                       </Badge>
                       {!inUse && (
                         <button
-                          onClick={() => { setDepartments(prev => prev.filter(d => d !== dept)); forceUpdate((p) => p + 1); }}
+                          onClick={() => removeDept(dept)}
                           className="text-gray-300 hover:text-red-500 transition-colors"
                           title="Remove department"
                         >
@@ -415,9 +457,8 @@ export default function ManageTeamPage() {
                     if (e.key === "Enter") {
                       const input = e.currentTarget;
                       if (input.value.trim()) {
-                        setDepartments(prev => [...new Set([...prev, input.value.trim()])]);
+                        addDept(input.value.trim());
                         input.value = "";
-                        forceUpdate((p) => p + 1);
                       }
                     }
                   }}
@@ -429,9 +470,8 @@ export default function ManageTeamPage() {
                   onClick={() => {
                     const input = document.getElementById("new-dept-master") as HTMLInputElement;
                     if (input?.value.trim()) {
-                      setDepartments(prev => [...new Set([...prev, input.value.trim()])]);
+                      addDept(input.value.trim());
                       input.value = "";
-                      forceUpdate((p) => p + 1);
                     }
                   }}
                 >
@@ -444,7 +484,7 @@ export default function ManageTeamPage() {
       )}
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center">
@@ -459,26 +499,45 @@ export default function ManageTeamPage() {
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-              <Code2 className="h-5 w-5 text-blue-600" />
+              <Building2 className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{engineering}</p>
-              <p className="text-xs text-muted-foreground">Engineering</p>
+              <p className="text-2xl font-bold">{Object.keys(deptCounts).length}</p>
+              <p className="text-xs text-muted-foreground">Departments</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-              <BrainCircuit className="h-5 w-5 text-amber-600" />
+              <Layers className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{dsml}</p>
-              <p className="text-xs text-muted-foreground">DS / ML</p>
+              <p className="text-2xl font-bold">{roles.length}</p>
+              <p className="text-xs text-muted-foreground">Roles</p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Department Breakdown */}
+      {topDepts.length > 0 && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" /> Department Breakdown
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {topDepts.map(([dept, count]) => (
+                <div key={dept} className="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-full px-3 py-1">
+                  <span className="text-xs font-medium text-purple-700">{dept}</span>
+                  <span className="text-[10px] font-bold bg-purple-200 text-purple-800 rounded-full px-1.5 py-0.5">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Team Members */}
       <Card>
@@ -505,7 +564,7 @@ export default function ManageTeamPage() {
                 {isEditing ? (
                   /* Inline edit mode */
                   <div className="flex-1 space-y-2">
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className={`grid gap-2 ${canManageRoleType ? "grid-cols-5" : "grid-cols-4"}`}>
                       <Input
                         value={editForm.name}
                         onChange={(e) =>
@@ -520,7 +579,7 @@ export default function ManageTeamPage() {
                         value={editForm.role}
                         onChange={(val) => setEditForm({ ...editForm, role: val })}
                         placeholder="Select role"
-                        onAddNew={(val) => { setRoles(prev => [...new Set([...prev, val])]); forceUpdate((p) => p + 1); }}
+                        onAddNew={addRole}
                       />
                       <SearchableDropdown
                         label="Department"
@@ -528,8 +587,17 @@ export default function ManageTeamPage() {
                         value={editForm.department}
                         onChange={(val) => setEditForm({ ...editForm, department: val })}
                         placeholder="Select dept"
-                        onAddNew={(val) => { setDepartments(prev => [...new Set([...prev, val])]); forceUpdate((p) => p + 1); }}
+                        onAddNew={addDept}
                       />
+                      {canManageRoleType && (
+                        <SearchableDropdown
+                          label="Role Type"
+                          options={ROLE_TYPES}
+                          value={editForm.role_type}
+                          onChange={(val) => setEditForm({ ...editForm, role_type: val })}
+                          placeholder="Role type"
+                        />
+                      )}
                       <Input
                         value={editForm.email}
                         onChange={(e) =>
@@ -543,14 +611,21 @@ export default function ManageTeamPage() {
                 ) : (
                   /* Display mode */
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm">{user.name}</p>
                       <Badge variant="outline" className="text-[10px]">
                         {user.role}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
-                        {user.department}
-                      </Badge>
+                      {user.department && (
+                        <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+                          {user.department}
+                        </Badge>
+                      )}
+                      {user.role_type && user.role_type !== "Member" && (
+                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                          {user.role_type}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
@@ -650,7 +725,7 @@ export default function ManageTeamPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${canManageRoleType ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-2"}`}>
             <div className="space-y-2">
               <Label>Role</Label>
               <SearchableDropdown
@@ -659,7 +734,7 @@ export default function ManageTeamPage() {
                 value={newRole}
                 onChange={setNewRole}
                 placeholder="Select a role..."
-                onAddNew={(val) => { setRoles(prev => [...new Set([...prev, val])]); forceUpdate((p) => p + 1); }}
+                onAddNew={addRole}
               />
             </div>
             <div className="space-y-2">
@@ -670,9 +745,21 @@ export default function ManageTeamPage() {
                 value={newDepartment}
                 onChange={setNewDepartment}
                 placeholder="Select a department..."
-                onAddNew={(val) => { setDepartments(prev => [...new Set([...prev, val])]); forceUpdate((p) => p + 1); }}
+                onAddNew={addDept}
               />
             </div>
+            {canManageRoleType && (
+              <div className="space-y-2">
+                <Label>Role Type</Label>
+                <SearchableDropdown
+                  label="Role Type"
+                  options={ROLE_TYPES}
+                  value={newRoleType}
+                  onChange={setNewRoleType}
+                  placeholder="Select role type..."
+                />
+              </div>
+            )}
           </div>
 
           {/* Color Picker */}

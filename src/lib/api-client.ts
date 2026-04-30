@@ -66,6 +66,42 @@ export const users = {
   leave:  (id: string) => get<{ leave: LeaveRequest[] }>(`/users/${id}/leave`),
 };
 
+// ── Departments & Roles ───────────────────────────────────────────────────────
+export interface Department {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  head_id?: string;
+  head_name?: string;
+  member_count: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description?: string;
+  department_id?: string;
+  department_name?: string;
+  member_count: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export const departments = {
+  list:   () => get<{ departments: Department[] }>("/departments"),
+  create: (data: { name: string; description?: string; color?: string; head_id?: string }) =>
+    post<{ department: Department }>("/departments", data),
+};
+
+export const roles = {
+  list:   () => get<{ roles: Role[] }>("/roles"),
+  create: (data: { name: string; description?: string; department_id?: string }) =>
+    post<{ role: Role }>("/roles", data),
+};
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 export const projects = {
   list: (params?: {

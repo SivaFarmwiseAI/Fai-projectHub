@@ -69,6 +69,9 @@ def _update_user(event, origin, user_id):
         raise HTTPError(403, "Cannot update another user")
     body = UpdateUserRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Only CEO/Admin can elevate role_type
+    if "role_type" in fields and current_user["role_type"] not in ("CEO", "Admin"):
+        del fields["role_type"]
     if not fields:
         raise HTTPError(400, "No fields to update")
     set_clause = ", ".join(f"{k} = %s" for k in fields)
@@ -119,9 +122,79 @@ def _user_leave(event, origin, user_id):
     return resp({"leave": leave}, origin=origin)
 
 
+def _list_departments(event, origin):
+    get_current_user(event)
+    rows = fetchall("""
+        SELECT d.id, d.name, d.description, d.color, d.is_active,
+               u.name AS head_name,
+               COUNT(DISTINCT usr.id) FILTER (WHERE usr.is_active) AS member_count
+        FROM   departments d
+        LEFT   JOIN users u   ON u.id = d.head_id
+        LEFT   JOIN users usr ON usr.department_id = d.id
+        WHERE  d.is_active = TRUE
+        GROUP  BY d.id, d.name, d.description, d.color, d.is_active, u.name
+        ORDER  BY d.name
+    """)
+    return resp({"departments": rows}, origin=origin)
+
+
+def _create_department(event, origin):
+    require_auth(event, "CEO", "Admin")
+    body = get_body(event)
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPError(400, "name is required")
+    existing = fetchone("SELECT id FROM departments WHERE name = %s", (name,))
+    if existing:
+        raise HTTPError(409, "Department already exists")
+    dept = execute_returning("""
+        INSERT INTO departments (name, description, color, head_id)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id, name, description, color, head_id, is_active, created_at
+    """, (name, body.get("description"), body.get("color", "#6366f1"), body.get("head_id")))
+    return resp({"department": dept}, 201, origin)
+
+
+def _list_roles(event, origin):
+    get_current_user(event)
+    rows = fetchall("""
+        SELECT r.id, r.name, r.description, r.is_active,
+               d.name AS department_name, d.id AS department_id,
+               COUNT(DISTINCT u.id) FILTER (WHERE u.is_active) AS member_count
+        FROM   roles r
+        LEFT   JOIN departments d ON d.id = r.department_id
+        LEFT   JOIN users u ON u.role = r.name
+        WHERE  r.is_active = TRUE
+        GROUP  BY r.id, r.name, r.description, r.is_active, d.name, d.id
+        ORDER  BY r.name
+    """)
+    return resp({"roles": rows}, origin=origin)
+
+
+def _create_role(event, origin):
+    require_auth(event, "CEO", "Admin")
+    body = get_body(event)
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPError(400, "name is required")
+    existing = fetchone("SELECT id FROM roles WHERE name = %s", (name,))
+    if existing:
+        raise HTTPError(409, "Role already exists")
+    role = execute_returning("""
+        INSERT INTO roles (name, description, department_id)
+        VALUES (%s, %s, %s)
+        RETURNING id, name, description, department_id, is_active, created_at
+    """, (name, body.get("description"), body.get("department_id")))
+    return resp({"role": role}, 201, origin)
+
+
 handler = make_handler([
     ("POST",   r"/api/users",                            _create_user),
     ("GET",    r"/api/users",                            _list_users),
+    ("GET",    r"/api/departments",                      _list_departments),
+    ("POST",   r"/api/departments",                      _create_department),
+    ("GET",    r"/api/roles",                            _list_roles),
+    ("POST",   r"/api/roles",                            _create_role),
     ("GET",    rf"/api/users/(?P<user_id>{PARAM})/tasks", _user_tasks),
     ("GET",    rf"/api/users/(?P<user_id>{PARAM})/leave", _user_leave),
     ("GET",    rf"/api/users/(?P<user_id>{PARAM})",       _get_user),
