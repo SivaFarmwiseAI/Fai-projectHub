@@ -1,12 +1,21 @@
 """Projects Lambda handler — /api/projects/*"""
+import base64
 import json
 import logging
+import uuid
+
+import boto3
+from botocore.exceptions import ClientError
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user, require_auth
+from ..config import get_settings
 from ..database import call_fn, call_proc, execute, execute_returning, fetchall
 from ..exceptions import HTTPError
-from ..models.requests import CreateProjectRequest, CreateProjectUpdateRequest, UpdateProjectRequest
+from ..models.requests import (
+    CreateProjectRequest, CreateProjectUpdateRequest, UpdateProjectRequest,
+    MultipartCompleteRequest,
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +45,110 @@ def _list_projects(event, origin):
     return resp(result or {"projects": [], "total": 0}, origin=origin)
 
 
+_PART_SIZE = 10 * 1024 * 1024  # 10 MB — minimum S3 part size is 5 MB
+
+
+def _upload_file(event, origin):
+    """Single-shot server-side upload — accepts base64 JSON, no browser→S3 CORS needed."""
+    get_current_user(event)
+    settings = get_settings()
+    if not settings.s3_bucket or not settings.cloudfront_domain:
+        raise HTTPError(503, "File upload not configured")
+    body = get_body(event)
+    filename = body.get("filename", "upload")
+    content_type = body.get("content_type", "application/octet-stream")
+    data_b64 = body.get("data", "")
+    if not data_b64:
+        raise HTTPError(400, "data is required (base64-encoded file content)")
+    try:
+        file_bytes = base64.b64decode(data_b64)
+    except Exception:
+        raise HTTPError(400, "Invalid base64 data")
+    if len(file_bytes) > 8 * 1024 * 1024:
+        raise HTTPError(413, "File too large — max 8 MB")
+    key = f"projects/briefs/{uuid.uuid4()}/{filename}"
+    try:
+        s3 = boto3.client("s3", region_name=settings.s3_region)
+        s3.put_object(Bucket=settings.s3_bucket, Key=key, Body=file_bytes, ContentType=content_type)
+    except ClientError as e:
+        log.error("S3 put_object error: %s", e)
+        raise HTTPError(500, "Failed to upload file")
+    return resp({"url": f"https://{settings.cloudfront_domain}/{key}", "key": key}, origin=origin)
+
+
+def _multipart_start(event, origin):
+    get_current_user(event)
+    settings = get_settings()
+    if not settings.s3_bucket or not settings.cloudfront_domain:
+        raise HTTPError(503, "File upload not configured")
+    p = get_query(event)
+    filename = p.get("filename", "upload")
+    content_type = p.get("content_type", "application/octet-stream")
+    try:
+        file_size = int(p.get("file_size", 0))
+    except (ValueError, TypeError):
+        file_size = 0
+    if file_size <= 0:
+        raise HTTPError(400, "file_size query parameter is required")
+
+    key = f"projects/briefs/{uuid.uuid4()}/{filename}"
+    num_parts = max(1, (file_size + _PART_SIZE - 1) // _PART_SIZE)
+
+    try:
+        s3 = boto3.client("s3", region_name=settings.s3_region)
+        upload_id = s3.create_multipart_upload(
+            Bucket=settings.s3_bucket,
+            Key=key,
+            ContentType=content_type,
+        )["UploadId"]
+        part_urls = [
+            s3.generate_presigned_url(
+                "upload_part",
+                Params={"Bucket": settings.s3_bucket, "Key": key,
+                        "UploadId": upload_id, "PartNumber": pn},
+                ExpiresIn=3600,
+            )
+            for pn in range(1, num_parts + 1)
+        ]
+    except ClientError as e:
+        log.error("S3 multipart start error: %s", e)
+        raise HTTPError(500, "Failed to initiate upload")
+
+    return resp({
+        "upload_id": upload_id,
+        "key": key,
+        "part_urls": part_urls,
+        "part_size": _PART_SIZE,
+        "cloudfront_url": f"https://{settings.cloudfront_domain}/{key}",
+    }, origin=origin)
+
+
+def _multipart_complete(event, origin):
+    get_current_user(event)
+    settings = get_settings()
+    if not settings.s3_bucket or not settings.cloudfront_domain:
+        raise HTTPError(503, "File upload not configured")
+    body = MultipartCompleteRequest(**get_body(event))
+    try:
+        s3 = boto3.client("s3", region_name=settings.s3_region)
+        s3.complete_multipart_upload(
+            Bucket=settings.s3_bucket,
+            Key=body.key,
+            UploadId=body.upload_id,
+            MultipartUpload={
+                "Parts": [
+                    {"ETag": p.etag, "PartNumber": p.part_number}
+                    for p in sorted(body.parts, key=lambda x: x.part_number)
+                ]
+            },
+        )
+    except ClientError as e:
+        log.error("S3 multipart complete error: %s", e)
+        raise HTTPError(500, "Failed to complete upload")
+
+    return resp({"cloudfront_url": f"https://{settings.cloudfront_domain}/{body.key}"}, origin=origin)
+
+
 def _create_project(event, origin):
     get_current_user(event)
     body = CreateProjectRequest(**get_body(event))
@@ -51,6 +164,11 @@ def _create_project(event, origin):
     )
     if not project_id:
         raise HTTPError(500, "Project creation failed")
+    if body.document_url:
+        execute(
+            "UPDATE projects SET metadata = jsonb_set(metadata, '{document_url}', %s::jsonb) WHERE id = %s",
+            (json.dumps(body.document_url), str(project_id)),
+        )
     return resp({"project": call_fn("fn_project_full", str(project_id))}, 201, origin)
 
 
@@ -167,6 +285,9 @@ def _project_checkpoints(event, origin, project_id):
 handler = make_handler([
     ("GET",    r"/api/projects/timeline/all",                         _timeline),
     ("GET",    r"/api/projects/search/global",                        _global_search),
+    ("POST",   r"/api/projects/upload/file",                          _upload_file),
+    ("GET",    r"/api/projects/upload/multipart/start",               _multipart_start),
+    ("POST",   r"/api/projects/upload/multipart/complete",            _multipart_complete),
     ("GET",    r"/api/projects",                                      _list_projects),
     ("POST",   r"/api/projects",                                      _create_project),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/tasks",        _project_tasks),

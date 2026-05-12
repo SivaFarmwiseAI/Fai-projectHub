@@ -29,6 +29,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  PenLine,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { projects as projectsApi, ai as aiApi, type User, type AiPlan } from "@/lib/api-client";
 
@@ -77,12 +80,23 @@ export function NewProjectClient({ users }: { users: User[] }) {
   const [ownerId, setOwnerId] = useState<string>("");
   const [coOwnerIds, setCoOwnerIds] = useState<string[]>([]);
   const [aiPlan, setAiPlan] = useState<AiPlan | null>(null);
+  const [planMode, setPlanMode] = useState<"ai" | "manual">("ai");
+  const [manualSummary, setManualSummary] = useState("");
+  const [manualTechStack, setManualTechStack] = useState("");
+  const [manualRisks, setManualRisks] = useState<Array<{ risk: string; severity: string; mitigation: string }>>([]);
+  const [manualKillCriteria, setManualKillCriteria] = useState<string[]>([]);
+  const [newRiskText, setNewRiskText] = useState("");
+  const [newRiskSeverity, setNewRiskSeverity] = useState("medium");
+  const [newRiskMitigation, setNewRiskMitigation] = useState("");
+  const [newKillText, setNewKillText] = useState("");
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"details" | "plan" | "review">("details");
 
   async function generatePlan() {
     setGenerating(true);
+    setPlanMode("ai");
     try {
       const result = await aiApi.generatePlan({ requirement, project_type: type, timebox_days: timeboxDays });
       setAiPlan(result.plan);
@@ -94,8 +108,40 @@ export function NewProjectClient({ users }: { users: User[] }) {
     }
   }
 
-  async function createProject() {
-    setCreating(true);
+  function startManualPlan() {
+    setPlanMode("manual");
+    setAiPlan(null);
+    setStep("plan");
+  }
+
+  function approveManualPlan() {
+    const techStackArray = manualTechStack.split(",").map((s) => s.trim()).filter(Boolean);
+    setAiPlan({
+      summary: manualSummary,
+      techStack: techStackArray,
+      risks: manualRisks,
+      killCriteria: manualKillCriteria,
+    });
+    setStep("review");
+  }
+
+  function addManualRisk() {
+    if (!newRiskText.trim()) return;
+    setManualRisks((prev) => [...prev, { risk: newRiskText.trim(), severity: newRiskSeverity, mitigation: newRiskMitigation.trim() }]);
+    setNewRiskText("");
+    setNewRiskMitigation("");
+    setNewRiskSeverity("medium");
+  }
+
+  function addKillCriteria() {
+    if (!newKillText.trim()) return;
+    setManualKillCriteria((prev) => [...prev, newKillText.trim()]);
+    setNewKillText("");
+  }
+
+  async function submitProject(status: "planning" | "draft") {
+    const isDraft = status === "draft";
+    if (isDraft) setSaving(true); else setCreating(true);
     try {
       const resolvedOwner = ownerId || selectedUsers[0] || "";
       const resolvedCoOwners = coOwnerIds.filter((id) => id !== resolvedOwner);
@@ -104,6 +150,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
         type,
         requirement,
         priority,
+        status,
         owner_id: resolvedOwner,
         assignee_ids: selectedUsers.length > 0 ? selectedUsers : undefined,
         co_owner_ids: resolvedCoOwners.length > 0 ? resolvedCoOwners : undefined,
@@ -112,12 +159,19 @@ export function NewProjectClient({ users }: { users: User[] }) {
         tech_stack: aiPlan?.techStack || [],
         ai_plan: aiPlan ? { summary: aiPlan.summary, risks: aiPlan.risks, killCriteria: aiPlan.killCriteria } : undefined,
       });
-      showToast.success("Project created!", "Redirecting to your new project…");
+      if (isDraft) {
+        showToast.success("Project saved as draft", "You can continue editing it anytime.");
+      } else {
+        showToast.success("Project created!", "Redirecting to your new project…");
+      }
       router.push(`/projects/${result.project.id}`);
     } catch {
-      showToast.error("Failed to create project", "Please check your inputs and try again.");
+      showToast.error(
+        isDraft ? "Failed to save draft" : "Failed to create project",
+        "Please check your inputs and try again."
+      );
     } finally {
-      setCreating(false);
+      if (isDraft) setSaving(false); else setCreating(false);
     }
   }
 
@@ -397,7 +451,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </div>
             )}
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-2 flex-wrap">
               <Button
                 onClick={generatePlan}
                 disabled={!title || !requirement || generating}
@@ -412,129 +466,368 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </Button>
               <Button
                 variant="outline"
+                onClick={startManualPlan}
+                disabled={!title || !requirement}
+                className="gap-2 rounded-xl border-gray-200"
+              >
+                <PenLine className="h-4 w-4" />
+                Write Plan Manually
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => { setAiPlan(null); setStep("review"); }}
                 disabled={!title || !requirement}
-                className="rounded-xl border-gray-200"
+                className="gap-2 rounded-xl border-gray-200 text-gray-500"
               >
-                Skip AI Plan
+                <CheckCircle2 className="h-4 w-4" />
+                Review &amp; Create
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => submitProject("draft")}
+                disabled={!title || !requirement || saving}
+                className="gap-2 rounded-xl border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save as Draft"}
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 2: AI Plan Review */}
-      {step === "plan" && aiPlan && (
+      {/* Step 2: Plan */}
+      {step === "plan" && (
         <div className="space-y-4 animate-fade-in-up stagger-2">
-          <div className="bg-white rounded-2xl border shadow-card overflow-hidden" style={{ borderColor: "rgba(59,130,246,0.12)" }}>
-            {/* AI plan header band */}
-            <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #6366f1)" }} />
-            <div className="px-6 py-5 border-b flex items-start gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h2 className="font-bold text-gray-900">AI-Generated Plan</h2>
-                <p className="text-sm text-gray-500 mt-0.5">{aiPlan.summary}</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-6">
-              {/* Tech Stack */}
-              {aiPlan.techStack && aiPlan.techStack.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">
-                    Suggested Tech Stack
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {aiPlan.techStack.map((tech) => (
-                      <Badge key={tech} variant="secondary">
-                        {tech}
-                      </Badge>
-                    ))}
-                  </div>
+          {/* Mode toggle */}
+          <div className="flex items-center gap-1 bg-white rounded-xl border shadow-card p-1 w-fit" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+            <button
+              onClick={() => { setPlanMode("ai"); }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                planMode === "ai"
+                  ? "bg-blue-50 text-blue-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Generated
+            </button>
+            <button
+              onClick={() => { setPlanMode("manual"); }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                planMode === "manual"
+                  ? "bg-purple-50 text-purple-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Write Manually
+            </button>
+          </div>
+
+          {/* AI Plan View */}
+          {planMode === "ai" && (
+            <div className="space-y-4">
+              {!aiPlan ? (
+                <div className="bg-white rounded-2xl border shadow-card p-8 text-center" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                  <Sparkles className="h-8 w-8 text-blue-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-4">No AI plan generated yet. Click below to generate one.</p>
+                  <Button
+                    onClick={generatePlan}
+                    disabled={generating}
+                    className="gap-2 btn-gradient text-white border-0 shadow-glow-blue rounded-xl"
+                  >
+                    {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {generating ? "Generating…" : "Generate AI Plan"}
+                  </Button>
                 </div>
-              )}
-
-
-              {/* Risks */}
-              {aiPlan.risks && aiPlan.risks.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">
-                    Risk Assessment
-                  </h4>
-                  <div className="space-y-2">
-                    {aiPlan.risks.map((r, i) => (
-                      <div
-                        key={i}
-                        className="p-3 rounded-lg bg-accent/50 space-y-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle
-                            className={`h-3.5 w-3.5 ${severityColors[r.severity]}`}
-                          />
-                          <span className="text-sm font-medium">{r.risk}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {r.severity}
-                          </Badge>
+              ) : (
+                <div className="bg-white rounded-2xl border shadow-card overflow-hidden" style={{ borderColor: "rgba(59,130,246,0.12)" }}>
+                  <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #6366f1)" }} />
+                  <div className="px-6 py-5 border-b flex items-start gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+                      <Sparkles className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-gray-900">AI-Generated Plan</h2>
+                      <p className="text-sm text-gray-500 mt-0.5">{aiPlan.summary}</p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    {aiPlan.techStack && aiPlan.techStack.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Suggested Tech Stack</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {aiPlan.techStack.map((tech) => (
+                            <Badge key={tech} variant="secondary">{tech}</Badge>
+                          ))}
                         </div>
-                        <p className="text-xs text-muted-foreground ml-5">
-                          Mitigation: {r.mitigation}
-                        </p>
                       </div>
-                    ))}
+                    )}
+                    {aiPlan.risks && aiPlan.risks.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Risk Assessment</h4>
+                        <div className="space-y-2">
+                          {aiPlan.risks.map((r, i) => (
+                            <div key={i} className="p-3 rounded-lg bg-accent/50 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className={`h-3.5 w-3.5 ${severityColors[r.severity]}`} />
+                                <span className="text-sm font-medium">{r.risk}</span>
+                                <Badge variant="outline" className="text-xs">{r.severity}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground ml-5">Mitigation: {r.mitigation}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {aiPlan.killCriteria && aiPlan.killCriteria.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Kill Criteria</h4>
+                        <ul className="space-y-1">
+                          {aiPlan.killCriteria.map((k, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <X className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
+                              {k}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-
-              {/* Kill Criteria */}
-              {aiPlan.killCriteria && aiPlan.killCriteria.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Kill Criteria</h4>
-                  <ul className="space-y-1">
-                    {aiPlan.killCriteria.map((k, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                      >
-                        <X className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
-                        {k}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <div className="flex gap-3 flex-wrap">
+                <Button onClick={() => setStep("details")} variant="outline" className="rounded-xl border-gray-200">
+                  Back to Details
+                </Button>
+                {aiPlan && (
+                  <Button
+                    onClick={() => setStep("review")}
+                    className="btn-gradient text-white border-0 shadow-glow-blue rounded-xl"
+                  >
+                    Approve Plan
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={generatePlan}
+                  disabled={generating}
+                  className="gap-2 rounded-xl border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100"
+                >
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {aiPlan ? "Regenerate" : "Generate"}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex gap-3">
-            <Button onClick={() => setStep("details")} variant="outline" className="rounded-xl border-gray-200">
-              Back to Details
-            </Button>
-            <Button
-              onClick={() => setStep("review")}
-              className="btn-gradient text-white border-0 shadow-glow-blue rounded-xl"
-            >
-              Approve Plan
-            </Button>
-            <Button
-              variant="outline"
-              onClick={generatePlan}
-              disabled={generating}
-              className="gap-2 rounded-xl border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100"
-            >
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Regenerate
-            </Button>
-          </div>
+          {/* Manual Plan Form */}
+          {planMode === "manual" && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border shadow-card overflow-hidden" style={{ borderColor: "rgba(139,92,246,0.15)" }}>
+                <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #8b5cf6, #a855f7, #6366f1)" }} />
+                <div className="px-6 py-5 border-b flex items-start gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                  <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)" }}>
+                    <PenLine className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-900">Write Your Plan</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Define the plan details manually</p>
+                  </div>
+                </div>
+                <div className="p-6 space-y-6">
+                  {/* Summary */}
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-summary">Plan Summary</Label>
+                    <Textarea
+                      id="manual-summary"
+                      value={manualSummary}
+                      onChange={(e) => setManualSummary(e.target.value)}
+                      placeholder="Briefly describe the overall approach and plan..."
+                      className="min-h-[80px] rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Tech Stack */}
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-tech">Tech Stack (comma-separated)</Label>
+                    <Input
+                      id="manual-tech"
+                      value={manualTechStack}
+                      onChange={(e) => setManualTechStack(e.target.value)}
+                      placeholder="e.g., React, Node.js, PostgreSQL"
+                    />
+                    {manualTechStack && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {manualTechStack.split(",").map((t) => t.trim()).filter(Boolean).map((tech) => (
+                          <Badge key={tech} variant="secondary">{tech}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Risks */}
+                  <div className="space-y-3">
+                    <Label>Risks</Label>
+                    {manualRisks.length > 0 && (
+                      <div className="space-y-2">
+                        {manualRisks.map((r, i) => (
+                          <div key={i} className="p-3 rounded-lg bg-accent/50 flex items-start justify-between gap-2">
+                            <div className="space-y-0.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${severityColors[r.severity]}`} />
+                                <span className="text-sm font-medium truncate">{r.risk}</span>
+                                <Badge variant="outline" className="text-xs shrink-0">{r.severity}</Badge>
+                              </div>
+                              {r.mitigation && (
+                                <p className="text-xs text-muted-foreground ml-5">Mitigation: {r.mitigation}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setManualRisks((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+                      <Input
+                        value={newRiskText}
+                        onChange={(e) => setNewRiskText(e.target.value)}
+                        placeholder="Risk description..."
+                        className="text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Select value={newRiskSeverity} onValueChange={(v) => v && setNewRiskSeverity(v)}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          value={newRiskMitigation}
+                          onChange={(e) => setNewRiskMitigation(e.target.value)}
+                          placeholder="Mitigation (optional)..."
+                          className="text-sm flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addManualRisk}
+                          disabled={!newRiskText.trim()}
+                          className="gap-1 rounded-lg shrink-0"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Kill Criteria */}
+                  <div className="space-y-3">
+                    <Label>Kill Criteria</Label>
+                    {manualKillCriteria.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {manualKillCriteria.map((k, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <X className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
+                            <span className="flex-1">{k}</span>
+                            <button
+                              onClick={() => setManualKillCriteria((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="flex gap-2">
+                      <Input
+                        value={newKillText}
+                        onChange={(e) => setNewKillText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKillCriteria(); } }}
+                        placeholder="e.g., Budget exceeds $50k without approval..."
+                        className="text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addKillCriteria}
+                        disabled={!newKillText.trim()}
+                        className="gap-1 rounded-lg shrink-0"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 flex-wrap">
+                <Button onClick={() => setStep("details")} variant="outline" className="rounded-xl border-gray-200">
+                  Back to Details
+                </Button>
+                <Button
+                  onClick={approveManualPlan}
+                  disabled={!manualSummary.trim()}
+                  className="btn-gradient text-white border-0 shadow-glow-blue rounded-xl disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                  Save Plan & Continue
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={generatePlan}
+                  disabled={generating}
+                  className="gap-2 rounded-xl border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                >
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Use AI Instead
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Step 3: Final Review & Create */}
       {step === "review" && (
         <div className="bg-white rounded-2xl border shadow-card animate-fade-in-up stagger-2" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-          <div className="px-6 py-5 border-b" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-            <h2 className="font-bold text-gray-900">Review & Create</h2>
-            <p className="text-sm text-gray-400 mt-0.5">Confirm project details before creation</p>
+          <div className="px-6 py-5 border-b flex items-center justify-between" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+            <div>
+              <h2 className="font-bold text-gray-900">Review & Create</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Confirm project details before creation</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => submitProject("draft")}
+                disabled={saving || creating}
+                className="gap-2 rounded-xl border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save as Draft"}
+              </Button>
+              <Button
+                onClick={() => submitProject("planning")}
+                disabled={creating || saving}
+                className="gap-2 btn-gradient text-white border-0 shadow-glow-blue rounded-xl disabled:opacity-60 disabled:shadow-none disabled:transform-none"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {creating ? "Creating…" : "Create Project"}
+              </Button>
+            </div>
           </div>
           <div className="p-6 space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -608,17 +901,27 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </div>
             )}
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-4 flex-wrap">
               <Button
                 variant="outline"
                 onClick={() => setStep(aiPlan ? "plan" : "details")}
+                disabled={creating || saving}
                 className="rounded-xl border-gray-200"
               >
                 Back
               </Button>
               <Button
-                onClick={createProject}
-                disabled={creating}
+                variant="outline"
+                onClick={() => submitProject("draft")}
+                disabled={saving || creating}
+                className="gap-2 rounded-xl border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save as Draft"}
+              </Button>
+              <Button
+                onClick={() => submitProject("planning")}
+                disabled={creating || saving}
                 className="gap-2 btn-gradient text-white border-0 shadow-glow-blue rounded-xl disabled:opacity-60 disabled:shadow-none disabled:transform-none"
               >
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}

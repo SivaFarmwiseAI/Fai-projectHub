@@ -4,7 +4,7 @@
  * forwards to the Lambda backend. Using relative URLs avoids CORS issues.
  */
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
     this.name = "ApiError";
@@ -100,6 +100,22 @@ export const roles = {
   list:   () => get<{ roles: Role[] }>("/roles"),
   create: (data: { name: string; description?: string; department_id?: string }) =>
     post<{ role: Role }>("/roles", data),
+};
+
+// ── Uploads ───────────────────────────────────────────────────────────────────
+export const uploads = {
+  uploadFile: (filename: string, contentType: string, dataB64: string) =>
+    post<{ url: string; key: string }>("/projects/upload/file", {
+      filename,
+      content_type: contentType,
+      data: dataB64,
+    }),
+  multipartStart: (filename: string, contentType: string, fileSize: number) =>
+    get<{ upload_id: string; key: string; part_urls: string[]; part_size: number; cloudfront_url: string }>(
+      `/projects/upload/multipart/start?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}&file_size=${fileSize}`
+    ),
+  multipartComplete: (key: string, uploadId: string, parts: { part_number: number; etag: string }[]) =>
+    post<{ cloudfront_url: string }>("/projects/upload/multipart/complete", { key, upload_id: uploadId, parts }),
 };
 
 // ── Projects ──────────────────────────────────────────────────────────────────
@@ -267,8 +283,10 @@ export const standup = {
 
 // ── AI ────────────────────────────────────────────────────────────────────────
 export const ai = {
-  generatePlan: (data: { requirement: string; project_type: string; timebox_days: number; tech_stack?: string[] }) =>
+  generatePlan: (data: { requirement: string; objective?: string; project_type: string; timebox_days: number; tech_stack?: string[] }) =>
     post<{ plan: AiPlan }>("/ai/generate-plan", data),
+  extractDocument: (document_url: string) =>
+    post<{ extracted: ExtractedDocument }>("/ai/extract-document", { document_url }),
   review:       (data: { content: string; content_type?: string; context?: string }) =>
     post<{ review: AiReview }>("/ai/review", data),
   suggestStack: (data: { requirement: string; project_type: string }) =>
@@ -338,6 +356,7 @@ export interface Project {
   task_count?: number;
   completed_tasks?: number;
   pending_submissions?: number;
+  metadata?: { document_url?: string; [key: string]: unknown };
   created_at: string;
   updated_at: string;
 }
@@ -767,7 +786,21 @@ export interface Notification {
 
 // Payload types
 export interface CreateUserPayload { name: string; email: string; password: string; role: string; role_type?: string; department?: string; avatar_color?: string }
-export interface CreateProjectPayload { title: string; type: string; requirement: string; priority?: string; owner_id: string; assignee_ids?: string[]; co_owner_ids?: string[]; timebox_days?: number; start_date?: string; tech_stack?: string[]; ai_plan?: AiPlan }
+export interface CreateProjectPayload { title: string; type: string; requirement: string; objective?: string; outcome_type?: string; outcome_description?: string; priority?: string; status?: string; owner_id: string; assignee_ids?: string[]; co_owner_ids?: string[]; timebox_days?: number; start_date?: string; tech_stack?: string[]; ai_plan?: AiPlan; document_url?: string }
+
+export interface ExtractedDocument {
+  title?: string;
+  objective?: string;
+  scope?: string;
+  outcome_type?: string;
+  success_criteria?: string[];
+  end_criteria?: string;
+  risks?: string[];
+  tech_stack?: string[];
+  type?: string;
+  priority?: string;
+  timebox_days?: number;
+}
 export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[] }
 export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }

@@ -3829,6 +3829,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Card>
           </div>
 
+          {/* ── Project Brief Document ── */}
+          {project.metadata?.document_url && (
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+              <span className="text-xs text-muted-foreground">Project Brief:</span>
+              <a
+                href={project.metadata.document_url as string}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+              >
+                View Document <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
+
           {/* ── Tech Stack ── */}
           {(project.tech_stack ?? []).length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">

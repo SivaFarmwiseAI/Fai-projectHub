@@ -51,6 +51,7 @@ class CreateProjectRequest(BaseModel):
     start_date: Optional[str] = None
     tech_stack: List[str] = Field(default_factory=list)
     ai_plan: dict = Field(default_factory=dict)
+    document_url: Optional[str] = None
 
 
 class UpdateProjectRequest(BaseModel):
@@ -325,3 +326,16 @@ class AIReviewRequest(BaseModel):
     content: str
     context: Optional[str] = None
     review_type: str = "general"
+
+
+# ── Upload ────────────────────────────────────────────────────────────────────
+
+class MultipartPart(BaseModel):
+    part_number: int
+    etag: str
+
+
+class MultipartCompleteRequest(BaseModel):
+    key: str
+    upload_id: str
+    parts: List[MultipartPart]

@@ -25,6 +25,15 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Anthropic API key (sk-ant-...)
+  
+  CloudfrontURL:
+    Type: String
+    NoEcho: true
+    Description: Cloud Front URL
+
+  DocumentsBucketName:
+    Type: String
+    Description: Name of the existing S3 bucket used for project documents (created outside this stack)
 
   CorsOrigins:
     Type: String
@@ -79,6 +88,37 @@ Resources:
     Metadata:
       BuildMethod: python3.10
 
+  # ── Document Storage – S3 + CloudFront ─────────────────────────────────────
+  #
+  # Bucket name is derived from stack name + env so it's unique per deployment.
+  # CloudFront serves files via HTTPS; Lambda uses a presigned PUT URL to let
+  # the browser upload directly — the Lambda function never proxies file bytes.
+
+  # DocumentsBucket:
+  #   Type: AWS::S3::Bucket
+  #   DeletionPolicy: Retain
+  #   UpdateReplacePolicy: Retain
+  #   Properties:
+  #     BucketName: !Sub fai-projecthub-documents-${Env}-${AWS::AccountId}
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: true
+  #       BlockPublicPolicy: true
+  #       IgnorePublicAcls: true
+  #       RestrictPublicBuckets: true
+  #     CorsConfiguration:
+  #       CorsRules:
+  #         - AllowedHeaders: ["*"]
+  #           AllowedMethods: [PUT]
+  #           AllowedOrigins: [!Ref CorsOrigins, "http://localhost:3000"]
+  #           ExposedHeaders: [ETag]
+  #           MaxAge: 3600
+  #     Tags:
+  #       - Key: Project
+  #         Value: ProjectHub
+  #       - Key: Environment
+  #         Value: !Ref Env
+  
+  
   # ── API Gateway – public REST API (no VPC) ──────────────────────────────────
   #
   # CORS is handled entirely by the Lambda handlers (see base.py make_handler).
@@ -302,6 +342,23 @@ Resources:
       Handler: src.handlers.projects.handler
       Description: /api/projects – CRUD, kanban, timeline, search, updates, insights
       MemorySize: 768
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref DocumentsBucketName
+          S3_REGION: !Sub "${AWS::Region}"
+          CLOUDFRONT_DOMAIN: !Ref CloudfrontURL
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:CreateMultipartUpload
+                - s3:UploadPart
+                - s3:CompleteMultipartUpload
+                - s3:AbortMultipartUpload
+                - s3:PutObject
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${DocumentsBucketName}/*"
       Events:
         ProjectsBase:
           Type: Api
@@ -599,3 +656,5 @@ Outputs:
     Value: !Ref DepsLayer
     Export:
       Name: !Sub ProjectHub-DepsLayerArn-${Env}
+
+  

@@ -65,11 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
           return;
         }
+        // 401 = cookie expired or absent — wipe the cache so we redirect to login
+        if (res.status === 401) {
+          localStorage.removeItem(STORAGE_KEY);
+          setUser(null);
+          return;
+        }
       } catch {
         // Network error — fall through to localStorage cache
       }
 
-      // Offline/fallback: use cached user from localStorage
+      // Offline/network-error fallback: use cached user from localStorage
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {

@@ -6,7 +6,6 @@ import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..database import get_pool
 from ..exceptions import HTTPError
 
 log = logging.getLogger(__name__)
@@ -82,8 +81,6 @@ def make_handler(routes: List[Tuple[str, str, Callable]]):
     compiled = [(method, re.compile(pattern), func) for method, pattern, func in routes]
 
     def handler(event: dict, context) -> dict:
-        get_pool()  # warm DB pool on cold start
-
         origin = get_origin(event)
 
         if event.get("httpMethod") == "OPTIONS":

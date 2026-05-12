@@ -6,7 +6,7 @@ pydantic==2.10.3
 pydantic-settings==2.7.0
 
 # Database
-aws-psycopg2==1.3.8
+pg8000==1.31.2
 
 # Auth
 python-jose[cryptography]==3.3.0

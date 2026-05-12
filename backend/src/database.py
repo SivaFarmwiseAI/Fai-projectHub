@@ -1,39 +1,53 @@
-"""PostgreSQL connection pool and query helpers using aws-psycopg2."""
+"""PostgreSQL connection helpers using pg8000 (pure-Python, no compilation required)."""
 from __future__ import annotations
 
 import json
 import logging
+import uuid
 from contextlib import contextmanager
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Optional
+from urllib.parse import urlparse, unquote
 
-import psycopg2
-import psycopg2.extras
-import psycopg2.pool
+import pg8000.dbapi
 
 from .config import get_settings
 
 log = logging.getLogger(__name__)
 
-_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+
+def _parse_dsn(url: str) -> dict:
+    r = urlparse(url)
+    return dict(
+        host=r.hostname,
+        port=r.port or 5432,
+        user=unquote(r.username or ""),
+        password=unquote(r.password or ""),
+        database=r.path.lstrip("/"),
+    )
 
 
-def get_pool() -> psycopg2.pool.ThreadedConnectionPool:
-    global _pool
-    if _pool is None:
-        cfg = get_settings()
-        _pool = psycopg2.pool.ThreadedConnectionPool(
-            cfg.db_pool_min,
-            cfg.db_pool_max,
-            dsn=cfg.database_url,
-            cursor_factory=psycopg2.extras.RealDictCursor,
-        )
-    return _pool
+def _coerce(val: Any) -> Any:
+    if isinstance(val, uuid.UUID):
+        return str(val)
+    if isinstance(val, (datetime, date)):
+        return val.isoformat()
+    if isinstance(val, Decimal):
+        return float(val)
+    return val
+
+
+def _to_dict(cursor, row) -> Optional[dict]:
+    if row is None:
+        return None
+    return {desc[0]: _coerce(val) for desc, val in zip(cursor.description, row)}
 
 
 @contextmanager
 def get_conn():
-    pool = get_pool()
-    conn = pool.getconn()
+    cfg = get_settings()
+    conn = pg8000.dbapi.connect(**_parse_dsn(cfg.database_url))
     try:
         yield conn
         conn.commit()
@@ -41,46 +55,50 @@ def get_conn():
         conn.rollback()
         raise
     finally:
-        pool.putconn(conn)
+        conn.close()
 
 
 def _serialize(params):
-    if params is None:
-        return None
     return tuple(
         json.dumps(p) if isinstance(p, (dict, list)) else p
         for p in params
     )
 
 
+def _exec(cur, sql: str, params=None) -> None:
+    """Execute SQL, omitting params entirely when None so pg8000 doesn't crash on len(None)."""
+    if params is not None:
+        cur.execute(sql, _serialize(params))
+    else:
+        cur.execute(sql)
+
+
 def execute(sql: str, params=None) -> int:
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(params))
+        _exec(cur, sql, params)
         return cur.rowcount
 
 
 def execute_returning(sql: str, params=None) -> Optional[dict]:
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(params))
-        row = cur.fetchone()
-        return dict(row) if row else None
+        _exec(cur, sql, params)
+        return _to_dict(cur, cur.fetchone())
 
 
 def fetchone(sql: str, params=None) -> Optional[dict]:
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(params))
-        row = cur.fetchone()
-        return dict(row) if row else None
+        _exec(cur, sql, params)
+        return _to_dict(cur, cur.fetchone())
 
 
 def fetchall(sql: str, params=None) -> list[dict]:
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(params))
-        return [dict(r) for r in cur.fetchall()]
+        _exec(cur, sql, params)
+        return [_to_dict(cur, r) for r in cur.fetchall()]
 
 
 def call_fn(fn_name: str, *args) -> Any:
@@ -89,11 +107,11 @@ def call_fn(fn_name: str, *args) -> Any:
     sql = f"SELECT {fn_name}({placeholders})" if args else f"SELECT {fn_name}()"
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(args) if args else None)
+        _exec(cur, sql, args if args else None)
         row = cur.fetchone()
         if row is None:
             return None
-        val = list(row.values())[0]
+        val = row[0]
         if isinstance(val, str):
             try:
                 return json.loads(val)
@@ -108,11 +126,11 @@ def call_proc(fn_name: str, *args) -> Any:
     sql = f"SELECT {fn_name}({placeholders})" if args else f"SELECT {fn_name}()"
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(sql, _serialize(args) if args else None)
+        _exec(cur, sql, args if args else None)
         row = cur.fetchone()
         if row is None:
             return None
-        return list(row.values())[0]
+        return _coerce(row[0])
 
 
 def refresh_views() -> dict:

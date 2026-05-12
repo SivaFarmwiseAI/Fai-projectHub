@@ -23,6 +23,8 @@ stack_name = "projecthub-api"
 use_container = false
 parallel      = true
 cached        = true
+# Build output goes to C: (more free space) instead of filling D: drive
+build_dir     = "C:/sam-build/projecthub"
 
 # ── Production ────────────────────────────────────────────────────────────────
 
@@ -31,12 +33,15 @@ stack_name        = "fai-projecthub-api-dev"
 s3_bucket         = "fai-projecthub"
 s3_prefix         = "projecthub/api"
 region            = "ap-south-1"
+profile           = "AWSAdministratorAccess-448658736283"
 confirm_changeset = true
 capabilities      = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 fail_on_empty_changeset = false
 parameter_overrides = [
   "Env=dev",
   "CorsOrigins=*",
+  "CloudfrontURL=d1grosfd6tfgrs.cloudfront.net",
+  "DocumentsBucketName=fai-projecthub",
   "DatabaseUrl=postgresql://postgres:F%40rmAI%21@14.97.231.114:5432/ProjectHub",
   "JwtSecret=7b9c3e9f6a1d4c1a5d8f0c4b7a2e9d3c5f8b1a6c9d2e4f7a8b0c1d3e5f6a7b9",
   "AnthropicApiKey=sk-ant-REPLACE",
