@@ -91,9 +91,8 @@ function SearchableDropdown({
                 key={option}
                 type="button"
                 onClick={() => { onChange(option); setOpen(false); }}
-                className={`flex items-center w-full px-2 py-1.5 rounded text-xs text-left hover:bg-gray-100 transition-colors ${
-                  value === option ? "bg-blue-50 text-blue-700 font-medium" : ""
-                }`}
+                className={`flex items-center w-full px-2 py-1.5 rounded text-xs text-left hover:bg-gray-100 transition-colors ${value === option ? "bg-blue-50 text-blue-700 font-medium" : ""
+                  }`}
               >
                 {value === option && <Check className="h-3 w-3 mr-1.5 shrink-0" />}
                 <span className={value === option ? "" : "ml-[18px]"}>{option}</span>
@@ -175,7 +174,7 @@ export default function ManageTeamPage() {
     setRoleObjects(prev => [...prev, optimistic]);
     rolesApi.create({ name }).then(r => {
       setRoleObjects(prev => prev.map(x => x.id === name ? r.role : x));
-    }).catch(() => {});
+    }).catch(() => { });
     forceUpdate(p => p + 1);
   }
 
@@ -189,7 +188,7 @@ export default function ManageTeamPage() {
     setDeptObjects(prev => [...prev, optimistic]);
     deptsApi.create({ name }).then(r => {
       setDeptObjects(prev => prev.map(x => x.id === name ? r.department : x));
-    }).catch(() => {});
+    }).catch(() => { });
     forceUpdate(p => p + 1);
   }
 
@@ -198,24 +197,24 @@ export default function ManageTeamPage() {
   }
 
   useEffect(() => {
-    Promise.all([
-      usersApi.list(),
-      deptsApi.list(),
-      rolesApi.list(),
-    ]).then(([usersRes, deptsRes, rolesRes]) => {
-      setMembers(usersRes.users);
-      setDeptObjects(deptsRes.departments);
-      setRoleObjects(rolesRes.roles);
-    }).catch(() => {
-      // fallback: derive from user list if departments/roles tables not yet migrated
-      usersApi.list().then(r => {
-        setMembers(r.users);
-        const fallbackRoles = [...new Set(r.users.map(u => u.role).filter(Boolean))];
-        const fallbackDepts = [...new Set(r.users.map(u => u.department).filter(Boolean))];
-        setRoleObjects(fallbackRoles.map(n => ({ id: n, name: n, member_count: 0, is_active: true } as Role)));
-        setDeptObjects(fallbackDepts.map(n => ({ id: n, name: n, member_count: 0, is_active: true, color: "#6366f1" } as Department)));
-      }).catch(() => {});
-    });
+    // Promise.all([
+    //   usersApi.list(),
+    // deptsApi.list(),
+    // rolesApi.list(),
+    // ]).then(([usersRes]) => {
+    //   setMembers(usersRes.users);
+    // setDeptObjects(deptsRes.departments);
+    // setRoleObjects(rolesRes.roles);
+    // }).catch(() => {
+    // fallback: derive from user list if departments/roles tables not yet migrated
+    usersApi.list().then(r => {
+      setMembers(r.users);
+      const fallbackRoles = [...new Set(r.users.map(u => u.role).filter(Boolean))];
+      const fallbackDepts = [...new Set(r.users.map(u => u.department).filter(Boolean))];
+      setRoleObjects(fallbackRoles.map(n => ({ id: n, name: n, member_count: 0, is_active: true } as Role)));
+      setDeptObjects(fallbackDepts.map(n => ({ id: n, name: n, member_count: 0, is_active: true, color: "#6366f1" } as Department)));
+    }).catch(() => { });
+    // });
   }, []);
 
   // New member form state
@@ -253,7 +252,7 @@ export default function ManageTeamPage() {
   function saveEditing(id: string) {
     const payload: Partial<User> = { name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email };
     if (canManageRoleType) payload.role_type = editForm.role_type;
-    usersApi.update(id, payload).catch(() => {});
+    usersApi.update(id, payload).catch(() => { });
     setMembers((prev) =>
       prev.map((m) =>
         m.id === id

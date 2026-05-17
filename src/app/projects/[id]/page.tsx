@@ -30,16 +30,22 @@ type OutcomeType = string;
 // Stub functions for features without API equivalents
 function getUser(id: string) { return _userMap[id]; }
 function computeImpactAreas(_pid: string, _section: string, _sid: string) { return []; }
-function addEditChange(_pid: string, _data: unknown) {}
+function addEditChange(_pid: string, _data: unknown) { }
 function generateAIPhases(_type: string, _title: string) { return [] as { name: string; description: string; estimatedDuration: string; checklist: { item: string; done: boolean }[] }[]; }
-function addTask(_pid: string, _data: unknown) {}
-function addPhase(_pid: string, _data: unknown) {}
-function updatePhase(_pid: string, _phaseId: string, _data: unknown) {}
-function removePhase(_pid: string, _phaseId: string) {}
-function removeDocument(_pid: string, _docId: string) {}
-function addDocument(_pid: string, _data: unknown) {}
-function updateTaskReviewStatus(_pid: string, _taskId: string, _status: string, _userId: string, _feedback?: string) {}
-function addReviewTask(_data: unknown) {}
+function addTask(_pid: string, _data: unknown) { }
+function addPhase(_pid: string, _data: unknown) { }
+function updatePhase(pid: string, phaseId: string, data: Partial<Phase>, onComplete: () => void) {
+  phasesApi.update(phaseId, data).then(() => onComplete()).catch(() => { });
+}
+function removePhase(pid: string, phaseId: string, onComplete: () => void) {
+  if (confirm("Are you sure you want to remove this phase?")) {
+    phasesApi.delete(phaseId).then(() => onComplete()).catch(() => { });
+  }
+}
+function removeDocument(_pid: string, _docId: string) { }
+function addDocument(_pid: string, _data: unknown) { }
+function updateTaskReviewStatus(_pid: string, _taskId: string, _status: string, _userId: string, _feedback?: string) { }
+function addReviewTask(_data: unknown) { }
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +89,17 @@ function Avatar({ userId, size = "sm" }: { userId: string; size?: "sm" | "md" | 
 
 function formatShortDate(dateStr: string) {
   try { return format(new Date(dateStr), "MMM d, yyyy"); } catch { return dateStr; }
+}
+
+function formatDateForInput(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    // If already YYYY-MM-DD, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    return new Date(dateStr).toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
 }
 
 function stepStatusIcon(status: string) {
@@ -286,9 +303,8 @@ function AssigneeEditor({ assigneeIds, onClose }: { assigneeIds: string[]; onClo
         {teamMembers.map(user => (
           <div
             key={user.id}
-            className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
-              selected.includes(user.id) ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"
-            }`}
+            className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${selected.includes(user.id) ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50"
+              }`}
             onClick={() => toggleUser(user.id)}
           >
             <Checkbox checked={selected.includes(user.id)} onCheckedChange={() => toggleUser(user.id)} />
@@ -391,9 +407,8 @@ function ReviewTaskPanel({ onClose, sourceType, sourceTitle, projectId, projectT
           {teamMembers.map(user => (
             <div
               key={user.id}
-              className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
-                selectedAssignees.includes(user.id) ? "bg-violet-100 border border-violet-300" : "hover:bg-violet-50 border border-transparent"
-              }`}
+              className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${selectedAssignees.includes(user.id) ? "bg-violet-100 border border-violet-300" : "hover:bg-violet-50 border border-transparent"
+                }`}
               onClick={() => toggleUser(user.id)}
             >
               <Checkbox checked={selectedAssignees.includes(user.id)} onCheckedChange={() => toggleUser(user.id)} />
@@ -424,11 +439,10 @@ function ReviewTaskPanel({ onClose, sourceType, sourceTitle, projectId, projectT
               <button
                 key={p}
                 onClick={() => setPriority(p)}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
-                  priority === p
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${priority === p
                     ? p === "low" ? "bg-slate-600 text-white" : p === "medium" ? "bg-amber-500 text-white" : "bg-red-500 text-white"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
+                  }`}
               >
                 {p[0].toUpperCase()}
               </button>
@@ -439,11 +453,10 @@ function ReviewTaskPanel({ onClose, sourceType, sourceTitle, projectId, projectT
 
       <Button
         size="sm"
-        className={`w-full text-[10px] h-7 gap-1 ${
-          taskDesc.trim() && selectedAssignees.length > 0
+        className={`w-full text-[10px] h-7 gap-1 ${taskDesc.trim() && selectedAssignees.length > 0
             ? "bg-violet-600 hover:bg-violet-700"
             : "bg-gray-300 cursor-not-allowed"
-        }`}
+          }`}
         disabled={!taskDesc.trim() || selectedAssignees.length === 0}
         onClick={handleAssign}
       >
@@ -468,12 +481,11 @@ function DeliverableCard({ d, viewRole, projectId, projectTitle }: { d: Delivera
           {config.icon} {config.label}
         </Badge>
         <span className="text-xs font-medium flex-1 truncate">{d.title}</span>
-        <Badge variant="outline" className={`text-[9px] ${
-          d.status === "verified" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
-          d.status === "submitted" ? "text-amber-700 bg-amber-50 border-amber-200" :
-          d.status === "rejected" ? "text-red-700 bg-red-50 border-red-200" :
-          "text-gray-500 bg-gray-50 border-gray-200"
-        }`}>
+        <Badge variant="outline" className={`text-[9px] ${d.status === "verified" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+            d.status === "submitted" ? "text-amber-700 bg-amber-50 border-amber-200" :
+              d.status === "rejected" ? "text-red-700 bg-red-50 border-red-200" :
+                "text-gray-500 bg-gray-50 border-gray-200"
+          }`}>
           {d.status}
         </Badge>
       </div>
@@ -524,13 +536,13 @@ function DeliverableCard({ d, viewRole, projectId, projectTitle }: { d: Delivera
         <div className="space-y-2 pt-1 border-t border-dashed border-blue-200">
           {!showFeedbackInput ? (
             <div className="flex gap-2">
-              <Button size="sm" className="text-[10px] h-6 gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => {}}>
+              <Button size="sm" className="text-[10px] h-6 gap-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => { }}>
                 <CheckCircle2 className="h-3 w-3" /> Verify
               </Button>
               <Button variant="outline" size="sm" className="text-[10px] h-6 gap-1 text-amber-600 border-amber-200 hover:bg-amber-50" onClick={() => setShowFeedbackInput(true)}>
                 <MessageSquare className="h-3 w-3" /> Feedback
               </Button>
-              <Button variant="outline" size="sm" className="text-[10px] h-6 gap-1 text-red-600 border-red-200 hover:bg-red-50" onClick={() => {}}>
+              <Button variant="outline" size="sm" className="text-[10px] h-6 gap-1 text-red-600 border-red-200 hover:bg-red-50" onClick={() => { }}>
                 <XCircle className="h-3 w-3" /> Reject
               </Button>
             </div>
@@ -603,12 +615,11 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
   const totalDeliverables = (milestone.deliverables ?? []).length;
 
   return (
-    <div className={`rounded-lg border ${
-      milestone.status === "completed" ? "border-emerald-200 bg-emerald-50/30" :
-      milestone.status === "in_progress" ? "border-blue-200 bg-blue-50/30" :
-      milestone.status === "blocked" ? "border-red-200 bg-red-50/30" :
-      "border-border bg-gray-50/50"
-    }`}>
+    <div className={`rounded-lg border ${milestone.status === "completed" ? "border-emerald-200 bg-emerald-50/30" :
+        milestone.status === "in_progress" ? "border-blue-200 bg-blue-50/30" :
+          milestone.status === "blocked" ? "border-red-200 bg-red-50/30" :
+            "border-border bg-gray-50/50"
+      }`}>
       {/* Milestone Header */}
       <div
         className="flex items-center gap-2.5 p-3 cursor-pointer hover:bg-white/50 transition-colors rounded-lg"
@@ -616,9 +627,9 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
       >
         {/* Status icon */}
         {milestone.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> :
-         milestone.status === "in_progress" ? <Activity className="h-4 w-4 text-blue-500 shrink-0 animate-pulse" /> :
-         milestone.status === "blocked" ? <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /> :
-         <Circle className="h-4 w-4 text-gray-300 shrink-0" />}
+          milestone.status === "in_progress" ? <Activity className="h-4 w-4 text-blue-500 shrink-0 animate-pulse" /> :
+            milestone.status === "blocked" ? <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /> :
+              <Circle className="h-4 w-4 text-gray-300 shrink-0" />}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -743,7 +754,7 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
 
 // ─── Task Card (the primary unit) ───────────────────────────
 
-function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: { task: Task; projectId: string; projectTitle: string; viewRole: ViewRole; onReviewUpdate?: () => void }) {
+function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, phases }: { task: Task; projectId: string; projectTitle: string; viewRole: ViewRole; onReviewUpdate?: () => void; phases?: Phase[] }) {
   const [expanded, setExpanded] = useState(task.status === "in_progress" || task.status === "planning");
   const [showSteps, setShowSteps] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -753,19 +764,229 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
   const [showAddUpdate, setShowAddUpdate] = useState(false);
   const [updateText, setUpdateText] = useState("");
 
+  const [showAddMilestoneForm, setShowAddMilestoneForm] = useState(false);
+  const [milestoneTitle, setMilestoneTitle] = useState("");
+  const [milestoneDesc, setMilestoneDesc] = useState("");
+  const [milestoneDeliverableType, setMilestoneDeliverableType] = useState("document");
+  const [milestoneTargetDay, setMilestoneTargetDay] = useState<number>(5);
+  const [milestoneSuccessCriteria, setMilestoneSuccessCriteria] = useState<string[]>([]);
+  const [newCriteria, setNewCriteria] = useState("");
+
+  useEffect(() => {
+    if (!showAddMilestoneForm) {
+      setMilestoneTitle("");
+      setMilestoneDesc("");
+      setMilestoneDeliverableType("document");
+      setMilestoneTargetDay(5);
+      setMilestoneSuccessCriteria([]);
+      setNewCriteria("");
+    }
+  }, [showAddMilestoneForm, task]);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  const [editDesc, setEditDesc] = useState(task.description ?? "");
+  const [editPriority, setEditPriority] = useState(task.priority);
+  const [editStatus, setEditStatus] = useState(task.status);
+  const [editHours, setEditHours] = useState(task.estimated_hours ?? 0);
+  const [editAssigneeId, setEditAssigneeId] = useState(task.assignee_id ?? "");
+  const [editPhaseId, setEditPhaseId] = useState(task.phase_id ?? "");
+
+  useEffect(() => {
+    setEditTitle(task.title);
+    setEditDesc(task.description ?? "");
+    setEditPriority(task.priority);
+    setEditStatus(task.status);
+    setEditHours(task.estimated_hours ?? 0);
+    setEditAssigneeId(task.assignee_id ?? "");
+    setEditPhaseId(task.phase_id ?? "");
+  }, [task, isEditing]);
+
   const assignee = getUser(task.assignee_id ?? "");
   const completedSteps = (task.steps ?? []).filter(s => s.status === "completed").length;
   const completedMilestones = (task.milestones ?? []).filter(m => m.status === "completed").length;
   const pendingExtensions = (task.deadline_extensions ?? []).filter(de => de.status === "pending").length;
   const hoursCompleted = (task.steps ?? []).filter(s => s.status === "completed").reduce((sum, s) => sum + (s.estimated_hours ?? 0), 0);
 
+  if (isEditing) {
+    return (
+      <Card className="overflow-hidden border-blue-200 bg-blue-50/10 p-4 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-border pb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2 text-blue-700">
+            <Pencil className="h-4 w-4" /> Edit Task
+          </h3>
+          <button onClick={() => setIsEditing(false)} className="text-muted-foreground hover:text-gray-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Title */}
+          <div>
+            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Title</label>
+            <Input
+              placeholder="Task title"
+              value={editTitle}
+              onChange={e => setEditTitle(e.target.value)}
+              className="text-xs border-gray-200 focus-visible:ring-blue-400"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Description</label>
+            <Textarea
+              placeholder="Task description..."
+              value={editDesc}
+              onChange={e => setEditDesc(e.target.value)}
+              className="text-xs border-gray-200 focus-visible:ring-blue-400"
+              rows={2}
+            />
+          </div>
+
+          {/* Grid for Priority, Status, Hours */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Priority */}
+            <div>
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Priority</label>
+              <div className="flex gap-1">
+                {(["low", "medium", "high"] as const).map(p => (
+                  <button
+                    type="button"
+                    key={p}
+                    onClick={() => setEditPriority(p)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                      editPriority === p
+                        ? p === "high"
+                          ? "bg-red-500 text-white"
+                          : p === "medium"
+                          ? "bg-amber-400 text-white"
+                          : "bg-slate-400 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Status</label>
+              <div className="flex gap-1 flex-wrap">
+                {(["planning", "in_progress", "completed", "blocked"] as const).map(s => (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => setEditStatus(s)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                      editStatus === s
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {s.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Hours */}
+            <div>
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Estimated Hours</label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={editHours || ""}
+                onChange={e => setEditHours(Number(e.target.value))}
+                className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Assignee Selection */}
+            <div>
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Assignee</label>
+              <select
+                value={editAssigneeId}
+                onChange={e => setEditAssigneeId(e.target.value)}
+                className="flex h-8 w-full rounded-md border border-gray-200 bg-background px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+              >
+                <option value="">Unassigned</option>
+                {Object.values(_userMap).map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Phase Selection */}
+            {phases && phases.length > 0 && (
+              <div>
+                <label className="text-[11px] font-medium text-gray-500 mb-1 block">Phase</label>
+                <select
+                  value={editPhaseId}
+                  onChange={e => setEditPhaseId(e.target.value)}
+                  className="flex h-8 w-full rounded-md border border-gray-200 bg-background px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+                >
+                  <option value="">No Phase</option>
+                  {phases.map(ph => (
+                    <option key={ph.id} value={ph.id}>
+                      {ph.order_index + 1}. {ph.phase_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 pt-2 border-t border-border mt-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!editTitle.trim()) return;
+                tasksApi.update(task.id, {
+                  title: editTitle,
+                  description: editDesc || undefined,
+                  priority: editPriority,
+                  status: editStatus,
+                  estimated_hours: editHours || undefined,
+                  assignee_id: editAssigneeId || undefined,
+                  phase_id: editPhaseId || undefined,
+                }).then(() => {
+                  setIsEditing(false);
+                  onReviewUpdate?.();
+                }).catch(() => { });
+              }}
+              disabled={!editTitle.trim()}
+              className="gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white h-7"
+            >
+              <CheckCircle2 className="h-3 w-3" /> Save Changes
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsEditing(false)}
+              className="text-xs border-gray-200 hover:bg-gray-50 h-7"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className={`overflow-hidden transition-all ${
-      task.status === "completed" ? "border-emerald-200" :
-      task.status === "blocked" ? "border-red-200" :
-      task.status === "in_progress" ? "border-blue-200" :
-      "border-border"
-    }`}>
+    <Card className={`overflow-hidden transition-all ${task.status === "completed" ? "border-emerald-200" :
+        task.status === "blocked" ? "border-red-200" :
+          task.status === "in_progress" ? "border-blue-200" :
+            "border-border"
+      }`}>
       {/* Task Header */}
       <div
         className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
@@ -781,14 +1002,13 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
               {task.status.replace("_", " ")}
             </Badge>
             {task.plan_status && (
-              <Badge variant="outline" className={`text-[9px] ${
-                task.plan_status === "finalized" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
-                task.plan_status === "being_refined" ? "text-amber-600 bg-amber-50 border-amber-200" :
-                "text-purple-600 bg-purple-50 border-purple-200"
-              }`}>
+              <Badge variant="outline" className={`text-[9px] ${task.plan_status === "finalized" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
+                  task.plan_status === "being_refined" ? "text-amber-600 bg-amber-50 border-amber-200" :
+                    "text-purple-600 bg-purple-50 border-purple-200"
+                }`}>
                 {task.plan_status === "finalized" ? "Plan Finalized" :
-                 task.plan_status === "being_refined" ? "Plan Being Refined" :
-                 "AI Plan"}
+                  task.plan_status === "being_refined" ? "Plan Being Refined" :
+                    "AI Plan"}
               </Badge>
             )}
             {pendingExtensions > 0 && (
@@ -797,16 +1017,15 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
               </Badge>
             )}
             {task.review_status && (
-              <Badge variant="outline" className={`text-[9px] ${
-                task.review_status === "approved" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
-                task.review_status === "changes_requested" ? "text-amber-600 bg-amber-50 border-amber-200" :
-                task.review_status === "rejected" ? "text-red-600 bg-red-50 border-red-200" :
-                "text-blue-600 bg-blue-50 border-blue-200"
-              }`}>
+              <Badge variant="outline" className={`text-[9px] ${task.review_status === "approved" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
+                  task.review_status === "changes_requested" ? "text-amber-600 bg-amber-50 border-amber-200" :
+                    task.review_status === "rejected" ? "text-red-600 bg-red-50 border-red-200" :
+                      "text-blue-600 bg-blue-50 border-blue-200"
+                }`}>
                 {task.review_status === "approved" ? "Approved" :
-                 task.review_status === "changes_requested" ? "Changes Requested" :
-                 task.review_status === "rejected" ? "Rejected" :
-                 "Pending Review"}
+                  task.review_status === "changes_requested" ? "Changes Requested" :
+                    task.review_status === "rejected" ? "Rejected" :
+                      "Pending Review"}
               </Badge>
             )}
           </div>
@@ -862,7 +1081,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
           {/* ── Task Description with Edit ── */}
           <div className="flex items-start gap-2">
             <p className="text-xs text-muted-foreground flex-1">{task.description}</p>
-            <EditWithImpact label="Task Description" projectId={projectId} section="task" sectionId={task.id} sectionTitle={task.title} currentValue={task.description ?? ""} onSave={() => {}} viewRole={viewRole} />
+            <EditWithImpact label="Task Description" projectId={projectId} section="task" sectionId={task.id} sectionTitle={task.title} currentValue={task.description ?? ""} onSave={() => { }} viewRole={viewRole} />
           </div>
 
           {/* ── Approach / AI Plan (collapsible) ── */}
@@ -1020,10 +1239,170 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
                 <Target className="h-3.5 w-3.5" />
                 Milestones ({completedMilestones}/{(task.milestones ?? []).length})
               </h5>
-              <Button variant="ghost" size="sm" className="text-[10px] h-6 gap-1 text-muted-foreground">
-                <Plus className="h-3 w-3" /> Add
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[10px] h-6 gap-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                onClick={() => setShowAddMilestoneForm(!showAddMilestoneForm)}
+              >
+                <Plus className="h-3 w-3" /> {showAddMilestoneForm ? "Cancel" : "Add"}
               </Button>
             </div>
+
+            {/* Add Milestone Form */}
+            {showAddMilestoneForm && (
+              <Card className="p-3 mb-3 border-blue-200 bg-blue-50/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-blue-100 pb-1.5">
+                  <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                    <Plus className="h-3 w-3" /> New Task Milestone
+                  </span>
+                  <button onClick={() => setShowAddMilestoneForm(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {/* Title */}
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Milestone Title</label>
+                    <Input
+                      placeholder="e.g. Draft UI mockups"
+                      value={milestoneTitle}
+                      onChange={e => setMilestoneTitle(e.target.value)}
+                      className="text-xs border-blue-100 focus-visible:ring-blue-400 h-8"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Description (Optional)</label>
+                    <Textarea
+                      placeholder="What needs to be achieved in this milestone..."
+                      value={milestoneDesc}
+                      onChange={e => setMilestoneDesc(e.target.value)}
+                      className="text-xs border-blue-100 focus-visible:ring-blue-400"
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Grid for Deliverable Type & Target Day */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Deliverable Type</label>
+                      <select
+                        value={milestoneDeliverableType}
+                        onChange={e => setMilestoneDeliverableType(e.target.value)}
+                        className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+                      >
+                        {Object.entries(deliverableTypeConfig).map(([key, conf]) => (
+                          <option key={key} value={key}>
+                            {conf.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Target Completion (Project Day)</label>
+                      <Input
+                        type="number"
+                        placeholder="5"
+                        value={milestoneTargetDay || ""}
+                        onChange={e => setMilestoneTargetDay(Number(e.target.value))}
+                        className="text-xs border-blue-100 focus-visible:ring-blue-400 h-8"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Success Criteria List */}
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-1 block">Success Criteria</label>
+                    <div className="space-y-1.5">
+                      {milestoneSuccessCriteria.map((sc, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white border border-gray-100 px-2 py-1 rounded">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                          <span className="flex-1">{sc}</span>
+                          <button
+                            type="button"
+                            onClick={() => setMilestoneSuccessCriteria(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:text-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex gap-1.5">
+                        <Input
+                          placeholder="Add success criterion..."
+                          value={newCriteria}
+                          onChange={e => setNewCriteria(e.target.value)}
+                          className="text-xs h-7 border-blue-100 focus-visible:ring-blue-400 flex-1"
+                          onKeyDown={e => {
+                            if (e.key === "Enter" && newCriteria.trim()) {
+                              e.preventDefault();
+                              setMilestoneSuccessCriteria(prev => [...prev, newCriteria.trim()]);
+                              setNewCriteria("");
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7 border-blue-200 text-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            if (newCriteria.trim()) {
+                              setMilestoneSuccessCriteria(prev => [...prev, newCriteria.trim()]);
+                              setNewCriteria("");
+                            }
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-1.5 pt-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!milestoneTitle.trim()) return;
+                        tasksApi.addMilestone(task.id, {
+                          task_id: task.id,
+                          title: milestoneTitle,
+                          description: milestoneDesc || undefined,
+                          deliverable_type: milestoneDeliverableType,
+                          target_day: milestoneTargetDay || undefined,
+                          success_criteria: milestoneSuccessCriteria.length > 0 ? milestoneSuccessCriteria : undefined,
+                        }).then(() => {
+                          setMilestoneTitle("");
+                          setMilestoneDesc("");
+                          setMilestoneDeliverableType("document");
+                          setMilestoneTargetDay(5);
+                          setMilestoneSuccessCriteria([]);
+                          setShowAddMilestoneForm(false);
+                          onReviewUpdate?.();
+                        }).catch(() => { });
+                      }}
+                      disabled={!milestoneTitle.trim()}
+                      className="text-[11px] h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <CheckCircle2 className="h-3 w-3" /> Save Milestone
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowAddMilestoneForm(false)}
+                      className="text-[11px] h-7"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             <div className="space-y-2">
               {(task.milestones ?? []).map(ms => (
                 <MilestoneSection key={ms.id} milestone={ms} taskAssignee={task.assignee_id ?? ""} viewRole={viewRole} projectId={projectId} projectTitle={projectTitle} />
@@ -1044,20 +1423,18 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
                   {(task.deadline_extensions ?? []).map(de => {
                     const requester = getUser(de.requested_by);
                     return (
-                      <div key={de.id} className={`rounded-lg border p-3 space-y-2 ${
-                        de.status === "pending" ? "border-amber-200 bg-amber-50/50" :
-                        de.status === "approved" ? "border-emerald-200 bg-emerald-50/30" :
-                        "border-red-200 bg-red-50/30"
-                      }`}>
+                      <div key={de.id} className={`rounded-lg border p-3 space-y-2 ${de.status === "pending" ? "border-amber-200 bg-amber-50/50" :
+                          de.status === "approved" ? "border-emerald-200 bg-emerald-50/30" :
+                            "border-red-200 bg-red-50/30"
+                        }`}>
                         <div className="flex items-center gap-2">
                           {requester && <Avatar userId={de.requested_by} size="sm" />}
                           <span className="text-xs font-medium">{requester?.name}</span>
                           <Badge variant="outline" className="text-[9px]">{de.reason.replace("_", " ")}</Badge>
-                          <Badge variant="outline" className={`text-[9px] ml-auto ${
-                            de.status === "pending" ? "text-amber-700 bg-amber-50" :
-                            de.status === "approved" ? "text-emerald-700 bg-emerald-50" :
-                            "text-red-700 bg-red-50"
-                          }`}>{de.status}</Badge>
+                          <Badge variant="outline" className={`text-[9px] ml-auto ${de.status === "pending" ? "text-amber-700 bg-amber-50" :
+                              de.status === "approved" ? "text-emerald-700 bg-emerald-50" :
+                                "text-red-700 bg-red-50"
+                            }`}>{de.status}</Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground">{de.reason_detail}</p>
                         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
@@ -1154,7 +1531,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
           <div className="flex items-center gap-2 pt-1 flex-wrap">
             {viewRole === "ceo" && (
               <>
-                <Button variant="outline" size="sm" className="text-[11px] h-7 gap-1">
+                <Button variant="outline" size="sm" className="text-[11px] h-7 gap-1" onClick={() => setIsEditing(true)}>
                   <Pencil className="h-3 w-3" /> Edit Task
                 </Button>
                 <Button variant="outline" size="sm" className="text-[11px] h-7 gap-1" onClick={() => setShowAddUpdate(!showAddUpdate)}>
@@ -1219,18 +1596,17 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate }: {
             <div className="mt-3 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Review:</span>
-                <Badge variant="outline" className={`text-[10px] ${
-                  task.review_status === "approved" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
-                  task.review_status === "changes_requested" ? "text-amber-600 bg-amber-50 border-amber-200" :
-                  task.review_status === "rejected" ? "text-red-600 bg-red-50 border-red-200" :
-                  "text-blue-600 bg-blue-50 border-blue-200"
-                }`}>
+                <Badge variant="outline" className={`text-[10px] ${task.review_status === "approved" ? "text-emerald-600 bg-emerald-50 border-emerald-200" :
+                    task.review_status === "changes_requested" ? "text-amber-600 bg-amber-50 border-amber-200" :
+                      task.review_status === "rejected" ? "text-red-600 bg-red-50 border-red-200" :
+                        "text-blue-600 bg-blue-50 border-blue-200"
+                  }`}>
                   {task.review_status === "approved" ? "Approved" :
-                   task.review_status === "changes_requested" ? "Changes Requested" :
-                   task.review_status === "rejected" ? "Rejected" :
-                   "Pending Review"}
+                    task.review_status === "changes_requested" ? "Changes Requested" :
+                      task.review_status === "rejected" ? "Rejected" :
+                        "Pending Review"}
                 </Badge>
-                </div>
+              </div>
               {task.review_feedback && (
                 <p className="text-xs text-muted-foreground mt-1 italic">&ldquo;{task.review_feedback}&rdquo;</p>
               )}
@@ -1375,11 +1751,10 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                 <button
                   key={doc.id}
                   onClick={() => { setActiveDocId(doc.id); setActiveTab("sections"); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all border ${
-                    isActive
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all border ${isActive
                       ? typeConf.color + " ring-1 ring-offset-1 ring-current"
                       : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   {typeConf.icon}
                   <span className="max-w-[120px] truncate">{doc.title}</span>
@@ -1417,9 +1792,8 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                     <button
                       key={key}
                       onClick={() => setNewDocType(key)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${
-                        newDocType === key ? conf.color : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                      }`}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${newDocType === key ? conf.color : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                        }`}
                     >
                       {conf.icon} {conf.label}
                     </button>
@@ -1502,9 +1876,8 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                       return (
                         <button
                           key={s}
-                          className={`px-2 py-0.5 rounded-full text-[9px] font-medium border transition-colors ${
-                            activeDoc.status === s ? sc.color + " ring-1 ring-current" : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-[9px] font-medium border transition-colors ${activeDoc.status === s ? sc.color + " ring-1 ring-current" : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
+                            }`}
                         >
                           {sc.label}
                         </button>
@@ -1545,11 +1918,10 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2 transition-colors ${
-                      activeTab === tab.key
+                    className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2 transition-colors ${activeTab === tab.key
                         ? "border-indigo-500 text-indigo-700"
                         : "border-transparent text-muted-foreground hover:text-gray-700"
-                    }`}
+                      }`}
                   >
                     {tab.icon} {tab.label}
                   </button>
@@ -1614,7 +1986,7 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                         <div>
                           <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{section.content}</p>
                           <div className="mt-1">
-                            <EditWithImpact label="Section Content" projectId={projectId} section="document" sectionId={section.id} sectionTitle={section.title} currentValue={section.content} onSave={() => {}} viewRole={viewRole} />
+                            <EditWithImpact label="Section Content" projectId={projectId} section="document" sectionId={section.id} sectionTitle={section.title} currentValue={section.content} onSave={() => { }} viewRole={viewRole} />
                           </div>
                         </div>
                       )}
@@ -1671,14 +2043,13 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                       const changer = getUser(change.changedBy);
                       return (
                         <div key={change.id} className="relative pl-8">
-                          <div className={`absolute left-1.5 top-3 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${
-                            change.changeType === "major_change" ? "bg-red-500" :
-                            change.changeType === "refinement" ? "bg-purple-500" :
-                            change.changeType === "section_added" ? "bg-emerald-500" :
-                            change.changeType === "section_edited" ? "bg-blue-500" :
-                            change.changeType === "section_removed" ? "bg-red-400" :
-                            change.changeType === "initial" ? "bg-blue-500" : "bg-slate-400"
-                          }`} />
+                          <div className={`absolute left-1.5 top-3 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${change.changeType === "major_change" ? "bg-red-500" :
+                              change.changeType === "refinement" ? "bg-purple-500" :
+                                change.changeType === "section_added" ? "bg-emerald-500" :
+                                  change.changeType === "section_edited" ? "bg-blue-500" :
+                                    change.changeType === "section_removed" ? "bg-red-400" :
+                                      change.changeType === "initial" ? "bg-blue-500" : "bg-slate-400"
+                            }`} />
                           <div className="rounded-lg border border-border bg-white p-3 space-y-2">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-semibold">v{change.version}</span>
@@ -1819,11 +2190,10 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                                 <button
                                   key={ct}
                                   onClick={() => setProposeChangeType(ct)}
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${
-                                    proposeChangeType === ct
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${proposeChangeType === ct
                                       ? changeTypeBadge[ct]
                                       : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                                  }`}
+                                    }`}
                                 >
                                   {ct.replace(/_/g, " ")}
                                 </button>
@@ -1837,11 +2207,10 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                                 <button
                                   key={imp}
                                   onClick={() => setProposeImpact(imp)}
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${
-                                    proposeImpact === imp
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${proposeImpact === imp
                                       ? impactBadge[imp]
                                       : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                                  }`}
+                                    }`}
                                 >
                                   {imp.replace(/_/g, " ")}
                                 </button>
@@ -1851,14 +2220,13 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                         </div>
 
                         {/* Impact Analysis Callout */}
-                        <div className={`rounded-lg border p-2.5 text-[11px] ${
-                          proposeImpact === "none" ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
-                          proposeImpact === "design_only" ? "border-blue-200 bg-blue-50 text-blue-700" :
-                          proposeImpact === "plan_and_design" ? "border-amber-200 bg-amber-50 text-amber-700" :
-                          proposeImpact === "roadmap" ? "border-teal-200 bg-teal-50 text-teal-700" :
-                          proposeImpact === "all_documents" ? "border-red-200 bg-red-50 text-red-700" :
-                          "border-purple-200 bg-purple-50 text-purple-700"
-                        }`}>
+                        <div className={`rounded-lg border p-2.5 text-[11px] ${proposeImpact === "none" ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
+                            proposeImpact === "design_only" ? "border-blue-200 bg-blue-50 text-blue-700" :
+                              proposeImpact === "plan_and_design" ? "border-amber-200 bg-amber-50 text-amber-700" :
+                                proposeImpact === "roadmap" ? "border-teal-200 bg-teal-50 text-teal-700" :
+                                  proposeImpact === "all_documents" ? "border-red-200 bg-red-50 text-red-700" :
+                                    "border-purple-200 bg-purple-50 text-purple-700"
+                          }`}>
                           <div className="flex items-start gap-1.5">
                             <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                             <div>
@@ -1928,9 +2296,8 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                     const discUser = getUser(disc.userId);
                     const sectionRef = disc.sectionId ? activeDoc.sections.find((s: any) => s.id === disc.sectionId) : null;
                     return (
-                      <div key={disc.id} className={`rounded-lg border p-3 space-y-1.5 ${
-                        disc.resolved ? "border-emerald-200 bg-emerald-50/30" : "border-border bg-white"
-                      }`}>
+                      <div key={disc.id} className={`rounded-lg border p-3 space-y-1.5 ${disc.resolved ? "border-emerald-200 bg-emerald-50/30" : "border-border bg-white"
+                        }`}>
                         <div className="flex items-center gap-2 flex-wrap">
                           {discUser && <Avatar userId={disc.userId} size="sm" />}
                           <span className="text-[11px] font-medium">{discUser?.name}</span>
@@ -2097,20 +2464,19 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
             const isExpanded = expandedPhases[phase.id] || false;
 
             return (
-              <div key={phase.id} className={`rounded-lg border ${
-                phase.status === "active" ? "border-blue-300 bg-blue-50/30 ring-1 ring-blue-200" :
-                phase.status === "completed" ? "border-emerald-200 bg-emerald-50/20" :
-                phase.status === "in_discussion" ? "border-amber-200 bg-amber-50/20" :
-                "border-border bg-gray-50/30"
-              }`}>
+              <div key={phase.id} className={`rounded-lg border ${phase.status === "active" ? "border-blue-300 bg-blue-50/30 ring-1 ring-blue-200" :
+                  phase.status === "completed" ? "border-emerald-200 bg-emerald-50/20" :
+                    phase.status === "in_discussion" ? "border-amber-200 bg-amber-50/20" :
+                      "border-border bg-gray-50/30"
+                }`}>
                 <div
                   className="flex items-center gap-3 p-3 cursor-pointer hover:bg-white/50 transition-colors rounded-lg"
                   onClick={() => togglePhase(phase.id)}
                 >
                   {phase.status === "completed" ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" /> :
-                   phase.status === "active" ? <Activity className="h-4 w-4 text-blue-500 shrink-0 animate-pulse" /> :
-                   phase.status === "in_discussion" ? <MessageCircle className="h-4 w-4 text-amber-500 shrink-0" /> :
-                   <Circle className="h-4 w-4 text-gray-300 shrink-0" />}
+                    phase.status === "active" ? <Activity className="h-4 w-4 text-blue-500 shrink-0 animate-pulse" /> :
+                      phase.status === "in_discussion" ? <MessageCircle className="h-4 w-4 text-amber-500 shrink-0" /> :
+                        <Circle className="h-4 w-4 text-gray-300 shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{phase.phase_name}</span>
@@ -2146,7 +2512,7 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                     {/* Phase Description Edit */}
                     <div className="flex items-start gap-2">
                       <p className="text-[11px] text-muted-foreground flex-1">{phase.description}</p>
-                      <EditWithImpact label="Phase Description" projectId={projectId} section="phase" sectionId={phase.id} sectionTitle={phase.phase_name} currentValue={phase.description ?? ""} onSave={() => {}} viewRole={viewRole} />
+                      <EditWithImpact label="Phase Description" projectId={projectId} section="phase" sectionId={phase.id} sectionTitle={phase.phase_name} currentValue={phase.description ?? ""} onSave={() => { }} viewRole={viewRole} />
                     </div>
                     {/* Checklist */}
                     {phase.checklist.length > 0 && (
@@ -2286,11 +2652,10 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                               <button
                                 key={dt}
                                 onClick={() => setPhaseDiscType(dt)}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${
-                                  phaseDiscType === dt
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${phaseDiscType === dt
                                     ? discussionTypeBadge[dt] || ""
                                     : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                                }`}
+                                  }`}
                               >
                                 {dt}
                               </button>
@@ -2331,11 +2696,10 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                               <button
                                 key={at}
                                 onClick={() => setPhaseAttType(at)}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border flex items-center gap-1 ${
-                                  phaseAttType === at
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border flex items-center gap-1 ${phaseAttType === at
                                     ? attachmentTypeBadge[at]?.color || ""
                                     : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                                }`}
+                                  }`}
                               >
                                 {attachmentTypeBadge[at]?.icon} {at.replace("_", " ")}
                               </button>
@@ -2486,13 +2850,12 @@ function AIPlanSection({ aiPlan, viewRole }: { aiPlan: AiPlan; viewRole: ViewRol
                             <button
                               key={s}
                               onClick={() => setNewRiskSeverity(s)}
-                              className={`px-3 py-1 rounded-full text-[10px] font-medium transition-colors border ${
-                                newRiskSeverity === s
+                              className={`px-3 py-1 rounded-full text-[10px] font-medium transition-colors border ${newRiskSeverity === s
                                   ? s === "low" ? "bg-emerald-100 text-emerald-700 border-emerald-300"
                                     : s === "medium" ? "bg-amber-100 text-amber-700 border-amber-300"
-                                    : "bg-red-100 text-red-700 border-red-300"
+                                      : "bg-red-100 text-red-700 border-red-300"
                                   : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                              }`}
+                                }`}
                             >
                               {s}
                             </button>
@@ -2622,10 +2985,9 @@ function CheckpointsSection({ checkpoints, viewRole }: { checkpoints: Checkpoint
                   const config = decisionConfig[cp.decision] || decisionConfig.continue;
                   return (
                     <div key={cp.id} className="relative pl-8">
-                      <div className={`absolute left-1 top-3 h-4 w-4 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
-                        cp.decision === "continue" ? "bg-emerald-500" :
-                        cp.decision === "kill" ? "bg-red-500" : "bg-amber-500"
-                      }`}>
+                      <div className={`absolute left-1 top-3 h-4 w-4 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${cp.decision === "continue" ? "bg-emerald-500" :
+                          cp.decision === "kill" ? "bg-red-500" : "bg-amber-500"
+                        }`}>
                         <span className="text-white text-[7px] font-bold">
                           {cp.decision === "continue" ? "\u2713" : cp.decision === "kill" ? "\u2717" : "\u21BB"}
                         </span>
@@ -2633,11 +2995,10 @@ function CheckpointsSection({ checkpoints, viewRole }: { checkpoints: Checkpoint
                       <div className={`rounded-lg border p-3 space-y-2 ${config.bgColor}`}>
                         <div className="flex items-center gap-2">
                           {config.icon}
-                          <Badge variant="outline" className={`text-[10px] font-semibold ${
-                            cp.decision === "continue" ? "text-emerald-700 bg-emerald-50 border-emerald-300" :
-                            cp.decision === "kill" ? "text-red-700 bg-red-50 border-red-300" :
-                            "text-amber-700 bg-amber-50 border-amber-300"
-                          }`}>
+                          <Badge variant="outline" className={`text-[10px] font-semibold ${cp.decision === "continue" ? "text-emerald-700 bg-emerald-50 border-emerald-300" :
+                              cp.decision === "kill" ? "text-red-700 bg-red-50 border-red-300" :
+                                "text-amber-700 bg-amber-50 border-amber-300"
+                            }`}>
                             {config.label}
                           </Badge>
                           <span className="text-[10px] text-muted-foreground ml-auto">{formatShortDate(cp.created_at)}</span>
@@ -2703,13 +3064,12 @@ function CheckpointsSection({ checkpoints, viewRole }: { checkpoints: Checkpoint
                         <button
                           key={d}
                           onClick={() => setCpDecision(d)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all border-2 ${
-                            cpDecision === d
+                          className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all border-2 ${cpDecision === d
                               ? d === "continue" ? "bg-emerald-100 border-emerald-400 text-emerald-800"
                                 : d === "kill" ? "bg-red-100 border-red-400 text-red-800"
-                                : "bg-amber-100 border-amber-400 text-amber-800"
+                                  : "bg-amber-100 border-amber-400 text-amber-800"
                               : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-                          }`}
+                            }`}
                         >
                           {d === "continue" ? "\u2713 Continue" : d === "kill" ? "\u2717 Kill" : "\u21BB Pivot"}
                         </button>
@@ -2954,11 +3314,10 @@ function TaskOutcomeSection({ outcome, viewRole }: { outcome: any; viewRole: Vie
                     <button
                       key={t}
                       onClick={() => setSubmitOutcomeType(t)}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${
-                        submitOutcomeType === t
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${submitOutcomeType === t
                           ? outcomeTypeBadgeConfig[t]?.color || ""
                           : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                      }`}
+                        }`}
                     >
                       {t}
                     </button>
@@ -3331,15 +3690,13 @@ function ProjectOutcomeSection({ project, subs, viewRole }: { project: Project; 
                     return (
                       <div key={sub.id} className="relative pl-8">
                         {/* Timeline dot */}
-                        <div className={`absolute left-1.5 top-3 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${
-                          sub.status === "approved" ? "bg-emerald-500" :
-                          sub.status === "needs_revision" ? "bg-amber-500" :
-                          sub.status === "reviewed" ? "bg-purple-500" : "bg-blue-500"
-                        }`} />
+                        <div className={`absolute left-1.5 top-3 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${sub.status === "approved" ? "bg-emerald-500" :
+                            sub.status === "needs_revision" ? "bg-amber-500" :
+                              sub.status === "reviewed" ? "bg-purple-500" : "bg-blue-500"
+                          }`} />
 
-                        <div className={`rounded-lg border p-3 space-y-2 transition-colors ${
-                          sub.is_key_milestone ? "border-amber-200 bg-amber-50/20" : "border-border bg-white"
-                        }`}>
+                        <div className={`rounded-lg border p-3 space-y-2 transition-colors ${sub.is_key_milestone ? "border-amber-200 bg-amber-50/20" : "border-border bg-white"
+                          }`}>
                           {/* Header */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
@@ -3485,7 +3842,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       setDocuments(docs);
       setCheckpoints(cps);
       setProjectSubs(subs);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => { }).finally(() => setLoading(false));
   }, [id]);
 
   const [viewRole, setViewRole] = useState<ViewRole>("ceo");
@@ -3579,11 +3936,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       assignee_id: newTaskAssignees[0] || undefined,
       estimated_hours: newTaskHours || undefined,
       phase_id: newTaskPhaseId || undefined,
-    }).then(() => projectsApi.tasks(id).then(r => setTasks(r.tasks))).catch(() => {});
+    }).then(() => projectsApi.tasks(id).then(r => setTasks(r.tasks))).catch(() => { });
     setNewTaskTitle(""); setNewTaskDesc(""); setNewTaskPriority("medium"); setNewTaskStatus("planning");
     setNewTaskAssignees([]); setNewTaskHours(0); setNewTaskOutcomeType("information"); setNewTaskDeliverable("");
     setNewTaskPhaseId(""); setNewTaskStartDate(""); setNewTaskDueDate("");
     setShowAddTaskForm(false);
+  };
+
+  const refreshTasks = () => {
+    projectsApi.tasks(id).then(r => setTasks(r.tasks)).catch(() => {});
+    projectsApi.get(id).then(r => setProject(r.project)).catch(() => {});
   };
 
   const handleAddPhase = () => {
@@ -3592,8 +3954,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       project_id: project.id,
       phase_name: newPhaseName,
       description: newPhaseDesc || undefined,
+      estimated_duration: newPhaseDuration || undefined,
+      start_date: newPhaseStartDate || undefined,
+      end_date: newPhaseEndDate || undefined,
       checklist: newPhaseChecklist,
-    }).then(() => projectsApi.get(id).then(r => setProject(r.project))).catch(() => {});
+    }).then(() => projectsApi.get(id).then(r => setProject(r.project))).catch(() => { });
     setNewPhaseName(""); setNewPhaseDesc(""); setNewPhaseDuration(""); setNewPhaseChecklist([]); setNewChecklistItem("");
     setNewPhaseStartDate(""); setNewPhaseEndDate("");
     setShowAddPhaseForm(false);
@@ -3602,8 +3967,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const handleApplyAIPhases = () => {
     if (!aiSuggestedPhases) return;
     Promise.all(aiSuggestedPhases.map(p =>
-      phasesApi.create({ project_id: project.id, phase_name: p.name, description: p.description, checklist: p.checklist })
-    )).then(() => projectsApi.get(id).then(r => setProject(r.project))).catch(() => {});
+      phasesApi.create({
+        project_id: project.id,
+        phase_name: p.name,
+        description: p.description,
+        estimated_duration: p.estimatedDuration,
+        checklist: p.checklist
+      })
+    )).then(() => projectsApi.get(id).then(r => setProject(r.project))).catch(() => { });
     setAiSuggestedPhases(null);
   };
 
@@ -3653,10 +4024,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <Badge variant="outline" className={statusColors[project.status]}>
                 {project.status}
               </Badge>
-              <div className={`h-2.5 w-2.5 rounded-full ${
-                project.priority === "high" || project.priority === "critical" ? "bg-red-500" :
-                project.priority === "medium" ? "bg-amber-400" : "bg-slate-400"
-              }`} />
+              <div className={`h-2.5 w-2.5 rounded-full ${project.priority === "high" || project.priority === "critical" ? "bg-red-500" :
+                  project.priority === "medium" ? "bg-amber-400" : "bg-slate-400"
+                }`} />
             </div>
           </div>
 
@@ -3664,21 +4034,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <div className="flex items-center gap-1 rounded-lg border border-border bg-white p-0.5 shadow-sm">
             <button
               onClick={() => setViewRole("ceo")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
-                viewRole === "ceo"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${viewRole === "ceo"
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-gray-100"
-              }`}
+                }`}
             >
               <Eye className="h-3 w-3" /> CEO View
             </button>
             <button
               onClick={() => setViewRole("team_member")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
-                viewRole === "team_member"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${viewRole === "team_member"
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-gray-100"
-              }`}
+                }`}
             >
               <Settings className="h-3 w-3" /> Team View
             </button>
@@ -3703,18 +4071,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              activeTab === tab.id
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${activeTab === tab.id
                 ? "bg-blue-600 text-white shadow-sm"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+              }`}
           >
             {tab.icon}
             {tab.label}
             {tab.count !== undefined && tab.count > 0 && (
-              <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                activeTab === tab.id ? "bg-white/20" : "bg-gray-200 text-gray-700"
-              }`}>
+              <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? "bg-white/20" : "bg-gray-200 text-gray-700"
+                }`}>
                 {tab.count}
               </span>
             )}
@@ -4005,7 +4371,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           <div className="space-y-3">
             {tasks.map(task => (
-              <TaskCard key={task.id} task={task} projectId={project.id} projectTitle={project.title} viewRole={viewRole} onReviewUpdate={() => forceUpdate(prev => prev + 1)} />
+              <TaskCard key={task.id} task={task} projectId={project.id} projectTitle={project.title} viewRole={viewRole} onReviewUpdate={refreshTasks} phases={phases} />
             ))}
           </div>
         </div>
@@ -4129,85 +4495,119 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <div className="space-y-3">
               {phases.map((phase, idx) => (
                 <div key={phase.id}>
-                <Card className="p-3">
-                  {editingPhaseId === phase.id ? (
-                    <div className="space-y-3">
-                      <Input value={editPhaseName} onChange={e => setEditPhaseName(e.target.value)} className="text-sm font-medium" />
-                      <Textarea value={editPhaseDesc} onChange={e => setEditPhaseDesc(e.target.value)} className="text-xs" rows={2} />
-                      <Input value={editPhaseDuration} onChange={e => setEditPhaseDuration(e.target.value)} className="text-xs w-48" placeholder="Duration" />
-                      <div className="grid grid-cols-2 gap-2">
+                  <Card className="p-3">
+                    {editingPhaseId === phase.id ? (
+                      <div className="space-y-3">
                         <div>
-                          <label className="text-[10px] font-medium text-gray-600">Start Date</label>
-                          <Input type="date" value={editPhaseStartDate} onChange={e => setEditPhaseStartDate(e.target.value)} className="text-xs h-7 mt-0.5" />
+                          <label className="text-[10px] font-medium text-gray-600 block mb-1">Phase Name</label>
+                          <Input value={editPhaseName} onChange={e => setEditPhaseName(e.target.value)} className="text-sm font-medium" />
                         </div>
                         <div>
-                          <label className="text-[10px] font-medium text-gray-600">End Date</label>
-                          <Input type="date" value={editPhaseEndDate} onChange={e => setEditPhaseEndDate(e.target.value)} className="text-xs h-7 mt-0.5" />
+                          <label className="text-[10px] font-medium text-gray-600 block mb-1">Description</label>
+                          <Textarea value={editPhaseDesc} onChange={e => setEditPhaseDesc(e.target.value)} className="text-xs" rows={2} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-600 block mb-1">Duration</label>
+                          <Input value={editPhaseDuration} onChange={e => setEditPhaseDuration(e.target.value)} className="text-xs w-48" placeholder="e.g., 5 days" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-medium text-gray-600">Start Date</label>
+                            <Input type="date" value={editPhaseStartDate} onChange={e => setEditPhaseStartDate(e.target.value)} className="text-xs h-7 mt-0.5" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-gray-600">End Date</label>
+                            <Input type="date" value={editPhaseEndDate} onChange={e => setEditPhaseEndDate(e.target.value)} className="text-xs h-7 mt-0.5" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" className="text-xs" onClick={() => {
+                            updatePhase(project.id, phase.id, {
+                              phase_name: editPhaseName,
+                              description: editPhaseDesc,
+                              estimated_duration: editPhaseDuration,
+                              start_date: editPhaseStartDate || undefined,
+                              end_date: editPhaseEndDate || undefined
+                            }, () => projectsApi.get(id).then(r => setProject(r.project)));
+                            setEditingPhaseId(null);
+                          }}>Save</Button>
+                          <Button size="sm" variant="outline" className="text-xs" onClick={() => setEditingPhaseId(null)}>Cancel</Button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" className="text-xs" onClick={() => {
-                          updatePhase(project.id, phase.id, { name: editPhaseName, description: editPhaseDesc, estimatedDuration: editPhaseDuration, startDate: editPhaseStartDate || undefined, endDate: editPhaseEndDate || undefined });
-                          setEditingPhaseId(null);
-                          forceUpdate(prev => prev + 1);
-                        }}>Save</Button>
-                        <Button size="sm" variant="outline" className="text-xs" onClick={() => setEditingPhaseId(null)}>Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-100 rounded-full h-5 w-5 flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{phase.phase_name}</span>
-                          <Badge variant="outline" className={`text-[10px] ${
-                            phase.status === "completed" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
-                            phase.status === "active" ? "text-blue-700 bg-blue-50 border-blue-200" :
-                            "text-gray-600 bg-gray-50 border-gray-200"
-                          }`}>{phase.status}</Badge>
-                          {phase.estimated_duration && <span className="text-[10px] text-muted-foreground">{phase.estimated_duration}</span>}
-                          {phase.start_date && phase.end_date && (
-                            <span className="text-[10px] text-gray-500">
-                              {formatShortDate(phase.start_date)} → {formatShortDate(phase.end_date)}
-                            </span>
-                          )}
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 rounded-full h-5 w-5 flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{phase.phase_name}</span>
+                            <Badge variant="outline" className={`text-[10px] ${phase.status === "completed" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+                                phase.status === "active" ? "text-blue-700 bg-blue-50 border-blue-200" :
+                                  "text-gray-600 bg-gray-50 border-gray-200"
+                              }`}>{phase.status}</Badge>
+                            {phase.estimated_duration && <span className="text-[10px] text-muted-foreground">{phase.estimated_duration}</span>}
+                            {phase.start_date && phase.end_date && (
+                              <span className="text-[10px] text-gray-500">
+                                {formatShortDate(phase.start_date)} → {formatShortDate(phase.end_date)}
+                              </span>
+                            )}
+                          </div>
+                          {phase.description && <p className="text-xs text-muted-foreground mt-1">{phase.description}</p>}
                         </div>
-                        {phase.description && <p className="text-xs text-muted-foreground mt-1">{phase.description}</p>}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => { setEditingPhaseId(phase.id); setEditPhaseName(phase.phase_name); setEditPhaseDesc(phase.description || ""); setEditPhaseDuration(phase.estimated_duration || ""); setEditPhaseStartDate(phase.start_date || ""); setEditPhaseEndDate(phase.end_date || ""); }} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => { removePhase(project.id, phase.id); forceUpdate(prev => prev + 1); }} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-                {/* Tasks in this phase */}
-                {(() => {
-                  const phaseTasks = tasks.filter(t => t.phase_id === phase.id);
-                  if (phaseTasks.length === 0) return (
-                    <div className="ml-8 mb-3 mt-1 px-3 py-2 rounded border border-dashed border-gray-200 text-xs text-gray-400 flex items-center gap-1.5">
-                      <Layers className="h-3 w-3" /> No tasks defined for this phase yet
-                      <button onClick={() => { setNewTaskPhaseId(phase.id); setShowAddTaskForm(true); setActiveTab("tasks"); }} className="text-blue-600 hover:underline ml-1">+ Add task</button>
-                    </div>
-                  );
-                  return (
-                    <div className="ml-8 mb-3 mt-1 space-y-1.5">
-                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{phaseTasks.length} Task{phaseTasks.length > 1 ? "s" : ""} in this phase</p>
-                      {phaseTasks.map(task => (
-                        <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => setActiveTab("tasks")}>
-                          <div className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-emerald-500" : task.status === "in_progress" ? "bg-blue-500" : task.status === "blocked" ? "bg-red-500" : "bg-gray-300"}`} />
-                          <span className="text-xs font-medium flex-1 truncate">{task.title}</span>
-                          <Badge variant="outline" className={`text-[9px] ${statusColors[task.status]}`}>{task.status.replace("_", " ")}</Badge>
-                          {task.assignee_id && <Avatar userId={task.assignee_id} size="sm" />}
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => {
+                            setEditingPhaseId(phase.id);
+                            setEditPhaseName(phase.phase_name);
+                            setEditPhaseDesc(phase.description || "");
+                            setEditPhaseDuration(phase.estimated_duration || "");
+                            setEditPhaseStartDate(formatDateForInput(phase.start_date));
+                            setEditPhaseEndDate(formatDateForInput(phase.end_date));
+                          }} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => removePhase(project.id, phase.id, () => projectsApi.get(id).then(r => setProject(r.project)))} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                      </div>
+                    )}
+                  </Card>
+                  {/* Tasks in this phase */}
+                  {(() => {
+                    const phaseTasks = tasks.filter(t => t.phase_id === phase.id);
+                    return (
+                      <div className="ml-8 mb-3 mt-1 space-y-1.5">
+                        {phaseTasks.length > 0 && (
+                          <div className="flex items-center justify-between pr-1">
+                            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{phaseTasks.length} Task{phaseTasks.length > 1 ? "s" : ""} in this phase</p>
+                            <button
+                              onClick={() => { setNewTaskPhaseId(phase.id); setShowAddTaskForm(true); setActiveTab("tasks"); }}
+                              className="text-[10px] text-blue-600 hover:underline font-medium"
+                            >
+                              + Add task
+                            </button>
+                          </div>
+                        )}
+
+                        {phaseTasks.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {phaseTasks.map(task => (
+                              <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => setActiveTab("tasks")}>
+                                <div className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-emerald-500" : task.status === "in_progress" ? "bg-blue-500" : task.status === "blocked" ? "bg-red-500" : "bg-gray-300"}`} />
+                                <span className="text-xs font-medium flex-1 truncate">{task.title}</span>
+                                <Badge variant="outline" className={`text-[9px] ${statusColors[task.status]}`}>{task.status.replace("_", " ")}</Badge>
+                                {task.assignee_id && <Avatar userId={task.assignee_id} size="sm" />}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-3 py-2 rounded border border-dashed border-gray-200 text-xs text-gray-400 flex items-center gap-1.5">
+                            <Layers className="h-3 w-3" /> No tasks defined for this phase yet
+                            <button onClick={() => { setNewTaskPhaseId(phase.id); setShowAddTaskForm(true); setActiveTab("tasks"); }} className="text-blue-600 hover:underline ml-1">+ Add task</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

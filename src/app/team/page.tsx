@@ -163,15 +163,14 @@ export default function TeamPage() {
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={`text-[10px] ${
-                            score >= 90
+                          className={`text-[10px] ${score >= 90
                               ? "text-green-700 border-green-200 bg-green-50"
                               : score >= 80
-                              ? "text-blue-700 border-blue-200 bg-blue-50"
-                              : score >= 70
-                              ? "text-amber-700 border-amber-200 bg-amber-50"
-                              : "text-red-700 border-red-200 bg-red-50"
-                          }`}
+                                ? "text-blue-700 border-blue-200 bg-blue-50"
+                                : score >= 70
+                                  ? "text-amber-700 border-amber-200 bg-amber-50"
+                                  : "text-red-700 border-red-200 bg-red-50"
+                            }`}
                         >
                           {getScoreLabel(score)}
                         </Badge>

@@ -19,7 +19,9 @@ import {
   Clock,
   Sparkles,
   Loader2,
+  Search,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { projects as projectsApi, users as usersApi } from "@/lib/api-client";
 import type { Project, User } from "@/lib/api-client";
 
@@ -84,6 +86,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"priority" | "deadline" | "recent" | "alpha" | "progress">("priority");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -101,6 +104,18 @@ export default function ProjectsPage() {
         p.co_owners?.some(u => u.id === selectedPerson) ||
         p.assignees?.some(u => u.id === selectedPerson)
       )) return false;
+      
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesTitle = p.title.toLowerCase().includes(query);
+        const matchesRequirement = p.requirement?.toLowerCase().includes(query);
+        const matchesOwner = p.owner_name?.toLowerCase().includes(query);
+        const matchesType = p.type?.toLowerCase().includes(query);
+        if (!matchesTitle && !matchesRequirement && !matchesOwner && !matchesType) {
+          return false;
+        }
+      }
+      
       return true;
     });
 
@@ -127,7 +142,7 @@ export default function ProjectsPage() {
           return 0;
       }
     });
-  }, [projectList, typeFilter, statusFilter, selectedPerson, sortBy]);
+  }, [projectList, typeFilter, statusFilter, selectedPerson, sortBy, searchQuery]);
 
   if (loading) {
     return (
@@ -140,7 +155,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <FolderKanban className="h-7 w-7 text-blue-600" />
@@ -150,19 +165,33 @@ export default function ProjectsPage() {
             {filtered.length} project{filtered.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link href="/projects/new">
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <div className="relative w-[280px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10 border-border focus-visible:ring-blue-400"
+            />
+          </div>
+          <Link href="/projects/new">
+            <Button className="gap-2 shrink-0">
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Type" />
+          <SelectTrigger className="w-[180px]">
+            <span className="text-muted-foreground mr-1">Type:</span>
+            <SelectValue>
+              {typeFilter === "all" ? "All Types" : (typeLabels[typeFilter] || typeFilter)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
@@ -173,8 +202,11 @@ export default function ProjectsPage() {
         </Select>
 
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Status" />
+          <SelectTrigger className="w-[180px]">
+            <span className="text-muted-foreground mr-1">Status:</span>
+            <SelectValue>
+              {statusFilter === "all" ? "All Status" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
@@ -186,8 +218,11 @@ export default function ProjectsPage() {
         </Select>
 
         <Select value={selectedPerson ?? "all"} onValueChange={(v) => setSelectedPerson(v === "all" ? null : v)}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Owner / Team Member" />
+          <SelectTrigger className="w-[240px]">
+            <span className="text-muted-foreground mr-1">Owner:</span>
+            <SelectValue>
+              {selectedPerson ? userList.find(u => u.id === selectedPerson)?.name : "All Members"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Members</SelectItem>
@@ -198,8 +233,16 @@ export default function ProjectsPage() {
         </Select>
 
         <Select value={sortBy} onValueChange={(v) => v && setSortBy(v as typeof sortBy)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Sort by" />
+          <SelectTrigger className="w-[200px]">
+            <span className="text-muted-foreground mr-1">Sort:</span>
+            <SelectValue>
+              {
+                sortBy === "priority" ? "Priority" :
+                  sortBy === "deadline" ? "Deadline" :
+                    sortBy === "recent" ? "Recent" :
+                      sortBy === "alpha" ? "Alphabetical" : "Progress"
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="priority">Priority (Highest)</SelectItem>

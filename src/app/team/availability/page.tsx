@@ -120,8 +120,8 @@ export default function LeaveAvailabilityPage() {
 
   useEffect(() => {
     Promise.all([
-      usersApi.list().then(r => setUserList(r.users)).catch(() => {}),
-      leaveApi.list().then(r => setLeaveRequests(r.leave)).catch(() => {}),
+      usersApi.list().then(r => setUserList(r.users)).catch(() => { }),
+      leaveApi.list().then(r => setLeaveRequests(r.leave)).catch(() => { }),
     ]);
   }, []);
 
@@ -437,11 +437,10 @@ export default function LeaveAvailabilityPage() {
                       <Badge variant="outline" className={`text-[10px] ${statusColors[lr.status]}`}>Pending</Badge>
                       <button
                         onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
-                        className={`ml-1 p-1 rounded-md transition-colors ${
-                          analyticsUserId === lr.user_id
+                        className={`ml-1 p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
                             ? "bg-violet-100 text-violet-600"
                             : "text-gray-400 hover:bg-violet-50 hover:text-violet-500"
-                        }`}
+                          }`}
                         title={`View leave analytics for ${user?.name}`}
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -535,11 +534,10 @@ export default function LeaveAvailabilityPage() {
                       )}
                       <button
                         onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
-                        className={`p-1 rounded-md transition-colors ${
-                          analyticsUserId === lr.user_id
+                        className={`p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
                             ? "bg-violet-100 text-violet-600"
                             : "text-gray-400 hover:bg-violet-50 hover:text-violet-500"
-                        }`}
+                          }`}
                         title={`View leave analytics for ${user?.name}`}
                       >
                         <Eye className="h-3.5 w-3.5" />

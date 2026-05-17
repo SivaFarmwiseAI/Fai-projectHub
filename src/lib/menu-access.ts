@@ -98,14 +98,14 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
   },
 
   // ── Work ─────────────────────────────────────────────────────────────
-  {
-    key: "daily-standup",
-    label: "Daily Standup",
-    href: "/standup",
-    section: "Work",
-    defaultRoles: "all",
-    allowedRoles: [...ALL_ROLES],
-  },
+  // {
+  //   key: "daily-standup",
+  //   label: "Daily Standup",
+  //   href: "/standup",
+  //   section: "Work",
+  //   defaultRoles: "all",
+  //   allowedRoles: [...ALL_ROLES],
+  // },
   {
     key: "discussions",
     label: "Discussions",

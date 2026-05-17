@@ -156,6 +156,7 @@ export const phases = {
   attachments: (id: string) => get<{ attachments: PhaseAttachment[] }>(`/phases/${id}/attachments`),
   addAttachment: (id: string, data: { title: string; type?: string; url?: string }) =>
     post<{ attachment: PhaseAttachment }>(`/phases/${id}/attachments`, data),
+  delete: (id: string) => del<void>(`/phases/${id}`),
 };
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
@@ -801,7 +802,7 @@ export interface ExtractedDocument {
   priority?: string;
   timebox_days?: number;
 }
-export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[] }
+export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
 export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
 export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; target_day?: number }

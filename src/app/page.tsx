@@ -35,9 +35,9 @@ function getDaysRemaining(startDate: string | undefined, timeboxDays: number): n
 
 const PIPELINE_STAGES = [
   { label: "Kickoff / Planning", color: "#6366f1", bg: "#eef2ff" },
-  { label: "In Development",     color: "#3b82f6", bg: "#eff6ff" },
-  { label: "Review & Testing",   color: "#f59e0b", bg: "#fffbeb" },
-  { label: "Final Stage",        color: "#10b981", bg: "#f0fdf4" },
+  { label: "In Development", color: "#3b82f6", bg: "#eff6ff" },
+  { label: "Review & Testing", color: "#f59e0b", bg: "#fffbeb" },
+  { label: "Final Stage", color: "#10b981", bg: "#f0fdf4" },
 ] as const;
 
 function pipelineStage(phase: string): 0 | 1 | 2 | 3 {
@@ -50,18 +50,18 @@ function pipelineStage(phase: string): 0 | 1 | 2 | 3 {
 }
 
 const insightIcons: Record<string, React.ReactNode> = {
-  risk:        <ShieldAlert className="h-4 w-4 text-red-600" />,
-  blocker:     <AlertTriangle className="h-4 w-4 text-red-600" />,
+  risk: <ShieldAlert className="h-4 w-4 text-red-600" />,
+  blocker: <AlertTriangle className="h-4 w-4 text-red-600" />,
   opportunity: <TrendingUp className="h-4 w-4 text-green-600" />,
-  suggestion:  <Lightbulb className="h-4 w-4 text-amber-600" />,
+  suggestion: <Lightbulb className="h-4 w-4 text-amber-600" />,
   performance: <Zap className="h-4 w-4 text-blue-600" />,
 };
 
 const insightBorders: Record<string, string> = {
-  risk:        "border-red-200 bg-red-50",
-  blocker:     "border-red-200 bg-red-50",
+  risk: "border-red-200 bg-red-50",
+  blocker: "border-red-200 bg-red-50",
   opportunity: "border-green-200 bg-green-50",
-  suggestion:  "border-amber-200 bg-amber-50",
+  suggestion: "border-amber-200 bg-amber-50",
   performance: "border-blue-200 bg-blue-50",
 };
 
@@ -71,25 +71,25 @@ const priorityColors: Record<string, string> = {
 
 const typeColors: Record<string, string> = {
   engineering: "text-blue-700 border-blue-200 bg-blue-50",
-  research:    "text-purple-700 border-purple-200 bg-purple-50",
-  mixed:       "text-teal-700 border-teal-200 bg-teal-50",
-  data_science:"text-violet-700 border-violet-200 bg-violet-50",
-  design:      "text-pink-700 border-pink-200 bg-pink-50",
-  sales:       "text-orange-700 border-orange-200 bg-orange-50",
-  marketing:   "text-rose-700 border-rose-200 bg-rose-50",
-  operations:  "text-slate-700 border-slate-200 bg-slate-50",
-  hr:          "text-cyan-700 border-cyan-200 bg-cyan-50",
-  legal:       "text-gray-700 border-gray-200 bg-gray-50",
-  strategy:    "text-indigo-700 border-indigo-200 bg-indigo-50",
-  product:     "text-emerald-700 border-emerald-200 bg-emerald-50",
-  finance:     "text-amber-700 border-amber-200 bg-amber-50",
+  research: "text-purple-700 border-purple-200 bg-purple-50",
+  mixed: "text-teal-700 border-teal-200 bg-teal-50",
+  data_science: "text-violet-700 border-violet-200 bg-violet-50",
+  design: "text-pink-700 border-pink-200 bg-pink-50",
+  sales: "text-orange-700 border-orange-200 bg-orange-50",
+  marketing: "text-rose-700 border-rose-200 bg-rose-50",
+  operations: "text-slate-700 border-slate-200 bg-slate-50",
+  hr: "text-cyan-700 border-cyan-200 bg-cyan-50",
+  legal: "text-gray-700 border-gray-200 bg-gray-50",
+  strategy: "text-indigo-700 border-indigo-200 bg-indigo-50",
+  product: "text-emerald-700 border-emerald-200 bg-emerald-50",
+  finance: "text-amber-700 border-amber-200 bg-amber-50",
 };
 
 const statusColors: Record<string, string> = {
-  active:    "text-emerald-700 border-emerald-200 bg-emerald-50",
+  active: "text-emerald-700 border-emerald-200 bg-emerald-50",
   completed: "text-green-700 border-green-200 bg-green-50",
-  killed:    "text-red-700 border-red-200 bg-red-50",
-  paused:    "text-amber-700 border-amber-200 bg-amber-50",
+  killed: "text-red-700 border-red-200 bg-red-50",
+  paused: "text-amber-700 border-amber-200 bg-amber-50",
 };
 
 function StatCard({ icon, label, value, alert }: { icon: React.ReactNode; label: string; value: number; alert?: boolean }) {
@@ -134,8 +134,8 @@ export default function DashboardPage() {
       tasksApi.list().then(r => setTaskList(r.tasks)),
       usersApi.list().then(r => setUserList(r.users)),
       analytics.dashboard().then(r => setStats(r.stats)),
-      analytics.briefing().then(r => setInsights(r.insights ?? [])).catch(() => {}),
-      leaveApi.list({ status: "pending" }).then(r => setPendingLeave(r.leave)).catch(() => {}),
+      analytics.briefing().then(r => setInsights(r.insights ?? [])).catch(() => { }),
+      leaveApi.list({ status: "pending" }).then(r => setPendingLeave(r.leave)).catch(() => { }),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -288,8 +288,8 @@ export default function DashboardPage() {
 
           {/* CEO action banner — blockers + overdue */}
           {(() => {
-            const overdueCount  = pipelineProjects.filter(p => getDaysRemaining(p.start_date, p.timebox_days) < 0).length;
-            const blockedCount  = pipelineProjects.filter(p => blockedProjectIds.has(p.id)).length;
+            const overdueCount = pipelineProjects.filter(p => getDaysRemaining(p.start_date, p.timebox_days) < 0).length;
+            const blockedCount = pipelineProjects.filter(p => blockedProjectIds.has(p.id)).length;
             if (!overdueCount && !blockedCount) return null;
             return (
               <div className="flex flex-wrap gap-3">
@@ -347,21 +347,21 @@ export default function DashboardPage() {
                   {/* Project cards */}
                   <div className="space-y-2">
                     {stageProjects.map(p => {
-                      const taskCount     = p.task_count ?? 0;
-                      const completed     = p.completed_tasks ?? 0;
-                      const progress      = taskCount > 0 ? (completed / taskCount) * 100 : 0;
-                      const daysLeft      = getDaysRemaining(p.start_date, p.timebox_days);
-                      const isBlocked     = blockedProjectIds.has(p.id);
-                      const isOverdue     = daysLeft < 0;
-                      const barColor      = isBlocked ? "#ef4444" : isOverdue ? "#f59e0b" : stage.color;
+                      const taskCount = p.task_count ?? 0;
+                      const completed = p.completed_tasks ?? 0;
+                      const progress = taskCount > 0 ? (completed / taskCount) * 100 : 0;
+                      const daysLeft = getDaysRemaining(p.start_date, p.timebox_days);
+                      const isBlocked = blockedProjectIds.has(p.id);
+                      const isOverdue = daysLeft < 0;
+                      const barColor = isBlocked ? "#ef4444" : isOverdue ? "#f59e0b" : stage.color;
 
                       return (
                         <Link key={p.id} href={`/projects/${p.id}`}>
                           <div
                             className={cn(
                               "p-2.5 rounded-xl bg-white border cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all",
-                              isBlocked  ? "border-red-300"   :
-                              isOverdue  ? "border-amber-300" : "border-slate-100/80"
+                              isBlocked ? "border-red-300" :
+                                isOverdue ? "border-amber-300" : "border-slate-100/80"
                             )}
                           >
                             {/* Status badges */}
@@ -404,13 +404,13 @@ export default function DashboardPage() {
                                 className={cn(
                                   "text-[9px] font-bold",
                                   isBlocked ? "text-red-500" :
-                                  isOverdue ? "text-amber-600" : "text-slate-400"
+                                    isOverdue ? "text-amber-600" : "text-slate-400"
                                 )}
                               >
                                 {isOverdue
                                   ? `${Math.abs(daysLeft)}d over`
                                   : daysLeft === 0 ? "Due today"
-                                  : `${daysLeft}d left`}
+                                    : `${daysLeft}d left`}
                               </span>
                             </div>
                           </div>
@@ -499,11 +499,10 @@ export default function DashboardPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
-                statusFilter === s
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${statusFilter === s
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-              }`}
+                }`}
             >
               {s}
             </button>
@@ -636,11 +635,10 @@ export default function DashboardPage() {
                 <Card key={task.id} className="hover:bg-gray-50 transition-colors">
                   <CardContent className="py-3">
                     <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full shrink-0 ${
-                        task.status === "completed" ? "bg-green-500" :
-                        task.status === "blocked" ? "bg-red-500" :
-                        task.status === "in_progress" ? "bg-blue-500" : "bg-slate-400"
-                      }`} />
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" :
+                          task.status === "blocked" ? "bg-red-500" :
+                            task.status === "in_progress" ? "bg-blue-500" : "bg-slate-400"
+                        }`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{task.title}</p>
                         {project && (

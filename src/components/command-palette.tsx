@@ -29,20 +29,20 @@ type CommandResult = {
 
 /* ── Static items ────────────────────────────────────────── */
 const PAGES: CommandResult[] = [
-  { id: "p-home",       kind: "page", label: "Command Center",      sub: "Overview",          icon: LayoutDashboard, iconColor: "#3b82f6", href: "/" },
-  { id: "p-briefing",  kind: "page", label: "CEO Briefing",         sub: "Daily summary",     icon: FileText,        iconColor: "#6366f1", href: "/briefing" },
-  { id: "p-analytics", kind: "page", label: "Analytics",            sub: "Charts & KPIs",     icon: BarChart3,       iconColor: "#10b981", href: "/analytics" },
-  { id: "p-projects",  kind: "page", label: "All Projects",         sub: "Projects",          icon: FolderKanban,    iconColor: "#f59e0b", href: "/projects" },
-  { id: "p-new",       kind: "page", label: "New Project",          sub: "Create",            icon: Plus,            iconColor: "#10b981", href: "/projects/new" },
-  { id: "p-timeline",  kind: "page", label: "Timeline",             sub: "Gantt view",        icon: GanttChart,      iconColor: "#8b5cf6", href: "/projects/timeline" },
-  { id: "p-templates", kind: "page", label: "Templates",            sub: "Project templates", icon: LayoutTemplate,  iconColor: "#ec4899", href: "/templates" },
-  { id: "p-reviews",   kind: "page", label: "Review Queue",         sub: "Pending reviews",   icon: ClipboardCheck,  iconColor: "#ef4444", href: "/reviews" },
-  { id: "p-standup",   kind: "page", label: "Daily Standup",        sub: "Team standup",      icon: Activity,        iconColor: "#06b6d4", href: "/standup" },
-  { id: "p-discuss",   kind: "page", label: "Discussions",          sub: "Threads",           icon: MessageSquare,   iconColor: "#a855f7", href: "/discussions" },
-  { id: "p-team",      kind: "page", label: "Team",                 sub: "Directory",         icon: Users,           iconColor: "#f97316", href: "/team" },
-  { id: "p-avail",     kind: "page", label: "Leave & Availability", sub: "Team calendar",     icon: CalendarDays,    iconColor: "#14b8a6", href: "/team/availability" },
-  { id: "p-capture",   kind: "page", label: "AI Capture",           sub: "Smart inbox",       icon: Sparkles,        iconColor: "#3b82f6", href: "/capture" },
-  { id: "p-calendar",  kind: "page", label: "Calendar",             sub: "CEO calendar",      icon: CalendarDays,    iconColor: "#64748b", href: "/calendar" },
+  { id: "p-home", kind: "page", label: "Command Center", sub: "Overview", icon: LayoutDashboard, iconColor: "#3b82f6", href: "/" },
+  { id: "p-briefing", kind: "page", label: "CEO Briefing", sub: "Daily summary", icon: FileText, iconColor: "#6366f1", href: "/briefing" },
+  { id: "p-analytics", kind: "page", label: "Analytics", sub: "Charts & KPIs", icon: BarChart3, iconColor: "#10b981", href: "/analytics" },
+  { id: "p-projects", kind: "page", label: "All Projects", sub: "Projects", icon: FolderKanban, iconColor: "#f59e0b", href: "/projects" },
+  { id: "p-new", kind: "page", label: "New Project", sub: "Create", icon: Plus, iconColor: "#10b981", href: "/projects/new" },
+  { id: "p-timeline", kind: "page", label: "Timeline", sub: "Gantt view", icon: GanttChart, iconColor: "#8b5cf6", href: "/projects/timeline" },
+  { id: "p-templates", kind: "page", label: "Templates", sub: "Project templates", icon: LayoutTemplate, iconColor: "#ec4899", href: "/templates" },
+  { id: "p-reviews", kind: "page", label: "Review Queue", sub: "Pending reviews", icon: ClipboardCheck, iconColor: "#ef4444", href: "/reviews" },
+  // { id: "p-standup",   kind: "page", label: "Daily Standup",        sub: "Team standup",      icon: Activity,        iconColor: "#06b6d4", href: "/standup" },
+  { id: "p-discuss", kind: "page", label: "Discussions", sub: "Threads", icon: MessageSquare, iconColor: "#a855f7", href: "/discussions" },
+  { id: "p-team", kind: "page", label: "Team", sub: "Directory", icon: Users, iconColor: "#f97316", href: "/team" },
+  { id: "p-avail", kind: "page", label: "Leave & Availability", sub: "Team calendar", icon: CalendarDays, iconColor: "#14b8a6", href: "/team/availability" },
+  { id: "p-capture", kind: "page", label: "AI Capture", sub: "Smart inbox", icon: Sparkles, iconColor: "#3b82f6", href: "/capture" },
+  { id: "p-calendar", kind: "page", label: "Calendar", sub: "CEO calendar", icon: CalendarDays, iconColor: "#64748b", href: "/calendar" },
 ];
 
 const KIND_LABEL: Record<ResultKind, string> = {
@@ -114,8 +114,8 @@ export function CommandPalette() {
   useEffect(() => {
     if (!open || projectList.length > 0) return;
     Promise.all([
-      projectsApi.list().then(r => setProjectList(r.projects)).catch(() => {}),
-      usersApi.list().then(r => setUserList(r.users)).catch(() => {}),
+      projectsApi.list().then(r => setProjectList(r.projects)).catch(() => { }),
+      usersApi.list().then(r => setUserList(r.users)).catch(() => { }),
     ]);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -143,10 +143,10 @@ export function CommandPalette() {
     }));
 
     const actionItems: CommandResult[] = [
-      { id: "act-new",     kind: "action", label: "Create new project",  sub: "Open wizard",      icon: Plus,           iconColor: "#10b981", href: "/projects/new" },
-      { id: "act-review",  kind: "action", label: "Go to review queue",  sub: "Pending reviews",  icon: ClipboardCheck, iconColor: "#ef4444", href: "/reviews" },
-      { id: "act-standup", kind: "action", label: "Submit standup",      sub: "Daily check-in",   icon: Activity,       iconColor: "#06b6d4", href: "/standup" },
-      { id: "act-capture", kind: "action", label: "Open AI Capture",     sub: "Parse text notes", icon: Sparkles,       iconColor: "#6366f1", href: "/capture" },
+      { id: "act-new", kind: "action", label: "Create new project", sub: "Open wizard", icon: Plus, iconColor: "#10b981", href: "/projects/new" },
+      { id: "act-review", kind: "action", label: "Go to review queue", sub: "Pending reviews", icon: ClipboardCheck, iconColor: "#ef4444", href: "/reviews" },
+      { id: "act-standup", kind: "action", label: "Submit standup", sub: "Daily check-in", icon: Activity, iconColor: "#06b6d4", href: "/standup" },
+      { id: "act-capture", kind: "action", label: "Open AI Capture", sub: "Parse text notes", icon: Sparkles, iconColor: "#6366f1", href: "/capture" },
     ];
 
     return [...actionItems, ...PAGES, ...projectItems, ...peopleItems];
@@ -155,11 +155,11 @@ export function CommandPalette() {
   /* Filtered + ranked results */
   const results = query.trim()
     ? allItems()
-        .map(item => ({ item, s: score(item, query) }))
-        .filter(x => x.s > 0)
-        .sort((a, b) => b.s - a.s || KIND_ORDER.indexOf(a.item.kind) - KIND_ORDER.indexOf(b.item.kind))
-        .map(x => x.item)
-        .slice(0, 10)
+      .map(item => ({ item, s: score(item, query) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s || KIND_ORDER.indexOf(a.item.kind) - KIND_ORDER.indexOf(b.item.kind))
+      .map(x => x.item)
+      .slice(0, 10)
     : allItems().filter(i => i.kind === "action" || i.kind === "page").slice(0, 8);
 
   /* Navigate to selected result */

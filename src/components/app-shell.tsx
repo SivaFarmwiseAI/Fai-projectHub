@@ -15,25 +15,25 @@ const PUBLIC_ROUTES = ["/login"];
 
 /* ── Page title map ─────────────────────────────────────────── */
 const PAGE_TITLES: Record<string, string> = {
-  "/":                          "Command Center",
-  "/calendar":                  "Calendar",
-  "/projects":                  "Projects",
-  "/projects/new":              "New Project",
-  "/reviews":                   "Review Queue",
-  "/team":                      "Team",
-  "/team/manage":               "Manage Team",
-  "/team/availability":         "Leave & Availability",
-  "/capture":                   "AI Capture",
-  "/standup":                   "Daily Standup",
-  "/discussions":               "Discussions",
-  "/settings":                  "Settings",
-  "/settings/menu-access":      "Menu Access",
+  "/": "Command Center",
+  "/calendar": "Calendar",
+  "/projects": "Projects",
+  "/projects/new": "New Project",
+  "/reviews": "Review Queue",
+  "/team": "Team",
+  "/team/manage": "Manage Team",
+  "/team/availability": "Leave & Availability",
+  "/capture": "AI Capture",
+  // "/standup": "Daily Standup",
+  "/discussions": "Discussions",
+  "/settings": "Settings",
+  "/settings/menu-access": "Menu Access",
 };
 
 function getPageTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
   if (pathname.startsWith("/projects/")) return "Project Detail";
-  if (pathname.startsWith("/team/"))     return "Team Member";
+  if (pathname.startsWith("/team/")) return "Team Member";
   return "ProjectHub";
 }
 
@@ -45,19 +45,19 @@ function MobileTopBar({
   onMenuClick: () => void;
   sidebarCollapsed?: boolean;
 }) {
-  const pathname     = usePathname();
-  const { user }     = useAuth();
-  const [reviewCount, setReviewCount]   = useState(0);
+  const pathname = usePathname();
+  const { user } = useAuth();
+  const [reviewCount, setReviewCount] = useState(0);
   const [captureCount, setCaptureCount] = useState(0);
-  const totalBadge   = reviewCount + captureCount;
+  const totalBadge = reviewCount + captureCount;
 
   useEffect(() => {
     analyticsApi.dashboard().then(r => {
       setReviewCount(r.stats.pending_reviews);
       setCaptureCount(r.stats.pending_captures);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
-  const title        = getPageTitle(pathname);
+  const title = getPageTitle(pathname);
 
   return (
     <header
@@ -110,9 +110,9 @@ function MobileTopBar({
 /* ── Main AppShell ──────────────────────────────────────────── */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen]   = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
@@ -138,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-5">
           <div
             className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-glow-blue"
@@ -151,7 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <p className="text-sm text-slate-400 animate-pulse">Loading your command center…</p>
           </div>
           <div className="flex gap-1.5">
-            {[0,1,2].map((i) => (
+            {[0, 1, 2].map((i) => (
               <span
                 key={i}
                 className="h-2 w-2 rounded-full bg-blue-400 animate-bounce"
@@ -167,24 +167,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <SidebarContext.Provider value={{ mobileOpen, setMobileOpen }}>
+    <SidebarContext.Provider value={{ mobileOpen, setMobileOpen, collapsed: sidebarCollapsed, setCollapsed: setSidebarCollapsed }}>
       <TooltipProvider>
         <Sidebar />
 
         {/* Main area */}
         <div
           className={cn(
-            "flex flex-col flex-1 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "flex flex-col flex-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            pathname === "/projects/timeline" ? "h-screen overflow-hidden" : "min-h-screen",
             /* Desktop: leave room for fixed sidebar */
-            "lg:ml-64",
+            sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-64",
           )}
         >
           {/* Mobile top bar */}
           <MobileTopBar onMenuClick={() => setMobileOpen(true)} />
 
           {/* Page content */}
-          <main className="flex-1 overflow-auto bg-grid-pattern">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 lg:py-10 pb-24 lg:pb-10">
+          <main className={cn(
+            "flex-1 bg-grid-pattern flex flex-col min-h-0",
+            pathname === "/projects/timeline" ? "overflow-hidden" : "overflow-auto"
+          )}>
+            <div className={cn(
+              "mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0 w-full max-w-none",
+              pathname === "/projects/timeline" ? "py-0 pb-0" : "py-6 pb-10"
+            )}>
               <ErrorBoundary>{children}</ErrorBoundary>
             </div>
           </main>

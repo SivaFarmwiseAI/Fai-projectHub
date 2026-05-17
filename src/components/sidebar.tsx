@@ -48,7 +48,9 @@ const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
 export const SidebarContext = createContext<{
   mobileOpen: boolean;
   setMobileOpen: (v: boolean) => void;
-}>({ mobileOpen: false, setMobileOpen: () => {} });
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+}>({ mobileOpen: false, setMobileOpen: () => {}, collapsed: false, setCollapsed: () => {} });
 export const useSidebar = () => useContext(SidebarContext);
 
 /* ── Main component ─────────────────────────────────────────── */
@@ -57,13 +59,44 @@ export function Sidebar() {
   const router   = useRouter();
   const { user, logout, isCEO, isLead, isAdmin } = useAuth();
   const { menuItems } = useMenuAccess();
-  const { mobileOpen, setMobileOpen } = useSidebar();
+  const { mobileOpen, setMobileOpen, collapsed, setCollapsed } = useSidebar();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [collapsed, setCollapsed]       = useState(false);
   const [reviewCount, setReviewCount]   = useState(0);
   const [captureCount, setCaptureCount] = useState(0);
 
   const badgeCounts: Record<string, number> = { reviews: reviewCount, capture: captureCount };
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    const target = e.currentTarget;
+    sessionStorage.setItem("sidebar-scroll", String(target.scrollTop));
+    
+    // Synchronize both sidebar scrolls if they are open!
+    const navElements = document.querySelectorAll(".sidebar-nav-container");
+    navElements.forEach(el => {
+      if (el !== target) {
+        el.scrollTop = target.scrollTop;
+      }
+    });
+  };
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("sidebar-scroll");
+    const navElements = document.querySelectorAll(".sidebar-nav-container");
+    if (saved) {
+      navElements.forEach(el => {
+        el.scrollTop = Number(saved);
+      });
+    } else {
+      setTimeout(() => {
+        navElements.forEach(el => {
+          const activeEl = el.querySelector(".sidebar-nav-active");
+          if (activeEl) {
+            activeEl.scrollIntoView({ block: "nearest" });
+          }
+        });
+      }, 50);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     analyticsApi.dashboard().then(r => {
@@ -249,7 +282,10 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ───────────────── */}
-        <nav className={cn("flex-1 py-2 overflow-y-auto", collapsed ? "px-2 space-y-4" : "px-3 space-y-5")}>
+        <nav
+          onScroll={handleScroll}
+          className={cn("sidebar-nav-container flex-1 py-2 overflow-y-auto flex flex-col", collapsed ? "px-2 space-y-4" : "px-3 space-y-5")}
+        >
           {visibleSections.map((section) => (
             <div key={section.title}>
               {!collapsed && (
@@ -263,7 +299,7 @@ export function Sidebar() {
               {collapsed && (
                 <div className="h-px mx-1 mb-1.5" style={{ background: "rgba(255,255,255,0.06)" }} />
               )}
-              <div className="space-y-0.5">
+              <div className={cn("flex flex-col space-y-0.5", collapsed && "items-center")}>
                 {section.items.map((item) => (
                   <NavItem key={item.key} item={item} />
                 ))}
