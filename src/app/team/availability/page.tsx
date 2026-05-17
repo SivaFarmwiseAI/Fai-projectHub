@@ -5,18 +5,9 @@ import Link from "next/link";
 import { LeaveAnalytics } from "@/components/leave-analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import {
   ArrowLeft,
   CalendarDays,
@@ -31,13 +22,9 @@ import {
   Thermometer,
   Home,
   UserCheck,
-  Send,
-  MessageCircle,
   Hourglass,
-  Zap,
-  Link2,
-  CircleDot,
 } from "lucide-react";
+import { ScheduleDialog } from "@/components/schedule-dialog";
 import {
   users as usersApi,
   leave as leaveApi,
@@ -45,7 +32,9 @@ import {
   type LeaveRequest,
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { useAuth } from "@/contexts/auth-context";
 import { format } from "date-fns";
+import { Trash2 } from "lucide-react";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -104,36 +93,25 @@ const statusColors: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────
 
 export default function LeaveAvailabilityPage() {
+  const { user: authUser, isCEO, isAdmin } = useAuth();
   const [userList, setUserList] = useState<User[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [expandedLeave, setExpandedLeave] = useState<Set<string>>(new Set());
-  const [newLeaveType, setNewLeaveType] = useState<string>("planned");
-  const [newStartDate, setNewStartDate] = useState("");
-  const [newEndDate, setNewEndDate] = useState("");
-  const [newReason, setNewReason] = useState("");
-  const [newCoverage, setNewCoverage] = useState("");
-  const [newCoverPerson, setNewCoverPerson] = useState("");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [ceoComment, setCeoComment] = useState("");
   const [analyticsUserId, setAnalyticsUserId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
+  async function loadLeaveData() {
+    await Promise.all([
       usersApi.list().then(r => setUserList(r.users)).catch(() => { }),
       leaveApi.list().then(r => setLeaveRequests(r.leave)).catch(() => { }),
     ]);
+  }
+
+  useEffect(() => {
+    loadLeaveData();
   }, []);
 
   const userMap = Object.fromEntries(userList.map(u => [u.id, u]));
-
-  const toggleExpand = (id: string) => {
-    setExpandedLeave(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
 
   const pendingLeaves = leaveRequests.filter(lr => lr.status === "pending");
   const approvedLeaves = leaveRequests.filter(lr => lr.status === "approved");
@@ -168,33 +146,6 @@ export default function LeaveAvailabilityPage() {
     half_day: "bg-amber-500",
   };
 
-  async function handleSubmitLeave() {
-    if (!newStartDate || !newEndDate) {
-      showToast.error("Missing dates", "Please select start and end dates.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await leaveApi.create({
-        type: newLeaveType,
-        start_date: newStartDate,
-        end_date: newEndDate,
-        reason: newReason,
-        cover_person_id: newCoverPerson || undefined,
-        coverage_plan: newCoverage || undefined,
-        is_planned: newLeaveType === "planned",
-      });
-      setLeaveRequests(prev => [...prev, result.leave]);
-      showToast.success("Leave request submitted!", "Awaiting CEO approval.");
-      setShowRequestForm(false);
-      setNewReason(""); setNewCoverage(""); setNewStartDate(""); setNewEndDate(""); setNewCoverPerson("");
-    } catch {
-      showToast.error("Failed to submit leave request", "Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleApprove(lr: LeaveRequest) {
     try {
       await leaveApi.update(lr.id, { status: "approved" });
@@ -214,6 +165,23 @@ export default function LeaveAvailabilityPage() {
       setCeoComment("");
     } catch {
       showToast.error("Failed to reject leave", "Please try again.");
+    }
+  }
+
+  async function handleCancelOrDelete(lr: LeaveRequest) {
+    const isOwn = authUser?.id === lr.user_id;
+    if (!isOwn && !isAdmin && !isCEO) {
+      showToast.error("Not allowed", "You can only cancel your own leave requests.");
+      return;
+    }
+    if (!confirm(`Remove this ${lr.type.replace("_", " ")} leave request?`)) return;
+    try {
+      await leaveApi.delete(lr.id);
+      setLeaveRequests(prev => prev.filter(r => r.id !== lr.id));
+      showToast.success("Leave request removed", "The leave entry has been deleted.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again.";
+      showToast.error("Failed to remove leave", msg);
     }
   }
 
@@ -239,10 +207,17 @@ export default function LeaveAvailabilityPage() {
             Manage team leaves, see upcoming absences, and plan coverage
           </p>
         </div>
-        <Button className="gap-1.5" onClick={() => setShowRequestForm(!showRequestForm)}>
+        <Button className="gap-1.5" onClick={() => setScheduleOpen(true)}>
           <Plus className="h-4 w-4" /> Request Leave
         </Button>
       </div>
+
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        defaultTab="leave"
+        onCreated={loadLeaveData}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -336,81 +311,6 @@ export default function LeaveAvailabilityPage() {
         </CardContent>
       </Card>
 
-      {/* Leave Request Form */}
-      {showRequestForm && (
-        <Card className="border-blue-200">
-          <CardContent className="p-4 space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Plus className="h-4 w-4 text-blue-600" /> New Leave Request
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs">Leave Type</Label>
-                <Select value={newLeaveType} onValueChange={(v) => v && setNewLeaveType(v)}>
-                  <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="planned">Planned Leave</SelectItem>
-                    <SelectItem value="sick">Sick Leave</SelectItem>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="wfh">Work from Home</SelectItem>
-                    <SelectItem value="half_day">Half Day</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Start Date</Label>
-                <Input type="date" className="h-8 text-xs mt-1" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs">End Date</Label>
-                <Input type="date" className="h-8 text-xs mt-1" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-xs">Reason</Label>
-              <Input className="h-8 text-xs mt-1" placeholder="Why do you need this leave?" value={newReason} onChange={e => setNewReason(e.target.value)} />
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <h5 className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 mb-2 flex items-center gap-1">
-                <Zap className="h-3 w-3" /> Impact Analysis
-              </h5>
-              <div className="space-y-1.5 text-xs text-muted-foreground">
-                <p className="flex items-center gap-1.5"><CircleDot className="h-3 w-3 text-amber-600" /><span>Checking your active tasks and milestones...</span></p>
-                <p className="flex items-center gap-1.5"><Link2 className="h-3 w-3 text-amber-600" /><span>Analyzing dependency chains for downstream impact...</span></p>
-                <p className="flex items-center gap-1.5"><Users className="h-3 w-3 text-amber-600" /><span>Checking team availability for coverage...</span></p>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-xs">Coverage Plan <span className="text-muted-foreground">(Who will handle your work?)</span></Label>
-              <Textarea className="text-xs min-h-[50px] mt-1" placeholder="Describe who will cover your tasks and how..." value={newCoverage} onChange={e => setNewCoverage(e.target.value)} />
-            </div>
-
-            <div>
-              <Label className="text-xs">Cover Person</Label>
-              <Select value={newCoverPerson} onValueChange={(v) => v && setNewCoverPerson(v)}>
-                <SelectTrigger className="h-8 text-xs mt-1 w-[200px]"><SelectValue placeholder="Select teammate..." /></SelectTrigger>
-                <SelectContent>
-                  {userList.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.name} — {u.role}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button size="sm" className="gap-1" onClick={handleSubmitLeave} disabled={submitting}>
-                <Send className="h-3.5 w-3.5" /> Submit for Approval
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowRequestForm(false)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Pending Leave Requests — CEO Action Needed */}
       {pendingLeaves.length > 0 && (
         <div className="space-y-3">
@@ -447,6 +347,15 @@ export default function LeaveAvailabilityPage() {
                       </button>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{formatDate(lr.created_at)}</span>
+                    {(authUser?.id === lr.user_id || isAdmin || isCEO) && (
+                      <button
+                        onClick={() => handleCancelOrDelete(lr)}
+                        className="ml-1 p-1 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Cancel / delete leave"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 text-xs flex-wrap">
@@ -542,6 +451,15 @@ export default function LeaveAvailabilityPage() {
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </button>
+                      {(authUser?.id === lr.user_id || isAdmin || isCEO) && (
+                        <button
+                          onClick={() => handleCancelOrDelete(lr)}
+                          className="p-1 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                          title="Cancel / delete leave"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1.5 ml-9">{lr.reason}</p>
                     {analyticsUserId === lr.user_id && (

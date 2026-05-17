@@ -19,6 +19,8 @@ import {
 } from "@/lib/api-client";
 import type { Submission, Project } from "@/lib/api-client";
 import { formatDistanceToNow } from "date-fns";
+import { Plus } from "lucide-react";
+import { ScheduleDialog } from "@/components/schedule-dialog";
 
 const typeIcons: Record<string, React.ReactNode> = {
   code:          <Code className="h-4 w-4 text-blue-600" />,
@@ -51,12 +53,17 @@ export default function ReviewsPage() {
   const [filterProject, setFilterProject] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [sortDirection, setSortDirection] = useState<"newest" | "oldest">("newest");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
+  async function loadReviewData() {
+    await Promise.all([
       submissionsApi.list().then(r => setAllSubmissions(r.submissions)),
       projectsApi.list({ limit: 50 }).then(r => setProjectList(r.projects)),
-    ]).finally(() => setLoading(false));
+    ]);
+  }
+
+  useEffect(() => {
+    loadReviewData().finally(() => setLoading(false));
   }, []);
 
   const applyFiltersAndSort = (items: Submission[]) => {
@@ -231,13 +238,25 @@ export default function ReviewsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <ClipboardCheck className="h-7 w-7 text-amber-600" />
-          Review Queue
-        </h1>
-        <p className="text-muted-foreground mt-1">Review team submissions and provide feedback</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <ClipboardCheck className="h-7 w-7 text-amber-600" />
+            Review Queue
+          </h1>
+          <p className="text-muted-foreground mt-1">Review team submissions and provide feedback</p>
+        </div>
+        <Button className="gap-1.5 self-start" onClick={() => setScheduleOpen(true)}>
+          <Plus className="h-4 w-4" /> Schedule Review
+        </Button>
       </div>
+
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        defaultTab="review"
+        onCreated={loadReviewData}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

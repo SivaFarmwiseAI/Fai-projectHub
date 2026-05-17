@@ -301,6 +301,7 @@ class CreateDiscussionRequest(BaseModel):
     title: str
     project_id: Optional[UUID] = None
     phase_id: Optional[UUID] = None
+    scheduled_at: Optional[str] = None
 
 
 class CreateDiscussionMessageRequest(BaseModel):

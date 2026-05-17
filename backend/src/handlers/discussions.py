@@ -38,12 +38,13 @@ def _create_discussion(event, origin):
     current_user = get_current_user(event)
     body = CreateDiscussionRequest(**get_body(event))
     disc = execute_returning("""
-        INSERT INTO discussions (project_id, phase_id, title, author_id)
-        VALUES (%s,%s,%s,%s) RETURNING *
+        INSERT INTO discussions (project_id, phase_id, title, author_id, scheduled_at)
+        VALUES (%s,%s,%s,%s,%s) RETURNING *
     """, (
         str(body.project_id) if body.project_id else None,
         str(body.phase_id)   if body.phase_id   else None,
         body.title, current_user["id"],
+        body.scheduled_at,
     ))
     return resp({"discussion": disc}, 201, origin)
 
@@ -101,11 +102,26 @@ def _resolve_discussion(event, origin, discussion_id):
     return resp({"discussion": updated}, origin=origin)
 
 
+def _delete_discussion(event, origin, discussion_id):
+    current_user = get_current_user(event)
+    disc = fetchone("SELECT author_id FROM discussions WHERE id = %s", (discussion_id,))
+    if not disc:
+        raise HTTPError(404, "Discussion not found")
+    is_author = str(disc["author_id"]) == str(current_user["id"])
+    is_admin  = current_user["role_type"] in ("CEO", "Admin")
+    if not (is_author or is_admin):
+        raise HTTPError(403, "You can only delete your own discussions")
+    execute("DELETE FROM discussion_messages WHERE discussion_id = %s", (discussion_id,))
+    execute("DELETE FROM discussions WHERE id = %s", (discussion_id,))
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 # Sub-resource routes BEFORE dynamic /<discussion_id>
 handler = make_handler([
-    ("GET",   r"/api/discussions",                                               _list_discussions),
-    ("POST",  r"/api/discussions",                                               _create_discussion),
-    ("POST",  rf"/api/discussions/(?P<discussion_id>{PARAM})/messages",          _add_message),
-    ("PATCH", rf"/api/discussions/(?P<discussion_id>{PARAM})/resolve",           _resolve_discussion),
-    ("GET",   rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _get_discussion),
+    ("GET",    r"/api/discussions",                                               _list_discussions),
+    ("POST",   r"/api/discussions",                                               _create_discussion),
+    ("POST",   rf"/api/discussions/(?P<discussion_id>{PARAM})/messages",          _add_message),
+    ("PATCH",  rf"/api/discussions/(?P<discussion_id>{PARAM})/resolve",           _resolve_discussion),
+    ("GET",    rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _get_discussion),
+    ("DELETE", rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _delete_discussion),
 ])

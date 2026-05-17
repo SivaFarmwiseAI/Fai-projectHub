@@ -172,16 +172,43 @@ def _update_leave(event, origin, leave_id):
         if body.status == "approved":
             _update_availability(conn, leave["user_id"],
                                  leave["start_date"], leave["end_date"], leave_id)
+        elif body.status in ("rejected", "cancelled"):
+            cur.execute(
+                "DELETE FROM team_availability WHERE leave_request_id = %s",
+                (leave_id,),
+            )
     updated = fetchone("SELECT * FROM leave_requests WHERE id = %s", (leave_id,))
     return resp({"leave": updated}, origin=origin)
 
 
+def _delete_leave(event, origin, leave_id):
+    current_user = get_current_user(event)
+    leave = fetchone("SELECT * FROM leave_requests WHERE id = %s", (leave_id,))
+    if not leave:
+        raise HTTPError(404, "Leave request not found")
+    is_owner = str(leave["user_id"]) == str(current_user["id"])
+    is_admin = current_user["role_type"] in ("CEO", "Admin")
+    if not (is_owner or is_admin):
+        raise HTTPError(403, "You can only cancel your own leave requests")
+    if is_owner and not is_admin and leave["status"] not in ("pending", "approved"):
+        raise HTTPError(400, "Only pending or approved leave can be cancelled")
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM team_availability WHERE leave_request_id = %s",
+            (leave_id,),
+        )
+        cur.execute("DELETE FROM leave_requests WHERE id = %s", (leave_id,))
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 # Static routes BEFORE dynamic /<leave_id>
 handler = make_handler([
-    ("GET",   r"/api/leave/availability/team",              _team_availability),
-    ("GET",   r"/api/leave/analytics/summary",              _leave_analytics),
-    ("GET",   r"/api/leave",                                _list_leave),
-    ("POST",  r"/api/leave",                                _create_leave),
-    ("GET",   rf"/api/leave/(?P<leave_id>{PARAM})",         _get_leave),
-    ("PATCH", rf"/api/leave/(?P<leave_id>{PARAM})",         _update_leave),
+    ("GET",    r"/api/leave/availability/team",              _team_availability),
+    ("GET",    r"/api/leave/analytics/summary",              _leave_analytics),
+    ("GET",    r"/api/leave",                                _list_leave),
+    ("POST",   r"/api/leave",                                _create_leave),
+    ("GET",    rf"/api/leave/(?P<leave_id>{PARAM})",         _get_leave),
+    ("PATCH",  rf"/api/leave/(?P<leave_id>{PARAM})",         _update_leave),
+    ("DELETE", rf"/api/leave/(?P<leave_id>{PARAM})",         _delete_leave),
 ])

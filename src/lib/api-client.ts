@@ -221,6 +221,9 @@ export const leave = {
   get:    (id: string) => get<{ leave: LeaveRequest }>(`/leave/${id}`),
   update: (id: string, data: { status: string; cover_person_id?: string; coverage_plan?: string }) =>
     patch<{ leave: LeaveRequest }>(`/leave/${id}`, data),
+  cancel: (id: string) =>
+    patch<{ leave: LeaveRequest }>(`/leave/${id}`, { status: "cancelled" }),
+  delete: (id: string) => del<void>(`/leave/${id}`),
   availability: (start_date: string, end_date: string) =>
     get<{ availability: TeamAvailability[] }>(`/leave/availability/team?start_date=${start_date}&end_date=${end_date}`),
   analytics: () => get<{ analytics: LeaveAnalytics[] }>("/leave/analytics/summary"),
@@ -253,13 +256,14 @@ export const reviews = {
 export const discussions = {
   list:    (params?: { project_id?: string; phase_id?: string; is_resolved?: boolean }) =>
     get<{ discussions: Discussion[] }>(`/discussions${_qs(params)}`),
-  create:  (data: { project_id?: string; phase_id?: string; title: string }) =>
+  create:  (data: { project_id?: string; phase_id?: string; title: string; scheduled_at?: string }) =>
     post<{ discussion: Discussion }>("/discussions", data),
   get:     (id: string) => get<{ discussion: Discussion }>(`/discussions/${id}`),
   addMsg:  (id: string, content: string, parent_id?: string) =>
     post<{ message: DiscussionMessage }>(`/discussions/${id}/messages`, { discussion_id: id, content, parent_id }),
   resolve: (id: string) =>
     patch<{ discussion: Discussion }>(`/discussions/${id}/resolve`, {}),
+  delete:  (id: string) => del<void>(`/discussions/${id}`),
 };
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -635,6 +639,7 @@ export interface Discussion {
   author_id: string;
   author_name?: string;
   is_resolved: boolean;
+  scheduled_at?: string;
   message_count?: number;
   messages?: DiscussionMessage[];
   created_at: string;

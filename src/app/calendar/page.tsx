@@ -10,18 +10,24 @@ import {
   ChevronRight,
   Clock,
   FolderKanban,
+  Plus,
 } from "lucide-react";
+import { ScheduleDialog, type ScheduleTab } from "@/components/schedule-dialog";
 import {
   projects as projectsApi,
   tasks as tasksApi,
   leave as leaveApi,
   capture as captureApi,
   users as usersApi,
+  reviews as reviewsApi,
+  discussions as discussionsApi,
   type Project,
   type Task,
   type LeaveRequest,
   type CaptureItem,
   type User,
+  type ReviewTask,
+  type Discussion,
 } from "@/lib/api-client";
 import {
   startOfMonth,
@@ -52,6 +58,7 @@ type EventType =
   | "meeting"
   | "commitment"
   | "review"
+  | "discussion"
   | "deadline"
   | "overdue";
 
@@ -116,6 +123,13 @@ const EVENT_CONFIG: Record<
     bg: "bg-orange-50 dark:bg-orange-950",
     text: "text-orange-700 dark:text-orange-300",
   },
+  discussion: {
+    label: "Discussions",
+    color: "bg-indigo-500",
+    dot: "bg-indigo-500",
+    bg: "bg-indigo-50 dark:bg-indigo-950",
+    text: "text-indigo-700 dark:text-indigo-300",
+  },
   deadline: {
     label: "Deadlines",
     color: "bg-rose-500",
@@ -139,6 +153,7 @@ const ALL_EVENT_TYPES: EventType[] = [
   "meeting",
   "commitment",
   "review",
+  "discussion",
   "deadline",
   "overdue",
 ];
@@ -186,6 +201,8 @@ function buildCalendarEvents(
   allTasks: Task[],
   allLeaves: LeaveRequest[],
   captureItems: CaptureItem[],
+  reviewTasks: ReviewTask[],
+  discussionList: Discussion[],
   projectMap: Record<string, Project>,
 ): CalendarEvent[] {
   const events: CalendarEvent[] = [];
@@ -262,6 +279,59 @@ function buildCalendarEvents(
       meta: {
         priority: item.priority,
         status: item.status,
+      },
+    });
+  }
+
+  // 6a. Review tasks — show on due_date (or created_at if no due_date)
+  for (const review of reviewTasks) {
+    if (review.status === "completed" || review.status === "rejected") continue;
+    const targetDate =
+      safeParseDateString(review.due_date) ??
+      safeParseDateString(review.created_at);
+    if (!targetDate) continue;
+    const project = review.project_id ? projectMap[review.project_id] : undefined;
+    events.push({
+      id: `review-${review.id}`,
+      type: "review",
+      title: review.title,
+      description: review.description,
+      date: toDateKey(targetDate),
+      userId: review.assignee_id,
+      projectTitle: project?.title ?? review.project_title,
+      meta: {
+        status: review.status,
+        priority: review.priority,
+        reviewType: review.type,
+        requester: review.requester_name ?? "",
+        dueDate: review.due_date ?? "",
+      },
+    });
+  }
+
+  // 6b. Discussions — prefer scheduled_at if set; otherwise updated_at for open
+  // threads and created_at for resolved threads.
+  for (const disc of discussionList) {
+    const anchor =
+      safeParseDateString(disc.scheduled_at) ??
+      (disc.is_resolved
+        ? safeParseDateString(disc.created_at)
+        : safeParseDateString(disc.updated_at) ??
+          safeParseDateString(disc.created_at));
+    if (!anchor) continue;
+    const project = disc.project_id ? projectMap[disc.project_id] : undefined;
+    events.push({
+      id: `disc-${disc.id}`,
+      type: "discussion",
+      title: disc.title,
+      description: disc.author_name ? `Started by ${disc.author_name}` : undefined,
+      date: toDateKey(anchor),
+      userId: disc.author_id,
+      projectTitle: project?.title ?? disc.project_title,
+      meta: {
+        status: disc.is_resolved ? "resolved" : "open",
+        messageCount: String(disc.message_count ?? 0),
+        scheduled: disc.scheduled_at ? "1" : "",
       },
     });
   }
@@ -417,10 +487,38 @@ function EventDetailCard({ event }: { event: CalendarEvent }) {
               )}
             </>
           )}
-          {event.type === "review" && (
-            <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300 text-[10px] px-1.5 py-0">
-              Pending Review
-            </Badge>
+          {event.type === "review" && event.meta && (
+            <>
+              <StatusBadge status={event.meta.status} />
+              {event.meta.priority && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  {event.meta.priority}
+                </Badge>
+              )}
+              {event.meta.reviewType && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  {event.meta.reviewType}
+                </Badge>
+              )}
+            </>
+          )}
+          {event.type === "discussion" && event.meta && (
+            <>
+              <Badge
+                className={
+                  event.meta.status === "resolved"
+                    ? "bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0"
+                    : "bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0"
+                }
+              >
+                {event.meta.status}
+              </Badge>
+              {event.meta.messageCount && Number(event.meta.messageCount) > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {event.meta.messageCount} message{event.meta.messageCount !== "1" ? "s" : ""}
+                </span>
+              )}
+            </>
           )}
           {event.type === "deadline" && event.meta?.phaseStatus && (
             <StatusBadge status={event.meta.phaseStatus} />
@@ -462,6 +560,8 @@ export default function CEOCalendarPage() {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [allLeaves, setAllLeaves] = useState<LeaveRequest[]>([]);
   const [captureItems, setCaptureItems] = useState<CaptureItem[]>([]);
+  const [reviewTasks, setReviewTasks] = useState<ReviewTask[]>([]);
+  const [discussionList, setDiscussionList] = useState<Discussion[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -470,7 +570,10 @@ export default function CEOCalendarPage() {
     new Set(ALL_EVENT_TYPES)
   );
 
-  useEffect(() => {
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleTab, setScheduleTab] = useState<ScheduleTab>("leave");
+
+  const loadCalendarData = useCallback(() => {
     setLoading(true);
     Promise.all([
       projectsApi.list().then(r => r.projects),
@@ -478,13 +581,26 @@ export default function CEOCalendarPage() {
       leaveApi.list().then(r => r.leave),
       usersApi.list().then(r => r.users),
       captureApi.list().then(r => r.items).catch(() => [] as CaptureItem[]),
-    ]).then(([projs, tasks, leaves, users, caps]) => {
+      reviewsApi.list().then(r => r.reviews).catch(() => [] as ReviewTask[]),
+      discussionsApi.list().then(r => r.discussions).catch(() => [] as Discussion[]),
+    ]).then(([projs, tasks, leaves, users, caps, revs, discs]) => {
       _userMap = Object.fromEntries(users.map(u => [u.id, u]));
       setProjects(projs);
       setAllTasks(tasks);
       setAllLeaves(leaves);
       setCaptureItems(caps);
+      setReviewTasks(revs);
+      setDiscussionList(discs);
     }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadCalendarData();
+  }, [loadCalendarData]);
+
+  const openSchedule = useCallback((t: ScheduleTab) => {
+    setScheduleTab(t);
+    setScheduleOpen(true);
   }, []);
 
   const projectMap = useMemo(
@@ -493,8 +609,8 @@ export default function CEOCalendarPage() {
   );
 
   const allEvents = useMemo(
-    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, projectMap),
-    [projects, allTasks, allLeaves, captureItems, projectMap]
+    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, projectMap),
+    [projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, projectMap]
   );
 
   const eventsByDate = useMemo(() => {
@@ -513,7 +629,7 @@ export default function CEOCalendarPage() {
   const monthEventCounts = useMemo(() => {
     const counts: Record<EventType, number> = {
       deliverable: 0, leave: 0, follow_up: 0, meeting: 0,
-      commitment: 0, review: 0, deadline: 0, overdue: 0,
+      commitment: 0, review: 0, discussion: 0, deadline: 0, overdue: 0,
     };
     for (const ev of allEvents) {
       const d = safeParseDateString(ev.date);
@@ -578,22 +694,53 @@ export default function CEOCalendarPage() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">CEO Calendar</h1>
           <p className="text-gray-500 text-sm mt-0.5">All deliverables, leaves, and deadlines in one view</p>
         </div>
-        <div className="flex items-center gap-2 bg-white rounded-2xl border shadow-card px-4 py-2.5" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-          <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
-            <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            onClick={() => openSchedule("leave")}
+            className="rounded-xl gap-1.5 btn-gradient text-white text-xs font-semibold shadow-glow-blue"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Schedule
           </Button>
-          <h2 className="min-w-[150px] text-center text-base font-bold text-gray-900">
-            {format(currentMonth, "MMMM yyyy")}
-          </h2>
-          <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-          <Button variant="outline" size="sm" onClick={handleToday} className="rounded-xl border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 text-xs font-semibold">
-            Today
-          </Button>
+          <div className="flex items-center gap-2 bg-white rounded-2xl border shadow-card px-4 py-2.5" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+            <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h2 className="min-w-[150px] text-center text-base font-bold text-gray-900">
+              {format(currentMonth, "MMMM yyyy")}
+            </h2>
+            <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <Button variant="outline" size="sm" onClick={handleToday} className="rounded-xl border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 text-xs font-semibold">
+              Today
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Quick-action shortcuts under the title row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Raise:</span>
+        <Button variant="outline" size="sm" onClick={() => openSchedule("leave")} className="rounded-xl text-xs h-7 gap-1.5">
+          <Plus className="h-3 w-3" /> Leave
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => openSchedule("review")} className="rounded-xl text-xs h-7 gap-1.5">
+          <Plus className="h-3 w-3" /> Review Task
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => openSchedule("discussion")} className="rounded-xl text-xs h-7 gap-1.5">
+          <Plus className="h-3 w-3" /> Discussion
+        </Button>
+      </div>
+
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        defaultTab={scheduleTab}
+        onCreated={loadCalendarData}
+      />
 
       {loading && (
         <div className="text-center text-sm text-muted-foreground py-4">Loading calendar...</div>

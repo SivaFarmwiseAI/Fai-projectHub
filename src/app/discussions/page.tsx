@@ -1,112 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, memo } from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { useState, useEffect, useMemo, memo } from "react";
+import { formatDistanceToNow } from "date-fns";
 import {
-  MessageSquare, Pin, CheckCircle2, AlertCircle, Lightbulb,
-  Megaphone, HelpCircle, ChevronDown, ChevronUp, Send, Plus,
-  Search, X, FolderKanban, Loader2,
+  MessageSquare, CheckCircle2, ChevronDown, ChevronUp, Send, Plus,
+  Search, FolderKanban, Loader2, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { discussions as discussionsApi, projects as projectsApi } from "@/lib/api-client";
-import type { Discussion, DiscussionMessage, Project } from "@/lib/api-client";
-
-/* ─── New Discussion Form Component ─────────────────────────── */
-function NewDiscussionForm({
-  projectList,
-  onClose,
-  onSuccess
-}: {
-  projectList: Project[];
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [newThread, setNewThread] = useState({ title: "", project_id: "" });
-  const [newSubmitting, setNewSubmitting] = useState(false);
-  const [newSubmitted, setNewSubmitted] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newThread.title) return;
-    setNewSubmitting(true);
-    try {
-      await discussionsApi.create({ title: newThread.title, project_id: newThread.project_id || undefined });
-      setNewSubmitted(true);
-      onSuccess();
-    } finally {
-      setNewSubmitting(false);
-    }
-  }
-
-  if (newSubmitted) {
-    return (
-      <div className="bg-white rounded-2xl border shadow-card p-5 flex flex-col items-center py-8 gap-3 animate-scale-in" style={{ borderColor: "rgba(99,102,241,0.2)" }}>
-        <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-        <p className="font-bold text-emerald-800">Discussion started!</p>
-        <button
-          onClick={onClose}
-          className="text-sm text-emerald-600 hover:underline"
-        >
-          Close
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="bg-white rounded-2xl border shadow-card p-5 space-y-4 animate-scale-in"
-      style={{ borderColor: "rgba(99,102,241,0.2)" }}
-    >
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-slate-900">New Discussion</h3>
-        <button
-          onClick={onClose}
-          className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-gray-100 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <select
-            value={newThread.project_id}
-            onChange={e => setNewThread(f => ({ ...f, project_id: e.target.value }))}
-            className="px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 outline-none"
-          >
-            <option value="">General</option>
-            {projectList.map(p => (
-              <option key={p.id} value={p.id}>{p.title.slice(0, 30)}{p.title.length > 30 ? "…" : ""}</option>
-            ))}
-          </select>
-        </div>
-        <input
-          required
-          autoFocus
-          value={newThread.title}
-          onChange={e => setNewThread(f => ({ ...f, title: e.target.value }))}
-          placeholder="Discussion title…"
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:bg-white"
-        />
-        <div className="flex items-center gap-2 justify-end">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-gray-100 transition-colors">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={newSubmitting || !newThread.title}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {newSubmitting ? <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            Post
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
+import type { Discussion, Project } from "@/lib/api-client";
+import { ScheduleDialog } from "@/components/schedule-dialog";
 
 /* ─── Thread Card Component ─────────────────────────────────── */
 const ThreadCard = memo(function ThreadCard({
@@ -118,6 +22,8 @@ const ThreadCard = memo(function ThreadCard({
   userInitials,
   onReply,
   onResolve,
+  onDelete,
+  canDelete,
   submittingReply,
   sentReplies
 }: {
@@ -129,6 +35,8 @@ const ThreadCard = memo(function ThreadCard({
   userInitials: string;
   onReply: (id: string, text: string) => Promise<void>;
   onResolve: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  canDelete: boolean;
   submittingReply: string | null;
   sentReplies: Set<string>;
 }) {
@@ -205,6 +113,15 @@ const ThreadCard = memo(function ThreadCard({
               <MessageSquare className="h-3.5 w-3.5" />
               <span className="text-xs font-semibold">{thread.message_count ?? 0}</span>
             </div>
+            {canDelete && (
+              <button
+                onClick={() => onDelete(thread.id)}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                title="Delete discussion"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
             <button
               onClick={() => setExpandedId(isExpanded ? null : thread.id)}
               className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-gray-100 hover:text-slate-700 transition-colors"
@@ -294,7 +211,7 @@ const ThreadCard = memo(function ThreadCard({
 
 /* ─── Main Page Component ───────────────────────────────────── */
 export default function DiscussionsPage() {
-  const { user } = useAuth();
+  const { user, isCEO, isAdmin } = useAuth();
   const [threadList, setThreadList] = useState<Discussion[]>([]);
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,10 +219,10 @@ export default function DiscussionsPage() {
   const [filterProject, setFilterProject] = useState<string>("all");
   const [showResolved, setShowResolved] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showNewForm, setShowNewForm] = useState(false);
 
   const [submittingReply, setSubmittingReply] = useState<string | null>(null);
   const [sentReplies, setSentReplies] = useState<Set<string>>(new Set());
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -356,6 +273,17 @@ export default function DiscussionsPage() {
     refreshDiscussions();
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this discussion and all its replies? This cannot be undone.")) return;
+    try {
+      await discussionsApi.delete(id);
+      setThreadList(prev => prev.filter(t => t.id !== id));
+      if (expandedId === id) setExpandedId(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete discussion");
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -389,22 +317,20 @@ export default function DiscussionsPage() {
           <span className="text-sm font-semibold text-blue-700">{openCount} open</span>
         </div>
         <button
-          onClick={() => setShowNewForm(true)}
+          onClick={() => setScheduleOpen(true)}
           className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient"
         >
           <Plus className="h-4 w-4" />
-          New Discussion
+          Schedule Discussion
         </button>
       </div>
 
-      {/* New Thread Form */}
-      {showNewForm && (
-        <NewDiscussionForm
-          projectList={projectList}
-          onClose={() => setShowNewForm(false)}
-          onSuccess={refreshDiscussions}
-        />
-      )}
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        defaultTab="discussion"
+        onCreated={refreshDiscussions}
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap animate-fade-in-up stagger-2">
@@ -460,6 +386,8 @@ export default function DiscussionsPage() {
               userInitials={user?.initials ?? "?"}
               onReply={handleReply}
               onResolve={handleResolve}
+              onDelete={handleDelete}
+              canDelete={thread.author_id === user?.id || isCEO || isAdmin}
               submittingReply={submittingReply}
               sentReplies={sentReplies}
             />
