@@ -60,17 +60,23 @@ def get_conn():
 
 def _serialize(params):
     return tuple(
-        json.dumps(p) if isinstance(p, (dict, list)) else p
+        json.dumps(p) if isinstance(p, (dict)) else p
         for p in params
     )
 
 
 def _exec(cur, sql: str, params=None) -> None:
     """Execute SQL, omitting params entirely when None so pg8000 doesn't crash on len(None)."""
-    if params is not None:
-        cur.execute(sql, _serialize(params))
-    else:
-        cur.execute(sql)
+    try:
+        if params is not None:
+            cur.execute(sql, _serialize(params))
+        else:
+            cur.execute(sql)
+    except Exception as e:
+        log.error("Database execution failed: %s", str(e))
+        log.error("SQL: %s", sql)
+        log.error("Params: %s", params)
+        raise
 
 
 def execute(sql: str, params=None) -> int:

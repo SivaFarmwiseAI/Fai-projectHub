@@ -142,6 +142,8 @@ export const projects = {
   addUpdate:(id: string, data: CreateUpdatePayload) =>
     post<{ update: ProjectUpdate }>(`/projects/${id}/updates`, data),
   documents:(id: string) => get<{ documents: ProjectDocument[] }>(`/projects/${id}/documents`),
+  deleteDocument:(projectId: string, docId: string) =>
+    del<void>(`/projects/${projectId}/documents/${docId}`),
   insights: (id: string) => get<{ insights: AiInsight[] }>(`/projects/${id}/insights`),
   checkpoints:(id: string) => get<{ checkpoints: Checkpoint[] }>(`/projects/${id}/checkpoints`),
   timeline: () => get<{ projects: Project[] }>("/projects/timeline/all"),
@@ -358,6 +360,7 @@ export interface Project {
   completed_tasks?: number;
   pending_submissions?: number;
   metadata?: { document_url?: string; [key: string]: unknown };
+  document_url?: string; // write-only on PATCH/POST — attaches an uploaded file URL
   created_at: string;
   updated_at: string;
 }

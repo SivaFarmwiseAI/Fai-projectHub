@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import uuid
+from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.exceptions import ClientError
@@ -149,9 +150,20 @@ def _multipart_complete(event, origin):
     return resp({"cloudfront_url": f"https://{settings.cloudfront_domain}/{body.key}"}, origin=origin)
 
 
+def _filename_from_url(url: str) -> str:
+    try:
+        path = urlparse(url).path
+        return unquote(path.rsplit("/", 1)[-1]) or "document"
+    except Exception:
+        return "document"
+
+
 def _create_project(event, origin):
-    get_current_user(event)
-    body = CreateProjectRequest(**get_body(event))
+    current_user = get_current_user(event)
+    data = get_body(event)
+    log.info(f"DEBUG: Creating project with payload: {json.dumps(data)}")
+
+    body = CreateProjectRequest(**data)
     project_id = call_proc(
         "fn_create_project",
         body.title, body.type, body.requirement, body.objective,
@@ -169,6 +181,15 @@ def _create_project(event, origin):
             "UPDATE projects SET metadata = jsonb_set(metadata, '{document_url}', %s::jsonb) WHERE id = %s",
             (json.dumps(body.document_url), str(project_id)),
         )
+        file_name = _filename_from_url(body.document_url)
+        execute(
+            """
+            INSERT INTO project_documents
+              (project_id, type, title, status, file_url, file_name, created_by)
+            VALUES (%s, 'requirement', %s, 'active', %s, %s, %s)
+            """,
+            (str(project_id), file_name, body.document_url, file_name, current_user["id"]),
+        )
     return resp({"project": call_fn("fn_project_full", str(project_id))}, 201, origin)
 
 
@@ -181,27 +202,61 @@ def _get_project(event, origin, project_id):
 
 
 def _update_project(event, origin, project_id):
-    get_current_user(event)
+    current_user = get_current_user(event)
     body = UpdateProjectRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPError(400, "No fields to update")
+    # document_url is handled separately — it's not a column on projects
+    document_url = fields.pop("document_url", None)
     for key in ("tech_stack", "ai_plan"):
         if key in fields:
             fields[key] = json.dumps(fields[key])
-    updated = execute_returning(
-        f"UPDATE projects SET {', '.join(f'{k} = %s' for k in fields)}, updated_at = NOW() "
-        f"WHERE id = %s RETURNING id, title, status, priority, updated_at",
-        list(fields.values()) + [project_id],
-    )
-    if not updated:
-        raise HTTPError(404, "Project not found")
+    if fields:
+        updated = execute_returning(
+            f"UPDATE projects SET {', '.join(f'{k} = %s' for k in fields)}, updated_at = NOW() "
+            f"WHERE id = %s RETURNING id, title, status, priority, updated_at",
+            list(fields.values()) + [project_id],
+        )
+        if not updated:
+            raise HTTPError(404, "Project not found")
+    else:
+        updated = execute_returning(
+            "SELECT id, title, status, priority, updated_at FROM projects WHERE id = %s",
+            (project_id,),
+        )
+        if not updated:
+            raise HTTPError(404, "Project not found")
+    if document_url:
+        execute(
+            "UPDATE projects SET metadata = jsonb_set(metadata, '{document_url}', %s::jsonb) WHERE id = %s",
+            (json.dumps(document_url), project_id),
+        )
+        file_name = _filename_from_url(document_url)
+        execute(
+            """
+            INSERT INTO project_documents
+              (project_id, type, title, status, file_url, file_name, created_by)
+            VALUES (%s, 'custom', %s, 'active', %s, %s, %s)
+            """,
+            (project_id, file_name, document_url, file_name, current_user["id"]),
+        )
     return resp({"project": updated}, origin=origin)
 
 
 def _delete_project(event, origin, project_id):
     require_auth(event, "CEO", "Admin", "Team Lead")
-    if execute("DELETE FROM projects WHERE id = %s", (project_id,)) == 0:
+    try:
+        deleted = execute("DELETE FROM projects WHERE id = %s", (project_id,))
+    except Exception as e:
+        # pg8000 surfaces FK violations as a generic DatabaseError; the message
+        # contains the constraint name, which is the actionable bit for ops.
+        msg = str(e)
+        log.error("Project delete failed for %s: %s", project_id, msg)
+        if "foreign key" in msg.lower() or "violates" in msg.lower():
+            raise HTTPError(409, f"Cannot delete project — related records still reference it ({msg})")
+        raise HTTPError(500, "Failed to delete project")
+    if deleted == 0:
         raise HTTPError(404, "Project not found")
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
@@ -260,6 +315,16 @@ def _project_documents(event, origin, project_id):
     return resp({"documents": docs}, origin=origin)
 
 
+def _delete_document(event, origin, project_id, doc_id):
+    get_current_user(event)
+    if execute(
+        "DELETE FROM project_documents WHERE id = %s AND project_id = %s",
+        (doc_id, project_id),
+    ) == 0:
+        raise HTTPError(404, "Document not found")
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 def _project_insights(event, origin, project_id):
     get_current_user(event)
     insights = fetchall("""
@@ -295,6 +360,7 @@ handler = make_handler([
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/updates",      _project_updates),
     ("POST",   rf"/api/projects/(?P<project_id>{PARAM})/updates",      _create_update),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/documents",    _project_documents),
+    ("DELETE", rf"/api/projects/(?P<project_id>{PARAM})/documents/(?P<doc_id>{PARAM})", _delete_document),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/insights",     _project_insights),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/checkpoints",  _project_checkpoints),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})",              _get_project),

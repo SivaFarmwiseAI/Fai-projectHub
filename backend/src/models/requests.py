@@ -67,6 +67,7 @@ class UpdateProjectRequest(BaseModel):
     timebox_days: Optional[int] = None
     tech_stack: Optional[List[str]] = None
     ai_plan: Optional[dict] = None
+    document_url: Optional[str] = None
 
 
 class CreateProjectUpdateRequest(BaseModel):

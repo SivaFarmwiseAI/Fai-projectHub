@@ -59,7 +59,7 @@ def _list_tasks(event, origin):
     if p.get("status"):      conds.append("t.status = %s");      params.append(p["status"])
     if p.get("priority"):    conds.append("t.priority = %s");    params.append(p["priority"])
     tasks = fetchall(f"""
-        SELECT t.id, t.title, t.status, t.priority, t.assignee_id,
+        SELECT t.id, t.title, t.description, t.status, t.priority, t.assignee_id,
           t.estimated_hours, t.actual_hours, t.plan_status,
           t.review_status, t.order_index, t.phase_id, t.created_at, t.completed_at,
           u.name AS assignee_name, u.avatar_color AS assignee_color,

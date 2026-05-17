@@ -20,6 +20,7 @@ import {
   Sparkles,
   Loader2,
   Search,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { projects as projectsApi, users as usersApi } from "@/lib/api-client";
@@ -374,6 +375,23 @@ export default function ProjectsPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!confirm(`Delete project "${project.title}"? This will remove all of its tasks, phases, and documents. This cannot be undone.`)) return;
+                        projectsApi.delete(project.id)
+                          .then(() => setProjectList(prev => prev.filter(p => p.id !== project.id)))
+                          .catch(err => alert(err instanceof Error ? err.message : "Delete failed"));
+                      }}
+                      className="ml-1 p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete project"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </CardContent>
               </Card>

@@ -42,10 +42,13 @@ def _update_phase(event, origin, phase_id):
         return resp({"result": result}, origin=origin)
 
     fields: dict = {}
-    if body.status     is not None: fields["status"]     = body.status
-    if body.checklist  is not None: fields["checklist"]  = json.dumps(body.checklist)
-    if body.start_date is not None: fields["start_date"] = body.start_date
-    if body.end_date   is not None: fields["end_date"]   = body.end_date
+    if body.phase_name         is not None: fields["phase_name"]         = body.phase_name
+    if body.description        is not None: fields["description"]        = body.description
+    if body.status             is not None: fields["status"]             = body.status
+    if body.estimated_duration is not None: fields["estimated_duration"] = body.estimated_duration
+    if body.checklist          is not None: fields["checklist"]          = json.dumps(body.checklist)
+    if body.start_date         is not None: fields["start_date"]         = body.start_date
+    if body.end_date           is not None: fields["end_date"]           = body.end_date
     if not fields:
         raise HTTPError(400, "No fields to update")
     if body.status == "active":

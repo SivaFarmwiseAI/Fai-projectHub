@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, use, useEffect } from "react";
+import React, { useState, use, useEffect, useRef } from "react";
 import {
   projects as projectsApi,
   tasks as tasksApi,
   phases as phasesApi,
   users as usersApi,
   submissions as submissionsApi,
+  uploads as uploadsApi,
   type Project,
   type Task,
   type TaskMilestone,
@@ -19,6 +20,7 @@ import {
   type Deliverable,
   type ProjectDocument,
   type AiPlan,
+  ApiError,
 } from "@/lib/api-client";
 
 // Module-level user cache for sub-component lookups
@@ -42,7 +44,6 @@ function removePhase(pid: string, phaseId: string, onComplete: () => void) {
     phasesApi.delete(phaseId).then(() => onComplete()).catch(() => { });
   }
 }
-function removeDocument(_pid: string, _docId: string) { }
 function addDocument(_pid: string, _data: unknown) { }
 function updateTaskReviewStatus(_pid: string, _taskId: string, _status: string, _userId: string, _feedback?: string) { }
 function addReviewTask(_data: unknown) { }
@@ -66,7 +67,7 @@ import {
   Trophy, RotateCcw, Plus, Layers, Eye, Send, Paperclip, UserPlus,
   Settings, SwitchCamera, X, ClipboardList, Package, FileCheck, ArrowRight,
   Star, BarChart3, BookOpen, GitCommit, MessageCircle, Shield, Zap, Hash,
-  List, Flag, AlertOctagon, Lightbulb, ScrollText,
+  List, Flag, AlertOctagon, Lightbulb, ScrollText, Trash2,
 } from "lucide-react";
 
 // ─── View Role Context ────────────────────────────────────
@@ -1760,7 +1761,13 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                   <span className="max-w-[120px] truncate">{doc.title}</span>
                   <span
                     role="button"
-                    onClick={(e) => { e.stopPropagation(); removeDocument(projectId, doc.id); onUpdate?.(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!confirm(`Delete document "${doc.title}"? This cannot be undone.`)) return;
+                      projectsApi.deleteDocument(projectId, doc.id)
+                        .then(() => onUpdate?.())
+                        .catch(err => alert(err instanceof Error ? err.message : "Delete failed"));
+                    }}
                     className="ml-0.5 rounded-full hover:bg-red-100 hover:text-red-600 p-0.5 transition-colors"
                   >
                     <X className="h-2.5 w-2.5" />
@@ -1861,6 +1868,18 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">{activeDoc.description}</p>
+                {activeDoc.file_url && (
+                  <a
+                    href={activeDoc.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline"
+                  >
+                    <FileText className="h-3 w-3" />
+                    {activeDoc.file_name || "View file"}
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                )}
                 <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                   <span>Created by {getUser(activeDoc.createdBy)?.name}</span>
                   <span>&middot;</span>
@@ -3882,6 +3901,46 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editPhaseStartDate, setEditPhaseStartDate] = useState("");
   const [editPhaseEndDate, setEditPhaseEndDate] = useState("");
 
+  // Document upload state
+  const docFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
+
+  const handleDocumentUpload = async (file: File) => {
+    setDocUploadError(null);
+    setDocUploading(true);
+    try {
+      // Same flow as new-project page: upload via /projects/upload/file,
+      // then attach the returned CloudFront URL to the project via PATCH.
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const b64 = btoa(binary);
+      const { url } = await uploadsApi.uploadFile(
+        file.name,
+        file.type || "application/octet-stream",
+        b64,
+      );
+      await projectsApi.update(id, { document_url: url });
+      const { documents: refreshed } = await projectsApi.documents(id);
+      setDocuments(refreshed);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 413) {
+        setDocUploadError("File too large — max 8 MB.");
+      } else if (err instanceof ApiError && err.status === 503) {
+        setDocUploadError("File upload is not configured on the server.");
+      } else if (err instanceof Error) {
+        setDocUploadError(err.message);
+      } else {
+        setDocUploadError("Upload failed.");
+      }
+    } finally {
+      setDocUploading(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = "";
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -3992,6 +4051,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           >
             <Kanban className="h-3.5 w-3.5" /> Kanban Board
           </a>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => {
+              if (!confirm(`Delete project "${project.title}"? This will remove all of its tasks, phases, and documents. This cannot be undone.`)) return;
+              projectsApi.delete(project.id)
+                .then(() => { window.location.href = "/projects"; })
+                .catch(err => alert(err instanceof Error ? err.message : "Delete failed"));
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Delete Project
+          </Button>
         </div>
         <div className="flex items-start justify-between">
           <div>
@@ -4238,19 +4310,49 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* ═══════════════════════════════════════════════════════ */}
       {activeTab === "documents" && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-blue-600 shrink-0" />
-            <p className="text-xs text-blue-700">
-              Documents can be refined at any point during the project. Add new documents, update sections, propose changes, and track discussions — all changes are versioned and linked to tasks.
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 flex items-center gap-2 flex-1">
+              <Lightbulb className="h-4 w-4 text-blue-600 shrink-0" />
+              <p className="text-xs text-blue-700">
+                Documents can be refined at any point during the project. Add new documents, update sections, propose changes, and track discussions — all changes are versioned and linked to tasks.
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <input
+                ref={docFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) handleDocumentUpload(f);
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => docFileInputRef.current?.click()}
+                disabled={docUploading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {docUploading ? (
+                  <><Hourglass className="h-3.5 w-3.5 mr-1 animate-spin" /> Uploading…</>
+                ) : (
+                  <><Upload className="h-3.5 w-3.5 mr-1" /> Upload Document</>
+                )}
+              </Button>
+              {docUploadError && <p className="text-[10px] text-red-600">{docUploadError}</p>}
+            </div>
           </div>
 
           {documents.length > 0 ? (
-            <ProjectDocumentsSection documents={documents} viewRole={viewRole} tasks={tasks} projectId={project.id} onUpdate={() => forceUpdate(prev => prev + 1)} />
+            <ProjectDocumentsSection documents={documents} viewRole={viewRole} tasks={tasks} projectId={project.id} onUpdate={() => {
+              projectsApi.documents(project.id).then(r => setDocuments(r.documents)).catch(() => {});
+              forceUpdate(prev => prev + 1);
+            }} />
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No documents yet</p>
+              <p className="text-xs mt-1">Click "Upload Document" above to add one.</p>
             </div>
           )}
         </div>
