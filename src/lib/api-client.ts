@@ -247,8 +247,9 @@ export const reviews = {
   create: (data: CreateReviewPayload) =>
     post<{ review: ReviewTask }>("/reviews", data),
   get:    (id: string) => get<{ review: ReviewTask }>(`/reviews/${id}`),
-  update: (id: string, data: { status?: string; feedback_text?: string }) =>
+  update: (id: string, data: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string; due_date?: string; feedback_text?: string }) =>
     patch<{ review: ReviewTask }>(`/reviews/${id}`, data),
+  delete: (id: string) => del<void>(`/reviews/${id}`),
   stats:  () => get<{ stats: ReviewStats }>("/reviews/stats/summary"),
 };
 
@@ -263,6 +264,8 @@ export const discussions = {
     post<{ message: DiscussionMessage }>(`/discussions/${id}/messages`, { discussion_id: id, content, parent_id }),
   resolve: (id: string) =>
     patch<{ discussion: Discussion }>(`/discussions/${id}/resolve`, {}),
+  update:  (id: string, data: { title?: string; project_id?: string | null; phase_id?: string | null; scheduled_at?: string | null; is_resolved?: boolean }) =>
+    patch<{ discussion: Discussion }>(`/discussions/${id}`, data),
   delete:  (id: string) => del<void>(`/discussions/${id}`),
 };
 

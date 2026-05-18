@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo, memo } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   MessageSquare, CheckCircle2, ChevronDown, ChevronUp, Send, Plus,
-  Search, FolderKanban, Loader2, Trash2,
+  Search, FolderKanban, Loader2, Trash2, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { discussions as discussionsApi, projects as projectsApi } from "@/lib/api-client";
 import type { Discussion, Project } from "@/lib/api-client";
 import { ScheduleDialog } from "@/components/schedule-dialog";
+import { EditDiscussionDialog } from "@/components/edit-discussion-dialog";
 
 /* ─── Thread Card Component ─────────────────────────────────── */
 const ThreadCard = memo(function ThreadCard({
@@ -23,6 +24,8 @@ const ThreadCard = memo(function ThreadCard({
   onReply,
   onResolve,
   onDelete,
+  onEdit,
+  canEdit,
   canDelete,
   submittingReply,
   sentReplies
@@ -36,6 +39,8 @@ const ThreadCard = memo(function ThreadCard({
   onReply: (id: string, text: string) => Promise<void>;
   onResolve: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEdit: () => void;
+  canEdit: boolean;
   canDelete: boolean;
   submittingReply: string | null;
   sentReplies: Set<string>;
@@ -113,6 +118,15 @@ const ThreadCard = memo(function ThreadCard({
               <MessageSquare className="h-3.5 w-3.5" />
               <span className="text-xs font-semibold">{thread.message_count ?? 0}</span>
             </div>
+            {canEdit && (
+              <button
+                onClick={onEdit}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                title="Edit discussion"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
             {canDelete && (
               <button
                 onClick={() => onDelete(thread.id)}
@@ -223,6 +237,11 @@ export default function DiscussionsPage() {
   const [submittingReply, setSubmittingReply] = useState<string | null>(null);
   const [sentReplies, setSentReplies] = useState<Set<string>>(new Set());
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Discussion | null>(null);
+
+  function handleDiscussionSaved(updated: Discussion) {
+    setThreadList(prev => prev.map(t => (t.id === updated.id ? { ...t, ...updated } : t)));
+  }
 
   useEffect(() => {
     Promise.all([
@@ -387,6 +406,8 @@ export default function DiscussionsPage() {
               onReply={handleReply}
               onResolve={handleResolve}
               onDelete={handleDelete}
+              onEdit={() => setEditTarget(thread)}
+              canEdit={thread.author_id === user?.id || isCEO || isAdmin}
               canDelete={thread.author_id === user?.id || isCEO || isAdmin}
               submittingReply={submittingReply}
               sentReplies={sentReplies}
@@ -394,6 +415,13 @@ export default function DiscussionsPage() {
           ))
         )}
       </div>
+
+      <EditDiscussionDialog
+        open={!!editTarget}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+        discussion={editTarget}
+        onSaved={handleDiscussionSaved}
+      />
     </div>
   );
 }

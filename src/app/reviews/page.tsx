@@ -11,16 +11,17 @@ import { Separator } from "@/components/ui/separator";
 import {
   ClipboardCheck, Code, FileText, BookOpen, Presentation,
   MessageSquare, Users, Sparkles, Loader2, Send,
-  ArrowRight, CheckCircle2, Clock,
+  ArrowRight, CheckCircle2, Clock, Pencil, Trash2, Eye,
 } from "lucide-react";
 import {
   submissions as submissionsApi, feedback as feedbackApi,
-  projects as projectsApi,
+  projects as projectsApi, reviews as reviewsApi,
 } from "@/lib/api-client";
-import type { Submission, Project } from "@/lib/api-client";
-import { formatDistanceToNow } from "date-fns";
+import type { Submission, Project, ReviewTask } from "@/lib/api-client";
+import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
 import { ScheduleDialog } from "@/components/schedule-dialog";
+import { EditReviewDialog } from "@/components/edit-review-dialog";
 
 const typeIcons: Record<string, React.ReactNode> = {
   code:          <Code className="h-4 w-4 text-blue-600" />,
@@ -54,12 +55,40 @@ export default function ReviewsPage() {
   const [filterType, setFilterType] = useState("all");
   const [sortDirection, setSortDirection] = useState<"newest" | "oldest">("newest");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [reviewTasks, setReviewTasks] = useState<ReviewTask[]>([]);
+  const [editTarget, setEditTarget] = useState<ReviewTask | null>(null);
+  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
 
   async function loadReviewData() {
     await Promise.all([
       submissionsApi.list().then(r => setAllSubmissions(r.submissions)),
       projectsApi.list({ limit: 50 }).then(r => setProjectList(r.projects)),
+      reviewsApi.list().then(r => setReviewTasks(r.reviews)).catch(() => setReviewTasks([])),
     ]);
+  }
+
+  async function handleDeleteReview(rev: ReviewTask) {
+    if (!confirm(`Delete review task "${rev.title}"?`)) return;
+    try {
+      await reviewsApi.delete(rev.id);
+      setReviewTasks(prev => prev.filter(r => r.id !== rev.id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete review");
+    }
+  }
+
+  async function handleViewReview(rev: ReviewTask) {
+    setExpandedReviewId(prev => (prev === rev.id ? null : rev.id));
+    try {
+      const { review } = await reviewsApi.get(rev.id);
+      setReviewTasks(prev => prev.map(r => (r.id === rev.id ? review : r)));
+    } catch {
+      // best-effort refresh
+    }
+  }
+
+  function handleReviewSaved(updated: ReviewTask) {
+    setReviewTasks(prev => prev.map(r => (r.id === updated.id ? updated : r)));
   }
 
   useEffect(() => {
@@ -297,6 +326,14 @@ export default function ReviewsPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="all">All Submissions</TabsTrigger>
+          <TabsTrigger value="tasks">
+            Review Tasks
+            {reviewTasks.length > 0 && (
+              <span className="ml-1.5 flex items-center justify-center h-5 min-w-[20px] rounded-full bg-blue-500 text-[10px] font-bold text-white px-1.5">
+                {reviewTasks.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-4 space-y-4">
@@ -312,7 +349,122 @@ export default function ReviewsPage() {
         <TabsContent value="all" className="mt-4 space-y-4">
           {allFiltered.map(s => renderCard(s, false))}
         </TabsContent>
+        <TabsContent value="tasks" className="mt-4 space-y-3">
+          {reviewTasks.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <ClipboardCheck className="h-8 w-8 mx-auto mb-2 text-blue-400" />
+              <p className="text-sm">No review tasks yet.</p>
+              <p className="text-xs mt-1">Click <span className="font-semibold">Schedule Review</span> above to add one.</p>
+            </div>
+          ) : (
+            reviewTasks.map(rt => (
+              <ReviewTaskCard
+                key={rt.id}
+                review={rt}
+                expanded={expandedReviewId === rt.id}
+                onView={() => handleViewReview(rt)}
+                onEdit={() => setEditTarget(rt)}
+                onDelete={() => handleDeleteReview(rt)}
+              />
+            ))
+          )}
+        </TabsContent>
       </Tabs>
+
+      <EditReviewDialog
+        open={!!editTarget}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+        review={editTarget}
+        onSaved={handleReviewSaved}
+      />
     </div>
+  );
+}
+
+/* ───────── Review Task Card ───────── */
+function ReviewTaskCard({
+  review, expanded, onView, onEdit, onDelete,
+}: {
+  review: ReviewTask;
+  expanded: boolean;
+  onView: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const statusColors: Record<string, string> = {
+    pending:     "text-amber-700 border-amber-200 bg-amber-50",
+    in_progress: "text-blue-700 border-blue-200 bg-blue-50",
+    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50",
+    rejected:    "text-red-700 border-red-200 bg-red-50",
+  };
+  const priorityColors: Record<string, string> = {
+    high:   "text-red-700 border-red-200 bg-red-50",
+    medium: "text-amber-700 border-amber-200 bg-amber-50",
+    low:    "text-slate-700 border-slate-200 bg-slate-50",
+  };
+  return (
+    <Card>
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <ClipboardCheck className="h-4 w-4 text-blue-500 mt-1 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-medium text-sm">{review.title}</h3>
+              <Badge variant="outline" className={statusColors[review.status] ?? ""}>
+                {review.status.replace(/_/g, " ")}
+              </Badge>
+              <Badge variant="outline" className={priorityColors[review.priority] ?? ""}>
+                {review.priority}
+              </Badge>
+              <Badge variant="outline">{review.type}</Badge>
+            </div>
+            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
+              {review.assignee_name && <span>Assigned: {review.assignee_name}</span>}
+              {review.requester_name && <span>By: {review.requester_name}</span>}
+              {review.project_title && <span>Project: {review.project_title}</span>}
+              {review.due_date && (
+                <span className="text-amber-700 font-medium">
+                  Due {format(new Date(review.due_date), "MMM d, yyyy")}
+                </span>
+              )}
+              <span>Created {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onView} title="View">
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit} title="Edit">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+              onClick={onDelete}
+              title="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="pl-7 space-y-2 border-t pt-3">
+            {review.description ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{review.description}</p>
+            ) : (
+              <p className="text-xs italic text-muted-foreground">No description.</p>
+            )}
+            {review.feedback_text && (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-[10px] font-semibold uppercase text-blue-600 mb-1">Feedback</p>
+                <p className="text-sm whitespace-pre-line">{review.feedback_text}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

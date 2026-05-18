@@ -309,6 +309,14 @@ class CreateDiscussionMessageRequest(BaseModel):
     parent_id: Optional[UUID] = None
 
 
+class UpdateDiscussionRequest(BaseModel):
+    title: Optional[str] = None
+    project_id: Optional[UUID] = None
+    phase_id: Optional[UUID] = None
+    scheduled_at: Optional[str] = None
+    is_resolved: Optional[bool] = None
+
+
 # ── AI ────────────────────────────────────────────────────────────────────────
 
 class GeneratePlanRequest(BaseModel):

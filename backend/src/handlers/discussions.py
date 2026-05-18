@@ -5,7 +5,11 @@ from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
-from ..models.requests import CreateDiscussionMessageRequest, CreateDiscussionRequest
+from ..models.requests import (
+    CreateDiscussionMessageRequest,
+    CreateDiscussionRequest,
+    UpdateDiscussionRequest,
+)
 
 log = logging.getLogger(__name__)
 
@@ -102,6 +106,33 @@ def _resolve_discussion(event, origin, discussion_id):
     return resp({"discussion": updated}, origin=origin)
 
 
+def _update_discussion(event, origin, discussion_id):
+    current_user = get_current_user(event)
+    disc = fetchone("SELECT author_id FROM discussions WHERE id = %s", (discussion_id,))
+    if not disc:
+        raise HTTPError(404, "Discussion not found")
+    is_author = str(disc["author_id"]) == str(current_user["id"])
+    is_admin  = current_user["role_type"] in ("CEO", "Admin")
+    if not (is_author or is_admin):
+        raise HTTPError(403, "You can only edit your own discussions")
+    body = UpdateDiscussionRequest(**get_body(event))
+    fields: dict = {}
+    if body.title        is not None: fields["title"]        = body.title
+    if body.project_id   is not None: fields["project_id"]   = str(body.project_id)
+    if body.phase_id     is not None: fields["phase_id"]     = str(body.phase_id)
+    if body.scheduled_at is not None: fields["scheduled_at"] = body.scheduled_at or None
+    if body.is_resolved  is not None: fields["is_resolved"]  = body.is_resolved
+    if not fields:
+        raise HTTPError(400, "No fields to update")
+    set_clause = ", ".join(f"{k} = %s" for k in fields)
+    params = list(fields.values()) + [discussion_id]
+    updated = execute_returning(
+        f"UPDATE discussions SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *",
+        params,
+    )
+    return resp({"discussion": updated}, origin=origin)
+
+
 def _delete_discussion(event, origin, discussion_id):
     current_user = get_current_user(event)
     disc = fetchone("SELECT author_id FROM discussions WHERE id = %s", (discussion_id,))
@@ -123,5 +154,6 @@ handler = make_handler([
     ("POST",   rf"/api/discussions/(?P<discussion_id>{PARAM})/messages",          _add_message),
     ("PATCH",  rf"/api/discussions/(?P<discussion_id>{PARAM})/resolve",           _resolve_discussion),
     ("GET",    rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _get_discussion),
+    ("PATCH",  rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _update_discussion),
     ("DELETE", rf"/api/discussions/(?P<discussion_id>{PARAM})",                   _delete_discussion),
 ])
