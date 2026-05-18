@@ -256,6 +256,13 @@ Resources:
       LogGroupName: !Sub /aws/lambda/projecthub-leave-${Env}
       RetentionInDays: 30
 
+  CommitmentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/projecthub-commitments-${Env}
+      RetentionInDays: 30
+
   # ── Lambda Functions ────────────────────────────────────────────────────────
   #
   # Each function owns a single API domain. Routes within the domain are
@@ -632,6 +639,31 @@ Resources:
           Properties:
             RestApiId: !Ref Api
             Path: /api/leave/{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: python3.10
+
+  # ── Commitments ─────────────────────────────────────────────────────────────
+
+  CommitmentsFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: CommitmentsLogGroup
+    Properties:
+      FunctionName: !Sub projecthub-commitments-${Env}
+      Handler: src.handlers.commitments.handler
+      Description: /api/commitments – team commitments with from/to date windows
+      Events:
+        CommitmentsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/commitments
+            Method: ANY
+        CommitmentsProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/commitments/{proxy+}
             Method: ANY
     Metadata:
       BuildMethod: python3.10

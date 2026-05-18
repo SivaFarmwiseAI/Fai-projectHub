@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user, require_auth
 from ..config import get_settings
-from ..database import call_fn, call_proc, execute, execute_returning, fetchall
+from ..database import call_fn, call_proc, execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
 from ..models.requests import (
     CreateProjectRequest, CreateProjectUpdateRequest, UpdateProjectRequest,
@@ -176,6 +176,11 @@ def _create_project(event, origin):
     )
     if not project_id:
         raise HTTPError(500, "Project creation failed")
+    if body.end_date:
+        execute(
+            "UPDATE projects SET end_date = %s WHERE id = %s",
+            (body.end_date, str(project_id)),
+        )
     if body.document_url:
         execute(
             "UPDATE projects SET metadata = jsonb_set(metadata, '{document_url}', %s::jsonb) WHERE id = %s",
@@ -244,6 +249,76 @@ def _update_project(event, origin, project_id):
     return resp({"project": updated}, origin=origin)
 
 
+def _can_manage_team(current_user, project_id):
+    if current_user["role_type"] in ("CEO", "Admin"):
+        return True
+    owner = fetchone("SELECT owner_id FROM projects WHERE id = %s", (project_id,))
+    if not owner:
+        raise HTTPError(404, "Project not found")
+    return str(owner["owner_id"]) == str(current_user["id"])
+
+
+def _add_project_assignee(event, origin, project_id):
+    current_user = get_current_user(event)
+    if not _can_manage_team(current_user, project_id):
+        raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
+    body = get_body(event)
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPError(400, "user_id is required")
+    if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
+        raise HTTPError(404, "User not found")
+    execute(
+        "INSERT INTO project_assignees (project_id, user_id) VALUES (%s, %s) "
+        "ON CONFLICT DO NOTHING",
+        (project_id, user_id),
+    )
+    return resp({"project_id": project_id, "user_id": user_id, "role": "assignee"}, 201, origin)
+
+
+def _remove_project_assignee(event, origin, project_id, user_id):
+    current_user = get_current_user(event)
+    if not _can_manage_team(current_user, project_id):
+        raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
+    owner = fetchone("SELECT owner_id FROM projects WHERE id = %s", (project_id,))
+    if owner and str(owner["owner_id"]) == str(user_id):
+        raise HTTPError(400, "Cannot remove project owner. Transfer ownership first.")
+    execute(
+        "DELETE FROM project_assignees WHERE project_id = %s AND user_id = %s",
+        (project_id, user_id),
+    )
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
+def _add_project_co_owner(event, origin, project_id):
+    current_user = get_current_user(event)
+    if not _can_manage_team(current_user, project_id):
+        raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
+    body = get_body(event)
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPError(400, "user_id is required")
+    if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
+        raise HTTPError(404, "User not found")
+    execute(
+        "INSERT INTO project_co_owners (project_id, user_id) VALUES (%s, %s) "
+        "ON CONFLICT DO NOTHING",
+        (project_id, user_id),
+    )
+    return resp({"project_id": project_id, "user_id": user_id, "role": "co_owner"}, 201, origin)
+
+
+def _remove_project_co_owner(event, origin, project_id, user_id):
+    current_user = get_current_user(event)
+    if not _can_manage_team(current_user, project_id):
+        raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
+    execute(
+        "DELETE FROM project_co_owners WHERE project_id = %s AND user_id = %s",
+        (project_id, user_id),
+    )
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 def _delete_project(event, origin, project_id):
     require_auth(event, "CEO", "Admin", "Team Lead")
     try:
@@ -265,12 +340,20 @@ def _project_tasks(event, origin, project_id):
     get_current_user(event)
     tasks = fetchall("""
         SELECT
-          t.id, t.title, t.status, t.priority, t.assignee_id,
-          t.estimated_hours, t.actual_hours, t.plan_status,
+          t.id, t.title, t.description, t.approach, t.status, t.priority,
+          t.assignee_id, t.estimated_hours, t.actual_hours, t.plan_status,
           t.review_status, t.order_index, t.phase_id, t.created_at, t.completed_at,
           u.name AS assignee_name, u.avatar_color AS assignee_color, ph.phase_name,
           (SELECT COUNT(*) FROM task_steps ts WHERE ts.task_id = t.id) AS step_count,
-          (SELECT COUNT(*) FROM task_milestones tm WHERE tm.task_id = t.id) AS milestone_count
+          (SELECT COUNT(*) FROM task_milestones tm WHERE tm.task_id = t.id) AS milestone_count,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', au.id, 'name', au.name, 'avatar_color', au.avatar_color,
+              'role', au.role, 'department', au.department
+            ) ORDER BY au.name)
+            FROM task_assignees ta JOIN users au ON au.id = ta.user_id
+            WHERE ta.task_id = t.id
+          ), '[]'::JSON) AS assignees
         FROM tasks t
         LEFT JOIN users u  ON u.id  = t.assignee_id
         LEFT JOIN phases ph ON ph.id = t.phase_id
@@ -363,6 +446,10 @@ handler = make_handler([
     ("DELETE", rf"/api/projects/(?P<project_id>{PARAM})/documents/(?P<doc_id>{PARAM})", _delete_document),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/insights",     _project_insights),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})/checkpoints",  _project_checkpoints),
+    ("POST",   rf"/api/projects/(?P<project_id>{PARAM})/assignees",    _add_project_assignee),
+    ("DELETE", rf"/api/projects/(?P<project_id>{PARAM})/assignees/(?P<user_id>{PARAM})", _remove_project_assignee),
+    ("POST",   rf"/api/projects/(?P<project_id>{PARAM})/co-owners",    _add_project_co_owner),
+    ("DELETE", rf"/api/projects/(?P<project_id>{PARAM})/co-owners/(?P<user_id>{PARAM})", _remove_project_co_owner),
     ("GET",    rf"/api/projects/(?P<project_id>{PARAM})",              _get_project),
     ("PATCH",  rf"/api/projects/(?P<project_id>{PARAM})",              _update_project),
     ("DELETE", rf"/api/projects/(?P<project_id>{PARAM})",              _delete_project),

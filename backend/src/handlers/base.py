@@ -104,6 +104,16 @@ def make_handler(routes: List[Tuple[str, str, Callable]]):
             return err(e.status_code, e.message, origin)
         except Exception as e:
             log.exception(f"Unhandled error on {method} {path}: {e}")
+            # Surface the underlying exception so the client can see what broke
+            # without having to dig into Lambda logs. The full traceback is still
+            # captured by log.exception above; only the message goes to the body.
+            try:
+                from ..config import get_settings
+                cfg = get_settings()
+                if cfg.environment != "prod":
+                    return err(500, f"Internal server error: {type(e).__name__}: {e}", origin)
+            except Exception:
+                pass
             return err(500, "Internal server error", origin)
 
     return handler

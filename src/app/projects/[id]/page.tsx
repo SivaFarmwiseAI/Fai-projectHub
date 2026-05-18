@@ -22,6 +22,8 @@ import {
   type AiPlan,
   ApiError,
 } from "@/lib/api-client";
+import { ManageTeamDialog } from "@/components/manage-team-dialog";
+import { showToast } from "@/lib/toast";
 
 // Module-level user cache for sub-component lookups
 let _userMap: Record<string, User> = {};
@@ -37,12 +39,27 @@ function generateAIPhases(_type: string, _title: string) { return [] as { name: 
 function addTask(_pid: string, _data: unknown) { }
 function addPhase(_pid: string, _data: unknown) { }
 function updatePhase(pid: string, phaseId: string, data: Partial<Phase>, onComplete: () => void) {
-  phasesApi.update(phaseId, data).then(() => onComplete()).catch(() => { });
+  phasesApi.update(phaseId, data)
+    .then(() => {
+      showToast.success("Phase updated");
+      onComplete();
+    })
+    .catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      showToast.error("Failed to update phase", msg);
+    });
 }
 function removePhase(pid: string, phaseId: string, onComplete: () => void) {
-  if (confirm("Are you sure you want to remove this phase?")) {
-    phasesApi.delete(phaseId).then(() => onComplete()).catch(() => { });
-  }
+  if (!confirm("Are you sure you want to remove this phase? Tasks in this phase will be unassigned (not deleted).")) return;
+  phasesApi.delete(phaseId)
+    .then(() => {
+      showToast.success("Phase deleted");
+      onComplete();
+    })
+    .catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      showToast.error("Failed to delete phase", msg);
+    });
 }
 function addDocument(_pid: string, _data: unknown) { }
 function updateTaskReviewStatus(_pid: string, _taskId: string, _status: string, _userId: string, _feedback?: string) { }
@@ -791,6 +808,9 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
   const [editStatus, setEditStatus] = useState(task.status);
   const [editHours, setEditHours] = useState(task.estimated_hours ?? 0);
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignee_id ?? "");
+  const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
+    task.assignees?.map(a => a.id) ?? (task.assignee_id ? [task.assignee_id] : [])
+  );
   const [editPhaseId, setEditPhaseId] = useState(task.phase_id ?? "");
 
   useEffect(() => {
@@ -800,8 +820,13 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
     setEditStatus(task.status);
     setEditHours(task.estimated_hours ?? 0);
     setEditAssigneeId(task.assignee_id ?? "");
+    setEditAssigneeIds(task.assignees?.map(a => a.id) ?? (task.assignee_id ? [task.assignee_id] : []));
     setEditPhaseId(task.phase_id ?? "");
   }, [task, isEditing]);
+
+  const toggleEditAssignee = (uid: string) => {
+    setEditAssigneeIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+  };
 
   const assignee = getUser(task.assignee_id ?? "");
   const completedSteps = (task.steps ?? []).filter(s => s.status === "completed").length;
@@ -907,21 +932,39 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Assignee Selection */}
+            {/* Multi-Assignee Selection */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Assignee</label>
-              <select
-                value={editAssigneeId}
-                onChange={e => setEditAssigneeId(e.target.value)}
-                className="flex h-8 w-full rounded-md border border-gray-200 bg-background px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
-              >
-                <option value="">Unassigned</option>
-                {Object.values(_userMap).map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role})
-                  </option>
-                ))}
-              </select>
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+                Assignees {editAssigneeIds.length > 0 && <span className="text-blue-600 font-semibold">({editAssigneeIds.length})</span>}
+              </label>
+              <div className="max-h-32 overflow-y-auto rounded-md border border-gray-200 p-1.5 space-y-0.5 bg-white">
+                {Object.values(_userMap).map(u => {
+                  const checked = editAssigneeIds.includes(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                        checked ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50 border border-transparent"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleEditAssignee(u.id)}
+                        className="h-3.5 w-3.5"
+                      />
+                      <div
+                        className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: u.avatar_color }}
+                      >
+                        {u.name[0]}
+                      </div>
+                      <span className="truncate">{u.name}</span>
+                      <span className="text-[10px] text-gray-400 ml-auto">{u.role}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Phase Selection */}
@@ -948,20 +991,32 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
           <div className="flex gap-2 pt-2 border-t border-border mt-3">
             <Button
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 if (!editTitle.trim()) return;
-                tasksApi.update(task.id, {
-                  title: editTitle,
-                  description: editDesc || undefined,
-                  priority: editPriority,
-                  status: editStatus,
-                  estimated_hours: editHours || undefined,
-                  assignee_id: editAssigneeId || undefined,
-                  phase_id: editPhaseId || undefined,
-                }).then(() => {
+                try {
+                  const primary = editAssigneeIds[0] ?? "";
+                  await tasksApi.update(task.id, {
+                    title: editTitle,
+                    description: editDesc || undefined,
+                    priority: editPriority,
+                    status: editStatus,
+                    estimated_hours: editHours || undefined,
+                    assignee_id: primary || undefined,
+                    phase_id: editPhaseId || undefined,
+                  });
+                  // Sync the assignee set: diff old vs new and call add/remove.
+                  const previous = new Set(task.assignees?.map(a => a.id) ?? (task.assignee_id ? [task.assignee_id] : []));
+                  const next = new Set(editAssigneeIds);
+                  const toAdd = [...next].filter(id => !previous.has(id));
+                  const toRemove = [...previous].filter(id => !next.has(id));
+                  await Promise.all([
+                    ...toAdd.map(uid => tasksApi.addAssignee(task.id, uid)),
+                    ...toRemove.map(uid => tasksApi.removeAssignee(task.id, uid)),
+                  ]);
+                  setEditAssigneeId(primary);
                   setIsEditing(false);
                   onReviewUpdate?.();
-                }).catch(() => { });
+                } catch { /* surfaced via toast in caller */ }
               }}
               disabled={!editTitle.trim()}
               className="gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white h-7"
@@ -1045,25 +1100,46 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
             <p className="text-xs font-bold">{hoursCompleted}/{task.estimated_hours}h</p>
             <p className="text-[9px] text-muted-foreground">hours</p>
           </div>
-          {/* Assignee (clickable to edit) */}
-          {assignee && (
-            <div className="relative">
-              <button
-                className="flex items-center gap-1.5 hover:ring-2 hover:ring-blue-300 rounded-full transition-all pr-1"
-                onClick={(e) => { e.stopPropagation(); setShowAssigneeEditor(!showAssigneeEditor); }}
-                title="Click to modify assignment"
-              >
-                <Avatar userId={task.assignee_id ?? ""} size="sm" />
-                <span className="text-xs text-muted-foreground hidden lg:inline">{assignee?.name}</span>
-                <UserPlus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              {showAssigneeEditor && (
-                <div className="absolute top-9 right-0 z-20" onClick={e => e.stopPropagation()}>
-                  <AssigneeEditor assigneeIds={task.assignee_id ? [task.assignee_id] : []} onClose={() => setShowAssigneeEditor(false)} />
-                </div>
-              )}
-            </div>
-          )}
+          {/* Assignees (clickable to edit) — shows stacked avatars when there are multiple */}
+          {(() => {
+            const allAssignees = task.assignees && task.assignees.length > 0
+              ? task.assignees.map(a => a.id)
+              : (task.assignee_id ? [task.assignee_id] : []);
+            if (allAssignees.length === 0) return null;
+            const primary = getUser(allAssignees[0]);
+            const extra = allAssignees.length - 1;
+            return (
+              <div className="relative">
+                <button
+                  className="flex items-center gap-1.5 hover:ring-2 hover:ring-blue-300 rounded-full transition-all pr-1"
+                  onClick={(e) => { e.stopPropagation(); setShowAssigneeEditor(!showAssigneeEditor); }}
+                  title={`Assignees: ${allAssignees.map(id => getUser(id)?.name).filter(Boolean).join(", ")}`}
+                >
+                  <div className="flex -space-x-1.5">
+                    {allAssignees.slice(0, 3).map(uid => (
+                      <div key={uid} className="ring-2 ring-white rounded-full">
+                        <Avatar userId={uid} size="sm" />
+                      </div>
+                    ))}
+                  </div>
+                  {extra > 0 && (
+                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1 rounded">
+                      +{extra}
+                    </span>
+                  )}
+                  {extra === 0 && (
+                    <span className="text-xs text-muted-foreground hidden lg:inline">{primary?.name}</span>
+                  )}
+                  <UserPlus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+                {showAssigneeEditor && (
+                  <div className="absolute top-9 right-0 z-20" onClick={e => e.stopPropagation()}>
+                    <AssigneeEditor assigneeIds={allAssignees} onClose={() => setShowAssigneeEditor(false)} />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </div>
       </div>
@@ -3878,6 +3954,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high">("medium");
   const [newTaskStatus, setNewTaskStatus] = useState<"planning" | "in_progress">("planning");
   const [newTaskAssignees, setNewTaskAssignees] = useState<string[]>([]);
+  const [manageTeamOpen, setManageTeamOpen] = useState(false);
   const [newTaskHours, setNewTaskHours] = useState<number>(0);
   const [newTaskOutcomeType, setNewTaskOutcomeType] = useState<OutcomeType>("information");
   const [newTaskDeliverable, setNewTaskDeliverable] = useState("");
@@ -3993,6 +4070,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       description: newTaskDesc || undefined,
       priority: newTaskPriority,
       assignee_id: newTaskAssignees[0] || undefined,
+      assignee_ids: newTaskAssignees.length > 0 ? newTaskAssignees : undefined,
       estimated_hours: newTaskHours || undefined,
       phase_id: newTaskPhaseId || undefined,
     }).then(() => projectsApi.tasks(id).then(r => setTasks(r.tasks))).catch(() => { });
@@ -4187,8 +4265,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Card>
 
             <Card className="p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-[11px] mb-1">
-                <Users className="h-3.5 w-3.5" /> Team
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                  <Users className="h-3.5 w-3.5" /> Team
+                </div>
+                <button
+                  onClick={() => setManageTeamOpen(true)}
+                  className="text-[10px] font-semibold text-blue-600 hover:bg-blue-50 px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5"
+                  title="Manage team members"
+                >
+                  <UserPlus className="h-3 w-3" /> Manage
+                </button>
               </div>
               <div className="space-y-1.5 mt-1">
                 {(() => {
@@ -4735,6 +4822,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <ProjectOutcomeSection project={project} subs={projectSubs} viewRole={viewRole} />
         </div>
       )}
+
+      <ManageTeamDialog
+        open={manageTeamOpen}
+        onOpenChange={setManageTeamOpen}
+        project={project}
+        onChanged={(updated) => setProject(updated)}
+      />
     </div>
   );
 }

@@ -147,6 +147,16 @@ export const projects = {
   insights: (id: string) => get<{ insights: AiInsight[] }>(`/projects/${id}/insights`),
   checkpoints:(id: string) => get<{ checkpoints: Checkpoint[] }>(`/projects/${id}/checkpoints`),
   timeline: () => get<{ projects: Project[] }>("/projects/timeline/all"),
+
+  // Team management
+  addAssignee:    (id: string, user_id: string) =>
+    post<{ project_id: string; user_id: string; role: string }>(`/projects/${id}/assignees`, { user_id }),
+  removeAssignee: (id: string, user_id: string) =>
+    del<void>(`/projects/${id}/assignees/${user_id}`),
+  addCoOwner:     (id: string, user_id: string) =>
+    post<{ project_id: string; user_id: string; role: string }>(`/projects/${id}/co-owners`, { user_id }),
+  removeCoOwner:  (id: string, user_id: string) =>
+    del<void>(`/projects/${id}/co-owners/${user_id}`),
 };
 
 // ── Phases ────────────────────────────────────────────────────────────────────
@@ -187,6 +197,12 @@ export const tasks = {
     post<{ extension: DeadlineExtension }>("/tasks/deadline-extensions", data),
   updateExtension: (id: string, data: { status: string; ceo_comment?: string; action_taken?: string }) =>
     patch<{ extension: DeadlineExtension }>(`/tasks/deadline-extensions/${id}`, data),
+
+  // Multi-assignee management
+  addAssignee:    (taskId: string, userId: string) =>
+    post<{ task_id: string; assignees: TaskAssignee[] }>(`/tasks/${taskId}/assignees`, { user_id: userId }),
+  removeAssignee: (taskId: string, userId: string) =>
+    del<void>(`/tasks/${taskId}/assignees/${userId}`),
 };
 
 // ── Submissions ───────────────────────────────────────────────────────────────
@@ -251,6 +267,18 @@ export const reviews = {
     patch<{ review: ReviewTask }>(`/reviews/${id}`, data),
   delete: (id: string) => del<void>(`/reviews/${id}`),
   stats:  () => get<{ stats: ReviewStats }>("/reviews/stats/summary"),
+};
+
+// ── Commitments ───────────────────────────────────────────────────────────────
+export const commitments = {
+  list:   (params?: { status?: string; priority?: string; assignee_id?: string; project_id?: string; from_date?: string; to_date?: string }) =>
+    get<{ commitments: Commitment[] }>(`/commitments${_qs(params)}`),
+  create: (data: CreateCommitmentPayload) =>
+    post<{ commitment: Commitment }>("/commitments", data),
+  get:    (id: string) => get<{ commitment: Commitment }>(`/commitments/${id}`),
+  update: (id: string, data: Partial<CreateCommitmentPayload>) =>
+    patch<{ commitment: Commitment }>(`/commitments/${id}`, data),
+  delete: (id: string) => del<void>(`/commitments/${id}`),
 };
 
 // ── Discussions ───────────────────────────────────────────────────────────────
@@ -392,6 +420,14 @@ export interface Phase {
   discussions?: PhaseDiscussion[];
 }
 
+export interface TaskAssignee {
+  id: string;
+  name: string;
+  avatar_color: string;
+  role?: string;
+  department?: string;
+}
+
 export interface Task {
   id: string;
   project_id: string;
@@ -401,6 +437,7 @@ export interface Task {
   assignee_id?: string;
   assignee_name?: string;
   assignee_color?: string;
+  assignees?: TaskAssignee[];
   approach?: string;
   plan_status: string;
   success_criteria: string[];
@@ -633,6 +670,26 @@ export interface ReviewStats {
   high_priority_open: number;
 }
 
+export interface Commitment {
+  id: string;
+  title: string;
+  description?: string;
+  from_date: string;
+  to_date: string;
+  status: string;
+  priority: string;
+  owner_id: string;
+  owner_name?: string;
+  owner_color?: string;
+  assignee_id?: string;
+  assignee_name?: string;
+  assignee_color?: string;
+  project_id?: string;
+  project_title?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Discussion {
   id: string;
   project_id?: string;
@@ -798,7 +855,8 @@ export interface Notification {
 
 // Payload types
 export interface CreateUserPayload { name: string; email: string; password: string; role: string; role_type?: string; department?: string; avatar_color?: string }
-export interface CreateProjectPayload { title: string; type: string; requirement: string; objective?: string; outcome_type?: string; outcome_description?: string; priority?: string; status?: string; owner_id: string; assignee_ids?: string[]; co_owner_ids?: string[]; timebox_days?: number; start_date?: string; tech_stack?: string[]; ai_plan?: AiPlan; document_url?: string }
+export interface CreateProjectPayload { title: string; type: string; requirement: string; objective?: string; outcome_type?: string; outcome_description?: string; priority?: string; status?: string; owner_id: string; assignee_ids?: string[]; co_owner_ids?: string[]; timebox_days?: number; start_date?: string; end_date?: string; tech_stack?: string[]; ai_plan?: AiPlan; document_url?: string }
+export interface CreateCommitmentPayload { title: string; description?: string; from_date: string; to_date: string; priority?: string; status?: string; assignee_id?: string; project_id?: string }
 
 export interface ExtractedDocument {
   title?: string;
@@ -814,7 +872,7 @@ export interface ExtractedDocument {
   timebox_days?: number;
 }
 export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
-export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
+export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
 export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; target_day?: number }
 export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }

@@ -4,7 +4,7 @@ import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user
-from ..database import call_fn, execute, execute_returning, fetchall
+from ..database import call_fn, execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
 from ..models.requests import (
     CreateDeadlineExtensionRequest, CreateMilestoneRequest, CreateTaskRequest,
@@ -55,7 +55,13 @@ def _list_tasks(event, origin):
     conds = ["1=1"]
     params: list = []
     if p.get("project_id"):  conds.append("t.project_id = %s");  params.append(p["project_id"])
-    if p.get("assignee_id"): conds.append("t.assignee_id = %s"); params.append(p["assignee_id"])
+    if p.get("assignee_id"):
+        # Match either the primary assignee_id OR any row in task_assignees.
+        conds.append(
+            "(t.assignee_id = %s OR EXISTS "
+            "(SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = %s))"
+        )
+        params.extend([p["assignee_id"], p["assignee_id"]])
     if p.get("status"):      conds.append("t.status = %s");      params.append(p["status"])
     if p.get("priority"):    conds.append("t.priority = %s");    params.append(p["priority"])
     tasks = fetchall(f"""
@@ -63,7 +69,15 @@ def _list_tasks(event, origin):
           t.estimated_hours, t.actual_hours, t.plan_status,
           t.review_status, t.order_index, t.phase_id, t.created_at, t.completed_at,
           u.name AS assignee_name, u.avatar_color AS assignee_color,
-          pr.title AS project_title, ph.phase_name
+          pr.title AS project_title, ph.phase_name,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', au.id, 'name', au.name, 'avatar_color', au.avatar_color,
+              'role', au.role, 'department', au.department
+            ) ORDER BY au.name)
+            FROM task_assignees ta JOIN users au ON au.id = ta.user_id
+            WHERE ta.task_id = t.id
+          ), '[]'::JSON) AS assignees
         FROM tasks t
         LEFT JOIN users u       ON u.id    = t.assignee_id
         LEFT JOIN projects pr   ON pr.id   = t.project_id
@@ -77,6 +91,17 @@ def _list_tasks(event, origin):
 def _create_task(event, origin):
     current_user = get_current_user(event)
     body = CreateTaskRequest(**get_body(event))
+
+    # Resolve the assignee set. Accept either:
+    #   - assignee_ids: ["u1","u2",...]  (preferred — full list)
+    #   - assignee_id:  "u1"             (legacy single)
+    all_ids = [str(u) for u in body.assignee_ids]
+    if body.assignee_id:
+        primary = str(body.assignee_id)
+        if primary not in all_ids:
+            all_ids.insert(0, primary)
+    primary_id = all_ids[0] if all_ids else None
+
     task = execute_returning("""
         INSERT INTO tasks
           (project_id, phase_id, title, description, assignee_id, approach,
@@ -84,12 +109,75 @@ def _create_task(event, origin):
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
     """, (str(body.project_id),
           str(body.phase_id)    if body.phase_id    else None,
-          body.title, body.description,
-          str(body.assignee_id) if body.assignee_id else None,
+          body.title, body.description, primary_id,
           body.approach, body.priority, body.estimated_hours,
           json.dumps(body.success_criteria), json.dumps(body.kill_criteria),
           body.order_index, current_user["id"]))
+
+    for uid in all_ids:
+        execute(
+            "INSERT INTO task_assignees (task_id, user_id, added_by) "
+            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (task["id"], uid, current_user["id"]),
+        )
+
+    task["assignees"] = fetchall("""
+        SELECT u.id, u.name, u.avatar_color, u.role, u.department
+        FROM task_assignees ta JOIN users u ON u.id = ta.user_id
+        WHERE ta.task_id = %s ORDER BY u.name
+    """, (task["id"],))
     return resp({"task": task}, 201, origin)
+
+
+def _add_task_assignee(event, origin, task_id):
+    current_user = get_current_user(event)
+    body = get_body(event)
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPError(400, "user_id is required")
+    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+        raise HTTPError(404, "Task not found")
+    if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
+        raise HTTPError(404, "User not found")
+    execute(
+        "INSERT INTO task_assignees (task_id, user_id, added_by) "
+        "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+        (task_id, user_id, current_user["id"]),
+    )
+    # If the task has no primary assignee yet, promote this user.
+    execute(
+        "UPDATE tasks SET assignee_id = %s, updated_at = NOW() "
+        "WHERE id = %s AND assignee_id IS NULL",
+        (user_id, task_id),
+    )
+    assignees = fetchall("""
+        SELECT u.id, u.name, u.avatar_color, u.role, u.department
+        FROM task_assignees ta JOIN users u ON u.id = ta.user_id
+        WHERE ta.task_id = %s ORDER BY u.name
+    """, (task_id,))
+    return resp({"task_id": task_id, "assignees": assignees}, 201, origin)
+
+
+def _remove_task_assignee(event, origin, task_id, user_id):
+    get_current_user(event)
+    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+        raise HTTPError(404, "Task not found")
+    execute(
+        "DELETE FROM task_assignees WHERE task_id = %s AND user_id = %s",
+        (task_id, user_id),
+    )
+    # If the removed user was the primary assignee, fall back to another.
+    task = fetchone("SELECT assignee_id FROM tasks WHERE id = %s", (task_id,))
+    if task and task["assignee_id"] and str(task["assignee_id"]) == str(user_id):
+        next_assignee = fetchone(
+            "SELECT user_id FROM task_assignees WHERE task_id = %s ORDER BY added_at LIMIT 1",
+            (task_id,),
+        )
+        execute(
+            "UPDATE tasks SET assignee_id = %s, updated_at = NOW() WHERE id = %s",
+            (next_assignee["user_id"] if next_assignee else None, task_id),
+        )
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 
 def _get_task(event, origin, task_id):
@@ -212,6 +300,8 @@ handler = make_handler([
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/updates",                                   _add_update),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/milestones",                                _create_milestone),
     ("PATCH",  rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})",             _update_milestone),
+    ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/assignees",                                 _add_task_assignee),
+    ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})/assignees/(?P<user_id>{PARAM})",            _remove_task_assignee),
     ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})",                                           _get_task),
     ("PATCH",  rf"/api/tasks/(?P<task_id>{PARAM})",                                           _update_task),
     ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})",                                           _delete_task),

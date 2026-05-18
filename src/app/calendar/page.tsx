@@ -21,6 +21,7 @@ import {
   users as usersApi,
   reviews as reviewsApi,
   discussions as discussionsApi,
+  commitments as commitmentsApi,
   type Project,
   type Task,
   type LeaveRequest,
@@ -28,6 +29,7 @@ import {
   type User,
   type ReviewTask,
   type Discussion,
+  type Commitment,
 } from "@/lib/api-client";
 import {
   startOfMonth,
@@ -203,6 +205,7 @@ function buildCalendarEvents(
   captureItems: CaptureItem[],
   reviewTasks: ReviewTask[],
   discussionList: Discussion[],
+  commitmentList: Commitment[],
   projectMap: Record<string, Project>,
 ): CalendarEvent[] {
   const events: CalendarEvent[] = [];
@@ -281,6 +284,33 @@ function buildCalendarEvents(
         status: item.status,
       },
     });
+  }
+
+  // 5b. Commitments — one event per day across the from→to window.
+  for (const c of commitmentList) {
+    if (c.status === "cancelled") continue;
+    const start = safeParseDateString(c.from_date);
+    const end = safeParseDateString(c.to_date);
+    if (!start || !end) continue;
+    const days = eachDayOfInterval({ start, end });
+    const project = c.project_id ? projectMap[c.project_id] : undefined;
+    for (const day of days) {
+      events.push({
+        id: `commit-${c.id}-${toDateKey(day)}`,
+        type: "commitment",
+        title: c.title,
+        description: c.description,
+        date: toDateKey(day),
+        userId: c.assignee_id ?? c.owner_id,
+        projectTitle: project?.title ?? c.project_title,
+        meta: {
+          status: c.status,
+          priority: c.priority,
+          fromDate: c.from_date,
+          toDate: c.to_date,
+        },
+      });
+    }
   }
 
   // 6a. Review tasks — show on due_date (or created_at if no due_date)
@@ -487,6 +517,21 @@ function EventDetailCard({ event }: { event: CalendarEvent }) {
               )}
             </>
           )}
+          {event.type === "commitment" && event.meta && (
+            <>
+              <StatusBadge status={event.meta.status} />
+              {event.meta.priority && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  {event.meta.priority}
+                </Badge>
+              )}
+              {event.meta.fromDate && event.meta.toDate && (
+                <span className="text-xs text-muted-foreground">
+                  {event.meta.fromDate} → {event.meta.toDate}
+                </span>
+              )}
+            </>
+          )}
           {event.type === "review" && event.meta && (
             <>
               <StatusBadge status={event.meta.status} />
@@ -562,6 +607,7 @@ export default function CEOCalendarPage() {
   const [captureItems, setCaptureItems] = useState<CaptureItem[]>([]);
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[]>([]);
   const [discussionList, setDiscussionList] = useState<Discussion[]>([]);
+  const [commitmentList, setCommitmentList] = useState<Commitment[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -583,7 +629,8 @@ export default function CEOCalendarPage() {
       captureApi.list().then(r => r.items).catch(() => [] as CaptureItem[]),
       reviewsApi.list().then(r => r.reviews).catch(() => [] as ReviewTask[]),
       discussionsApi.list().then(r => r.discussions).catch(() => [] as Discussion[]),
-    ]).then(([projs, tasks, leaves, users, caps, revs, discs]) => {
+      commitmentsApi.list().then(r => r.commitments).catch(() => [] as Commitment[]),
+    ]).then(([projs, tasks, leaves, users, caps, revs, discs, comms]) => {
       _userMap = Object.fromEntries(users.map(u => [u.id, u]));
       setProjects(projs);
       setAllTasks(tasks);
@@ -591,6 +638,7 @@ export default function CEOCalendarPage() {
       setCaptureItems(caps);
       setReviewTasks(revs);
       setDiscussionList(discs);
+      setCommitmentList(comms);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -609,8 +657,8 @@ export default function CEOCalendarPage() {
   );
 
   const allEvents = useMemo(
-    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, projectMap),
-    [projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, projectMap]
+    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, projectMap),
+    [projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, projectMap]
   );
 
   const eventsByDate = useMemo(() => {

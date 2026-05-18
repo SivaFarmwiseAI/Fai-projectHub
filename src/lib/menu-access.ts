@@ -123,6 +123,14 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     allowedRoles: ["Admin", "CEO", "Team Lead"],
     badgeKey: "reviews",
   },
+  {
+    key: "commitments",
+    label: "Commitments",
+    href: "/commitments",
+    section: "Work",
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
+  },
 
   // ── Team ─────────────────────────────────────────────────────────────
   {

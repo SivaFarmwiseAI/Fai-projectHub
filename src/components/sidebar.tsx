@@ -9,7 +9,7 @@ import {
   LogOut, ChevronDown, X, ChevronRight,
   MessageSquare, Activity,
   BarChart3, FileText, GanttChart, LayoutTemplate,
-  Settings, ShieldCheck,
+  Settings, ShieldCheck, Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,6 +36,7 @@ const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
   "daily-standup":     Activity,
   "discussions":       MessageSquare,
   "review-queue":      ClipboardCheck,
+  "commitments":       Handshake,
   "team":              Users,
   "manage-team":       UserPlus,
   "leave-availability":CalendarDays,

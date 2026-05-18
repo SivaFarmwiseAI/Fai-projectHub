@@ -49,6 +49,7 @@ class CreateProjectRequest(BaseModel):
     co_owner_ids: List[UUID] = Field(default_factory=list)
     timebox_days: int = 14
     start_date: Optional[str] = None
+    end_date: Optional[str] = None
     tech_stack: List[str] = Field(default_factory=list)
     ai_plan: dict = Field(default_factory=dict)
     document_url: Optional[str] = None
@@ -65,6 +66,8 @@ class UpdateProjectRequest(BaseModel):
     priority: Optional[str] = None
     current_phase: Optional[str] = None
     timebox_days: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     tech_stack: Optional[List[str]] = None
     ai_plan: Optional[dict] = None
     document_url: Optional[str] = None
@@ -96,8 +99,12 @@ class CreatePhaseRequest(BaseModel):
 
 
 class UpdatePhaseRequest(BaseModel):
+    phase_name: Optional[str] = None
+    description: Optional[str] = None
     status: Optional[str] = None
     checklist: Optional[List[str]] = None
+    estimated_duration: Optional[str] = None
+    sign_off_required: Optional[bool] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
 
@@ -110,6 +117,7 @@ class CreateTaskRequest(BaseModel):
     title: str
     description: str = ""
     assignee_id: Optional[UUID] = None
+    assignee_ids: List[UUID] = Field(default_factory=list)
     approach: str = ""
     priority: str = "medium"
     estimated_hours: Optional[float] = None
@@ -315,6 +323,30 @@ class UpdateDiscussionRequest(BaseModel):
     phase_id: Optional[UUID] = None
     scheduled_at: Optional[str] = None
     is_resolved: Optional[bool] = None
+
+
+# ── Commitments ───────────────────────────────────────────────────────────────
+
+class CreateCommitmentRequest(BaseModel):
+    title: str
+    description: str = ""
+    from_date: date
+    to_date: date
+    priority: str = "medium"
+    status: str = "pending"
+    assignee_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None
+
+
+class UpdateCommitmentRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    from_date: Optional[date] = None
+    to_date: Optional[date] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    assignee_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None
 
 
 # ── AI ────────────────────────────────────────────────────────────────────────

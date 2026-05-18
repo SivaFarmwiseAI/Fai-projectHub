@@ -76,6 +76,8 @@ export function NewProjectClient({ users }: { users: User[] }) {
   const [requirement, setRequirement] = useState("");
   const [priority, setPriority] = useState("medium");
   const [timeboxDays, setTimeboxDays] = useState(14);
+  const [fromDate, setFromDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [toDate, setToDate] = useState<string>("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [ownerId, setOwnerId] = useState<string>("");
   const [coOwnerIds, setCoOwnerIds] = useState<string[]>([]);
@@ -155,7 +157,8 @@ export function NewProjectClient({ users }: { users: User[] }) {
         assignee_ids: selectedUsers.length > 0 ? selectedUsers : undefined,
         co_owner_ids: resolvedCoOwners.length > 0 ? resolvedCoOwners : undefined,
         timebox_days: timeboxDays,
-        start_date: new Date().toISOString().split("T")[0],
+        start_date: fromDate || new Date().toISOString().split("T")[0],
+        end_date: toDate || undefined,
         tech_stack: aiPlan?.techStack || [],
         ai_plan: aiPlan ? { summary: aiPlan.summary, risks: aiPlan.risks, killCriteria: aiPlan.killCriteria } : undefined,
       });
@@ -327,16 +330,37 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="timebox">Timebox (days)</Label>
-              <Input
-                id="timebox"
-                type="number"
-                min={1}
-                max={365}
-                value={timeboxDays}
-                onChange={(e) => setTimeboxDays(parseInt(e.target.value) || 14)}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="from-date">From Date</Label>
+                <Input
+                  id="from-date"
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="to-date">To Date</Label>
+                <Input
+                  id="to-date"
+                  type="date"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timebox">Timebox (days)</Label>
+                <Input
+                  id="timebox"
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={timeboxDays}
+                  onChange={(e) => setTimeboxDays(parseInt(e.target.value) || 14)}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -477,10 +501,20 @@ export function NewProjectClient({ users }: { users: User[] }) {
                 variant="outline"
                 onClick={() => { setAiPlan(null); setStep("review"); }}
                 disabled={!title || !requirement}
-                className="gap-2 rounded-xl border-gray-200 text-gray-500"
+                className="gap-2 rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                title="Skip AI plan generation and review project details"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Review &amp; Create
+                Skip AI — Review &amp; Create
+              </Button>
+              <Button
+                onClick={() => { setAiPlan(null); submitProject("planning"); }}
+                disabled={!title || !requirement || creating}
+                className="gap-2 rounded-xl btn-gradient text-white"
+                title="Create project immediately without a plan"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {creating ? "Creating…" : "Create Project (No Plan)"}
               </Button>
               <Button
                 variant="outline"
@@ -492,6 +526,9 @@ export function NewProjectClient({ users }: { users: User[] }) {
                 {saving ? "Saving…" : "Save as Draft"}
               </Button>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Tip: <strong>Generate AI Plan</strong> drafts risks &amp; tech stack for you, or use <strong>Create Project (No Plan)</strong> to skip planning.
+            </p>
           </div>
         </div>
       )}
