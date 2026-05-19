@@ -69,7 +69,8 @@ clean:
 
 SAM_FUNCTIONS := HealthFunction AuthFunction UsersFunction ProjectsFunction \
 	TasksFunction PhasesFunction AnalyticsFunction AIFunction CaptureFunction \
-	DiscussionsFunction ReviewsFunction StandupFunction SubmissionsFunction LeaveFunction
+	DiscussionsFunction ReviewsFunction StandupFunction SubmissionsFunction LeaveFunction \
+	CommitmentsFunction
 
 $(addprefix build-,$(SAM_FUNCTIONS)):
 	mkdir -p "$(ARTIFACTS_DIR)"

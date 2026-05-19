@@ -155,22 +155,32 @@ def _delete_phase(event, origin, phase_id):
             raise HTTPError(409, f"Cannot delete phase — related records still reference it ({msg})")
         raise HTTPError(500, "Failed to delete phase")
 
+    # Post-delete bookkeeping: if we removed the active phase, promote the next
+    # one. Failures here MUST NOT fail the request — the phase is already gone
+    # and the user expects a success. We log loudly and move on.
     if was_active:
-        next_phase = fetchone(
-            "SELECT phase_name FROM phases WHERE project_id = %s AND order_index > %s "
-            "ORDER BY order_index LIMIT 1",
-            (phase["project_id"], phase["order_index"]),
-        )
-        new_name = next_phase["phase_name"] if next_phase else ""
-        execute(
-            "UPDATE projects SET current_phase = %s, updated_at = NOW() WHERE id = %s",
-            (new_name, phase["project_id"]),
-        )
-        if next_phase:
+        try:
+            next_phase = fetchone(
+                "SELECT phase_name FROM phases WHERE project_id = %s AND order_index > %s "
+                "ORDER BY order_index LIMIT 1",
+                (str(phase["project_id"]), phase["order_index"]),
+            )
+            new_name = next_phase["phase_name"] if next_phase else ""
             execute(
-                "UPDATE phases SET status = 'active', started_at = COALESCE(started_at, NOW()) "
-                "WHERE project_id = %s AND phase_name = %s",
-                (phase["project_id"], new_name),
+                "UPDATE projects SET current_phase = %s, updated_at = NOW() WHERE id = %s",
+                (new_name, str(phase["project_id"])),
+            )
+            if next_phase:
+                execute(
+                    "UPDATE phases SET status = 'active'::phase_status, "
+                    "started_at = COALESCE(started_at, NOW()) "
+                    "WHERE project_id = %s AND phase_name = %s",
+                    (str(phase["project_id"]), new_name),
+                )
+        except Exception as e:
+            log.warning(
+                "Phase %s deleted but post-delete promotion failed: %s",
+                phase_id, e,
             )
 
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
