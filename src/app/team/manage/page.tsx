@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { users as usersApi, departments as deptsApi, roles as rolesApi, type User, type Department, type Role } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
+import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 
 const AVATAR_COLORS = [
   "#3b82f6",
@@ -158,6 +160,7 @@ const ROLE_TYPES = ["Member", "Team Lead", "Admin", "CEO"];
 export default function ManageTeamPage() {
   const { isCEO, isAdmin } = useAuth();
   const canManageRoleType = isCEO || isAdmin;
+  const confirm = useConfirm();
 
   const [members, setMembers] = useState<User[]>([]);
   const [deptObjects, setDeptObjects] = useState<Department[]>([]);
@@ -265,13 +268,19 @@ export default function ManageTeamPage() {
 
   // --- Remove handler ---
   async function handleRemove(user: User) {
-    const confirmed = confirm(`Remove ${user.name}? This will deactivate their account.`);
+    const confirmed = await confirm({
+      title: "Remove this team member?",
+      description: <><span className="font-medium">{user.name}</span>&apos;s account will be deactivated. They will no longer be able to sign in.</>,
+      confirmLabel: "Remove member",
+      tone: "danger",
+    });
     if (confirmed) {
       try {
         await usersApi.delete(user.id);
         setMembers((prev) => prev.filter((m) => m.id !== user.id));
+        showToast.success("Member removed");
       } catch (e: unknown) {
-        alert(`Failed to remove member: ${e instanceof Error ? e.message : "Unknown error"}`);
+        showToast.error("Failed to remove member", e instanceof Error ? e.message : undefined);
       }
     }
   }
@@ -279,7 +288,7 @@ export default function ManageTeamPage() {
   // --- Add handler ---
   async function handleAdd() {
     if (!newName.trim() || !newRole.trim() || !newEmail.trim() || !newDepartment.trim() || !newPassword.trim()) {
-      alert("Please fill in all fields including password.");
+      showToast.warning("Missing fields", "Please fill in all fields including password.");
       return;
     }
     try {
@@ -303,8 +312,9 @@ export default function ManageTeamPage() {
       setNewEmail("");
       setNewPassword("");
       setNewColor(AVATAR_COLORS[0]);
+      showToast.success("Team member added");
     } catch (e: unknown) {
-      alert(`Failed to add member: ${e instanceof Error ? e.message : "Unknown error"}`);
+      showToast.error("Failed to add member", e instanceof Error ? e.message : undefined);
     }
   }
 

@@ -42,6 +42,7 @@ import {
   type Project,
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 
 const statusColors: Record<string, string> = {
   pending:     "text-amber-700 border-amber-200 bg-amber-50",
@@ -57,6 +58,7 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function CommitmentsPage() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<Commitment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -94,7 +96,13 @@ export default function CommitmentsPage() {
   }, [items, filterStatus, filterPriority]);
 
   async function handleDelete(c: Commitment) {
-    if (!confirm(`Delete commitment "${c.title}"?`)) return;
+    const ok = await confirm({
+      title: "Delete commitment?",
+      description: <><span className="font-medium">{c.title}</span> will be permanently removed.</>,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await commitmentsApi.delete(c.id);
       setItems(prev => prev.filter(x => x.id !== c.id));

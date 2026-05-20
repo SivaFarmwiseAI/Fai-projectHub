@@ -47,7 +47,11 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   const setCookie = backendRes.headers.get("set-cookie");
   if (setCookie) headers.set("set-cookie", setCookie);
 
-  return new NextResponse(responseBody, {
+  // Null-body statuses (204, 205, 304) cannot have a body per the Fetch spec —
+  // passing even "" throws TypeError in Node's undici and turns a successful
+  // DELETE into a fake 500 on the client.
+  const NULL_BODY = backendRes.status === 204 || backendRes.status === 205 || backendRes.status === 304;
+  return new NextResponse(NULL_BODY ? null : responseBody, {
     status: backendRes.status,
     headers,
   });

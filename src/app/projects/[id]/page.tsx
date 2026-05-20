@@ -24,6 +24,7 @@ import {
 } from "@/lib/api-client";
 import { ManageTeamDialog } from "@/components/manage-team-dialog";
 import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 
 // Module-level user cache for sub-component lookups
 let _userMap: Record<string, User> = {};
@@ -50,7 +51,6 @@ function updatePhase(pid: string, phaseId: string, data: Partial<Phase>, onCompl
     });
 }
 function removePhase(pid: string, phaseId: string, onComplete: () => void) {
-  if (!confirm("Are you sure you want to remove this phase? Tasks in this phase will be unassigned (not deleted).")) return;
   phasesApi.delete(phaseId)
     .then(() => {
       showToast.success("Phase deleted");
@@ -1755,6 +1755,7 @@ const documentStatusConfig: Record<string, { label: string; color: string }> = {
 function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpdate }: {
   documents: ProjectDocument[]; viewRole: ViewRole; tasks: Task[]; projectId: string; onUpdate?: () => void;
 }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
   const [activeDocId, setActiveDocId] = useState<string>(documents[0]?.id || "");
   const [activeTab, setActiveTab] = useState<"sections" | "changes" | "discussions">("sections");
@@ -1837,12 +1838,18 @@ function ProjectDocumentsSection({ documents, viewRole, tasks, projectId, onUpda
                   <span className="max-w-[120px] truncate">{doc.title}</span>
                   <span
                     role="button"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (!confirm(`Delete document "${doc.title}"? This cannot be undone.`)) return;
+                      const ok = await confirm({
+                        title: "Delete document?",
+                        description: <><span className="font-medium">{doc.title}</span> will be removed permanently. This cannot be undone.</>,
+                        confirmLabel: "Delete",
+                        tone: "danger",
+                      });
+                      if (!ok) return;
                       projectsApi.deleteDocument(projectId, doc.id)
-                        .then(() => onUpdate?.())
-                        .catch(err => alert(err instanceof Error ? err.message : "Delete failed"));
+                        .then(() => { showToast.success("Document deleted"); onUpdate?.(); })
+                        .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
                     }}
                     className="ml-0.5 rounded-full hover:bg-red-100 hover:text-red-600 p-0.5 transition-colors"
                   >
@@ -3912,6 +3919,7 @@ function ProjectOutcomeSection({ project, subs, viewRole }: { project: Project; 
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const confirm = useConfirm();
 
   // Async data state — all hooks must be declared before any early returns
   const [project, setProject] = useState<Project | null>(null);
@@ -4133,11 +4141,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             variant="ghost"
             size="sm"
             className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={() => {
-              if (!confirm(`Delete project "${project.title}"? This will remove all of its tasks, phases, and documents. This cannot be undone.`)) return;
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Delete this project?",
+                description: <><span className="font-medium">{project.title}</span> and all of its tasks, phases, and documents will be permanently removed. This cannot be undone.</>,
+                confirmLabel: "Delete project",
+                tone: "danger",
+              });
+              if (!ok) return;
               projectsApi.delete(project.id)
-                .then(() => { window.location.href = "/projects"; })
-                .catch(err => alert(err instanceof Error ? err.message : "Delete failed"));
+                .then(() => { showToast.success("Project deleted"); window.location.href = "/projects"; })
+                .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
             }}
           >
             <Trash2 className="h-4 w-4 mr-1" /> Delete Project
@@ -4753,7 +4767,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           }} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => removePhase(project.id, phase.id, () => projectsApi.get(id).then(r => setProject(r.project)))} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                          <button
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Remove this phase?",
+                                description: <>Tasks in <span className="font-medium">{phase.phase_name}</span> will be unassigned (not deleted).</>,
+                                confirmLabel: "Remove phase",
+                                tone: "danger",
+                              });
+                              if (!ok) return;
+                              removePhase(project.id, phase.id, () => projectsApi.get(id).then(r => setProject(r.project)));
+                            }}
+                            className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                          >
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </div>

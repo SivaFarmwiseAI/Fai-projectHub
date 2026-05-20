@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { fireMilestoneCelebration } from "@/lib/confetti";
+import { showToast } from "@/lib/toast";
 import {
   Card,
   CardContent,
@@ -219,7 +220,7 @@ export function ProjectDetailClient({
         [submission.id]: data.feedback,
       }));
     } catch {
-      alert("AI review failed");
+      showToast.error("AI review failed");
     } finally {
       setAiReviewing(null);
     }

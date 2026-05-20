@@ -32,6 +32,7 @@ import {
   type LeaveRequest,
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 import { useAuth } from "@/contexts/auth-context";
 import { format } from "date-fns";
 import { Trash2 } from "lucide-react";
@@ -94,6 +95,7 @@ const statusColors: Record<string, string> = {
 
 export default function LeaveAvailabilityPage() {
   const { user: authUser, isCEO, isAdmin } = useAuth();
+  const confirm = useConfirm();
   const [userList, setUserList] = useState<User[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -174,7 +176,13 @@ export default function LeaveAvailabilityPage() {
       showToast.error("Not allowed", "You can only cancel your own leave requests.");
       return;
     }
-    if (!confirm(`Remove this ${lr.type.replace("_", " ")} leave request?`)) return;
+    const ok = await confirm({
+      title: "Remove leave request?",
+      description: `This ${lr.type.replace("_", " ")} leave entry will be deleted.`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await leaveApi.delete(lr.id);
       setLeaveRequests(prev => prev.filter(r => r.id !== lr.id));

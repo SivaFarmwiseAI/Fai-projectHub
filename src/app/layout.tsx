@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/auth-context";
 import { MenuAccessProvider } from "@/contexts/menu-access-context";
+import { ConfirmProvider } from "@/components/confirm-provider";
 import { AppShell } from "@/components/app-shell";
 import { CommandPalette } from "@/components/command-palette";
 import { MobileNav } from "@/components/mobile-nav";
@@ -54,6 +55,7 @@ export default function RootLayout({
       <body className="min-h-full flex bg-slate-50/60">
         <AuthProvider>
           <MenuAccessProvider>
+          <ConfirmProvider>
           <CommandPalette />
           <KeyboardShortcutsOverlay />
           <AppShell>{children}</AppShell>
@@ -70,6 +72,7 @@ export default function RootLayout({
               },
             }}
           />
+          </ConfirmProvider>
           </MenuAccessProvider>
         </AuthProvider>
       </body>

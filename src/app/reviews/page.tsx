@@ -22,6 +22,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import { EditReviewDialog } from "@/components/edit-review-dialog";
+import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 
 const typeIcons: Record<string, React.ReactNode> = {
   code:          <Code className="h-4 w-4 text-blue-600" />,
@@ -44,6 +46,7 @@ const typeBadgeColors: Record<string, string> = {
 };
 
 export default function ReviewsPage() {
+  const confirm = useConfirm();
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,12 +71,19 @@ export default function ReviewsPage() {
   }
 
   async function handleDeleteReview(rev: ReviewTask) {
-    if (!confirm(`Delete review task "${rev.title}"?`)) return;
+    const ok = await confirm({
+      title: "Delete review task?",
+      description: <><span className="font-medium">{rev.title}</span> will be permanently removed.</>,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await reviewsApi.delete(rev.id);
       setReviewTasks(prev => prev.filter(r => r.id !== rev.id));
+      showToast.success("Review deleted");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to delete review");
+      showToast.error("Failed to delete review", e instanceof Error ? e.message : undefined);
     }
   }
 

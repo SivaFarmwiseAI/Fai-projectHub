@@ -38,6 +38,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { useMenuAccess } from "@/contexts/menu-access-context";
 import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 import { SECTION_ORDER, type RoleType, type MenuItemConfig } from "@/lib/menu-access";
 import { cn } from "@/lib/utils";
 
@@ -137,6 +138,7 @@ function RolePreview({
 export default function MenuAccessPage() {
   const { isCEO, isAdmin } = useAuth();
   const router = useRouter();
+  const confirm = useConfirm();
   const { menuItems, toggleRole, setItemRoles, saveConfig, resetConfig, hasUnsavedChanges } =
     useMenuAccess();
 
@@ -168,8 +170,14 @@ export default function MenuAccessPage() {
     showToast.success("Saved", "Menu access configuration updated.");
   }
 
-  function handleReset() {
-    if (!confirm("Reset all menu access back to defaults?")) return;
+  async function handleReset() {
+    const ok = await confirm({
+      title: "Reset menu access?",
+      description: "All menu access settings will be restored to their defaults. Any unsaved overrides will be lost.",
+      confirmLabel: "Reset to defaults",
+      tone: "warning",
+    });
+    if (!ok) return;
     resetConfig();
     showToast.info("Reset", "Menu access restored to defaults.");
   }

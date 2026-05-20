@@ -12,6 +12,8 @@ import { discussions as discussionsApi, projects as projectsApi } from "@/lib/ap
 import type { Discussion, Project } from "@/lib/api-client";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import { EditDiscussionDialog } from "@/components/edit-discussion-dialog";
+import { showToast } from "@/lib/toast";
+import { useConfirm } from "@/components/confirm-provider";
 
 /* ─── Thread Card Component ─────────────────────────────────── */
 const ThreadCard = memo(function ThreadCard({
@@ -226,6 +228,7 @@ const ThreadCard = memo(function ThreadCard({
 /* ─── Main Page Component ───────────────────────────────────── */
 export default function DiscussionsPage() {
   const { user, isCEO, isAdmin } = useAuth();
+  const confirm = useConfirm();
   const [threadList, setThreadList] = useState<Discussion[]>([]);
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -293,13 +296,20 @@ export default function DiscussionsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this discussion and all its replies? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this discussion?",
+      description: "The discussion and all of its replies will be permanently removed. This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await discussionsApi.delete(id);
       setThreadList(prev => prev.filter(t => t.id !== id));
       if (expandedId === id) setExpandedId(null);
+      showToast.success("Discussion deleted");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to delete discussion");
+      showToast.error("Failed to delete discussion", e instanceof Error ? e.message : undefined);
     }
   }
 
