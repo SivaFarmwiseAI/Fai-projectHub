@@ -68,6 +68,30 @@ function outcomeLabel(ot: string): string {
     .join(" ");
 }
 
+// "YYYY-MM-DDTHH:mm" in the browser's local timezone (format expected by <input type="datetime-local">)
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function addDaysToDate(d: Date, days: number): Date {
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+// Date portion ("YYYY-MM-DD") from a datetime-local string; backend stores DATE columns
+function datePart(localDateTime: string): string {
+  return (localDateTime || "").slice(0, 10);
+}
+
+function diffDays(fromLocal: string, toLocal: string): number {
+  if (!fromLocal || !toLocal) return 0;
+  const ms = new Date(toLocal).getTime() - new Date(fromLocal).getTime();
+  if (Number.isNaN(ms) || ms <= 0) return 0;
+  return Math.max(1, Math.ceil(ms / 86_400_000));
+}
+
 export function NewProjectClient({ users }: { users: User[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -75,9 +99,9 @@ export function NewProjectClient({ users }: { users: User[] }) {
   const [outcomeType, setOutcomeType] = useState<string>("product");
   const [requirement, setRequirement] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [timeboxDays, setTimeboxDays] = useState(14);
-  const [fromDate, setFromDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
-  const [toDate, setToDate] = useState<string>("");
+  // Datetime-local default: now rounded to the next 5 minutes
+  const [fromDateTime, setFromDateTime] = useState<string>(() => toLocalDatetimeString(new Date()));
+  const [toDateTime, setToDateTime] = useState<string>(() => toLocalDatetimeString(addDaysToDate(new Date(), 14)));
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [ownerId, setOwnerId] = useState<string>("");
   const [coOwnerIds, setCoOwnerIds] = useState<string[]>([]);
@@ -96,11 +120,13 @@ export function NewProjectClient({ users }: { users: User[] }) {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"details" | "plan" | "review">("details");
 
+  const timeboxDays = diffDays(fromDateTime, toDateTime);
+
   async function generatePlan() {
     setGenerating(true);
     setPlanMode("ai");
     try {
-      const result = await aiApi.generatePlan({ requirement, project_type: type, timebox_days: timeboxDays });
+      const result = await aiApi.generatePlan({ requirement, project_type: type, timebox_days: timeboxDays || 14 });
       setAiPlan(result.plan);
       setStep("plan");
     } catch {
@@ -156,9 +182,9 @@ export function NewProjectClient({ users }: { users: User[] }) {
         owner_id: resolvedOwner,
         assignee_ids: selectedUsers.length > 0 ? selectedUsers : undefined,
         co_owner_ids: resolvedCoOwners.length > 0 ? resolvedCoOwners : undefined,
-        timebox_days: timeboxDays,
-        start_date: fromDate || new Date().toISOString().split("T")[0],
-        end_date: toDate || undefined,
+        timebox_days: timeboxDays || 14,
+        start_date: datePart(fromDateTime) || new Date().toISOString().split("T")[0],
+        end_date: datePart(toDateTime) || undefined,
         tech_stack: aiPlan?.techStack || [],
         ai_plan: aiPlan ? { summary: aiPlan.summary, risks: aiPlan.risks, killCriteria: aiPlan.killCriteria } : undefined,
       });
@@ -330,37 +356,36 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="from-date">From Date</Label>
-                <Input
-                  id="from-date"
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                />
+            <div className="space-y-2">
+              <Label>Timeline</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="from-datetime" className="text-xs text-muted-foreground font-normal">Start date &amp; time</Label>
+                  <Input
+                    id="from-datetime"
+                    type="datetime-local"
+                    value={fromDateTime}
+                    onChange={(e) => setFromDateTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="to-datetime" className="text-xs text-muted-foreground font-normal">End date &amp; time</Label>
+                  <Input
+                    id="to-datetime"
+                    type="datetime-local"
+                    value={toDateTime}
+                    min={fromDateTime || undefined}
+                    onChange={(e) => setToDateTime(e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="to-date">To Date</Label>
-                <Input
-                  id="to-date"
-                  type="date"
-                  value={toDate}
-                  min={fromDate || undefined}
-                  onChange={(e) => setToDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="timebox">Timebox (days)</Label>
-                <Input
-                  id="timebox"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={timeboxDays}
-                  onChange={(e) => setTimeboxDays(parseInt(e.target.value) || 14)}
-                />
-              </div>
+              {fromDateTime && toDateTime && (
+                <p className="text-[11px] text-muted-foreground">
+                  {timeboxDays > 0
+                    ? <>Timebox spans <strong>{timeboxDays}</strong> day{timeboxDays === 1 ? "" : "s"}.</>
+                    : <span className="text-amber-600">End date must be after start date.</span>}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -885,8 +910,13 @@ export function NewProjectClient({ users }: { users: User[] }) {
                 <p className="font-medium capitalize">{priority}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Timebox:</span>
-                <p className="font-medium">{timeboxDays} days</p>
+                <span className="text-muted-foreground">Timeline:</span>
+                <p className="font-medium">
+                  {fromDateTime ? new Date(fromDateTime).toLocaleString() : "—"}
+                  {" → "}
+                  {toDateTime ? new Date(toDateTime).toLocaleString() : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">{timeboxDays} day{timeboxDays === 1 ? "" : "s"}</p>
               </div>
               {(ownerId || selectedUsers.length > 0) && (
                 <div>

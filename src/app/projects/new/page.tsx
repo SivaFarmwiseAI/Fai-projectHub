@@ -87,6 +87,26 @@ interface AiPlanFull extends AiPlan {
   milestones: typeof STANDARD_MILESTONES;
 }
 
+// "YYYY-MM-DDTHH:mm" in local time — format expected by <input type="datetime-local">
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function addDaysToDate(d: Date, days: number): Date {
+  const out = new Date(d);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+// Whole days between two datetime-local strings, minimum 1 if both set
+function diffDays(fromLocal: string, toLocal: string): number {
+  if (!fromLocal || !toLocal) return 0;
+  const ms = new Date(toLocal).getTime() - new Date(fromLocal).getTime();
+  if (Number.isNaN(ms) || ms <= 0) return 0;
+  return Math.max(1, Math.ceil(ms / 86_400_000));
+}
+
 export default function NewProjectPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -109,7 +129,9 @@ export default function NewProjectPage() {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("engineering");
   const [priority, setPriority] = useState<string>("medium");
-  const [timeboxDays, setTimeboxDays] = useState("21");
+  const [startDateTime, setStartDateTime] = useState<string>(() => toLocalDatetimeString(new Date()));
+  const [endDateTime, setEndDateTime] = useState<string>(() => toLocalDatetimeString(addDaysToDate(new Date(), 21)));
+  const timeboxDays = diffDays(startDateTime, endDateTime);
   const [objective, setObjective] = useState("");
   const [scope, setScope] = useState("");
   const [outcomeType, setOutcomeType] = useState<string>("");
@@ -147,7 +169,8 @@ export default function NewProjectPage() {
     setRisks([""]);
     setType("engineering");
     setPriority("medium");
-    setTimeboxDays("21");
+    setStartDateTime(toLocalDatetimeString(new Date()));
+    setEndDateTime(toLocalDatetimeString(addDaysToDate(new Date(), 21)));
   };
 
   const handleFileUpload = async (file: File) => {
@@ -189,7 +212,13 @@ export default function NewProjectPage() {
           if (data.risks?.length)    setRisks(data.risks);
           if (data.type)             setType(data.type);
           if (data.priority)         setPriority(data.priority);
-          if (data.timebox_days)     setTimeboxDays(String(data.timebox_days));
+          if (data.timebox_days) {
+            const days = Number(data.timebox_days);
+            if (days > 0) {
+              const start = new Date(startDateTime);
+              setEndDateTime(toLocalDatetimeString(addDaysToDate(start, days)));
+            }
+          }
           setExtracted(true);
         } catch {
           // Extraction failed — user can fill manually, don't block the flow
@@ -221,7 +250,7 @@ export default function NewProjectPage() {
         requirement: objective,
         objective,
         project_type: type,
-        timebox_days: parseInt(timeboxDays) || 21,
+        timebox_days: timeboxDays || 21,
         tech_stack: aiPlan?.techStack,
       });
       setAiPlan({
@@ -251,7 +280,7 @@ export default function NewProjectPage() {
         requirement: objective,
         objective,
         project_type: type,
-        timebox_days: parseInt(timeboxDays) || 21,
+        timebox_days: timeboxDays || 21,
       });
       setAiPlan({
         summary:      plan.summary      ?? "",
@@ -284,8 +313,9 @@ export default function NewProjectPage() {
         priority,
         owner_id:     ownerId,
         assignee_ids: selectedMembers.length > 0 ? selectedMembers : undefined,
-        timebox_days: parseInt(timeboxDays) || 21,
-        start_date:   new Date().toISOString().split("T")[0],
+        timebox_days: timeboxDays || 21,
+        start_date:   (startDateTime || "").slice(0, 10) || new Date().toISOString().split("T")[0],
+        end_date:     (endDateTime || "").slice(0, 10) || undefined,
         tech_stack:   aiPlan?.techStack ?? [],
         ai_plan:      aiPlan
           ? { summary: aiPlan.summary, techStack: aiPlan.techStack, risks: aiPlan.risks, killCriteria: aiPlan.killCriteria }
@@ -691,21 +721,35 @@ export default function NewProjectPage() {
                 {/* Tab 4: Team & Timeline */}
                 <TabsContent value="team" className="space-y-5 mt-0">
                   <div className="space-y-2">
-                    <Label htmlFor="timebox">Timebox (days)</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="timebox"
-                        type="number"
-                        min={1}
-                        max={90}
-                        value={timeboxDays}
-                        onChange={e => setTimeboxDays(e.target.value)}
-                        className="w-32"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {parseInt(timeboxDays) > 0 ? `≈ ${Math.ceil(parseInt(timeboxDays) / 7)} weeks` : ""}
-                      </span>
+                    <Label>Project Timeline</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="start-datetime" className="text-xs text-muted-foreground font-normal">Start date &amp; time</Label>
+                        <Input
+                          id="start-datetime"
+                          type="datetime-local"
+                          value={startDateTime}
+                          onChange={e => setStartDateTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="end-datetime" className="text-xs text-muted-foreground font-normal">End date &amp; time</Label>
+                        <Input
+                          id="end-datetime"
+                          type="datetime-local"
+                          value={endDateTime}
+                          min={startDateTime || undefined}
+                          onChange={e => setEndDateTime(e.target.value)}
+                        />
+                      </div>
                     </div>
+                    {startDateTime && endDateTime && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {timeboxDays > 0
+                          ? <>Spans <strong>{timeboxDays}</strong> day{timeboxDays === 1 ? "" : "s"} (~{Math.ceil(timeboxDays / 7)} week{Math.ceil(timeboxDays / 7) === 1 ? "" : "s"}).</>
+                          : <span className="text-amber-600">End must be after start.</span>}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-3">
                     <Label>Team Members *</Label>
@@ -960,8 +1004,13 @@ export default function NewProjectPage() {
                   <p className="font-medium mt-1 capitalize">{priority}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Timebox</p>
-                  <p className="font-medium mt-1">{timeboxDays} days</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Timeline</p>
+                  <p className="font-medium mt-1 text-sm">
+                    {startDateTime ? new Date(startDateTime).toLocaleString() : "—"}
+                    <span className="mx-1 text-muted-foreground">→</span>
+                    {endDateTime ? new Date(endDateTime).toLocaleString() : "—"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{timeboxDays} day{timeboxDays === 1 ? "" : "s"}</p>
                 </div>
               </div>
 

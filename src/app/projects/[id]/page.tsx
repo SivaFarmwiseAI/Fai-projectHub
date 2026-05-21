@@ -25,6 +25,7 @@ import {
 import { ManageTeamDialog } from "@/components/manage-team-dialog";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
+import { useAuth } from "@/contexts/auth-context";
 
 // Module-level user cache for sub-component lookups
 let _userMap: Record<string, User> = {};
@@ -115,6 +116,19 @@ function formatDateForInput(dateStr?: string) {
     // If already YYYY-MM-DD, return as is
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
     return new Date(dateStr).toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+}
+
+// "YYYY-MM-DDTHH:mm" in local time for <input type="datetime-local">
+function formatDatetimeForInput(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00` : dateStr);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   } catch {
     return "";
   }
@@ -3920,6 +3934,8 @@ function ProjectOutcomeSection({ project, subs, viewRole }: { project: Project; 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const confirm = useConfirm();
+  const { isCEO, isLead, isAdmin } = useAuth();
+  const canEditTimeline = isCEO || isLead || isAdmin;
 
   // Async data state — all hooks must be declared before any early returns
   const [project, setProject] = useState<Project | null>(null);
@@ -3985,6 +4001,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editPhaseDuration, setEditPhaseDuration] = useState("");
   const [editPhaseStartDate, setEditPhaseStartDate] = useState("");
   const [editPhaseEndDate, setEditPhaseEndDate] = useState("");
+
+  // Timeline edit state (CEO / Team Lead only)
+  const [editingTimeline, setEditingTimeline] = useState(false);
+  const [timelineStart, setTimelineStart] = useState("");
+  const [timelineEnd, setTimelineEnd] = useState("");
+  const [savingTimeline, setSavingTimeline] = useState(false);
 
   // Document upload state
   const docFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -4107,6 +4129,43 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setNewPhaseName(""); setNewPhaseDesc(""); setNewPhaseDuration(""); setNewPhaseChecklist([]); setNewChecklistItem("");
     setNewPhaseStartDate(""); setNewPhaseEndDate("");
     setShowAddPhaseForm(false);
+  };
+
+  const openTimelineEditor = () => {
+    setTimelineStart(formatDatetimeForInput(project?.start_date ?? project?.created_at));
+    setTimelineEnd(formatDatetimeForInput(project?.end_date));
+    setEditingTimeline(true);
+  };
+
+  const saveTimeline = async () => {
+    if (!project) return;
+    if (!timelineStart || !timelineEnd) {
+      showToast.error("Both start and end are required");
+      return;
+    }
+    const startMs = new Date(timelineStart).getTime();
+    const endMs = new Date(timelineEnd).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
+      showToast.error("End must be after start");
+      return;
+    }
+    const newTimebox = Math.max(1, Math.ceil((endMs - startMs) / 86_400_000));
+    setSavingTimeline(true);
+    try {
+      await projectsApi.update(project.id, {
+        start_date: timelineStart.slice(0, 10),
+        end_date: timelineEnd.slice(0, 10),
+        timebox_days: newTimebox,
+      } as Partial<Project>);
+      const fresh = await projectsApi.get(project.id);
+      setProject(fresh.project);
+      setEditingTimeline(false);
+      showToast.success("Timeline updated");
+    } catch (e) {
+      showToast.error("Failed to update timeline", e instanceof Error ? e.message : undefined);
+    } finally {
+      setSavingTimeline(false);
+    }
   };
 
   const handleApplyAIPhases = () => {
@@ -4269,13 +4328,61 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Card>
 
             <Card className="p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-[11px] mb-1">
-                <Clock className="h-3.5 w-3.5" /> Time Remaining
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                  <Clock className="h-3.5 w-3.5" /> Time Remaining
+                </div>
+                {canEditTimeline && !editingTimeline && (
+                  <button
+                    onClick={openTimelineEditor}
+                    className="text-[10px] font-semibold text-blue-600 hover:bg-blue-50 px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5"
+                    title="Edit project timeline"
+                  >
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                )}
               </div>
-              <p className={`text-2xl font-bold ${isOverdue ? "text-red-600" : ""}`}>
-                {isOverdue ? `${Math.abs(daysLeft)}d over` : `${daysLeft} days`}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">{project.timebox_days}-day timebox · Started {formatShortDate(project.start_date ?? project.created_at)}</p>
+              {editingTimeline ? (
+                <div className="space-y-1.5 mt-1">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Start</label>
+                    <Input
+                      type="datetime-local"
+                      value={timelineStart}
+                      onChange={(e) => setTimelineStart(e.target.value)}
+                      className="h-7 text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">End</label>
+                    <Input
+                      type="datetime-local"
+                      value={timelineEnd}
+                      min={timelineStart || undefined}
+                      onChange={(e) => setTimelineEnd(e.target.value)}
+                      className="h-7 text-[11px]"
+                    />
+                  </div>
+                  <div className="flex gap-1 pt-0.5">
+                    <Button size="sm" className="h-6 px-2 text-[10px] flex-1" onClick={saveTimeline} disabled={savingTimeline}>
+                      {savingTimeline ? "Saving…" : "Save"}
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => setEditingTimeline(false)} disabled={savingTimeline}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className={`text-2xl font-bold ${isOverdue ? "text-red-600" : ""}`}>
+                    {isOverdue ? `${Math.abs(daysLeft)}d over` : `${daysLeft} days`}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{project.timebox_days}-day timebox · Started {formatShortDate(project.start_date ?? project.created_at)}</p>
+                  {project.end_date && (
+                    <p className="text-[10px] text-muted-foreground">Ends {formatShortDate(project.end_date)}</p>
+                  )}
+                </>
+              )}
             </Card>
 
             <Card className="p-3">

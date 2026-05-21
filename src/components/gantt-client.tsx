@@ -4,11 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import {
   CalendarDays, ZoomIn, ZoomOut,
   CheckCircle2, Clock, Pause, XCircle,
-  Loader2,
+  Loader2, ChevronDown, Search, X,
 } from "lucide-react";
 import { projects as projectsApi } from "@/lib/api-client";
 import type { Project } from "@/lib/api-client";
 import { format, addDays, differenceInDays, startOfMonth, startOfYear, addMonths, addYears } from "date-fns";
+import { SingleProjectTimeline } from "@/components/single-project-timeline";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
   if (!startDate) return 0;
@@ -43,11 +44,27 @@ export function GanttClient() {
   const [dayWidth, setDayWidth] = useState(28);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("weekly");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     projectsApi.list({ limit: 100 }).then(r => setProjectList(r.projects)).finally(() => setLoading(false));
   }, []);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [pickerOpen]);
 
   // Initial scroll to today
   useEffect(() => {
@@ -92,7 +109,20 @@ export function GanttClient() {
     );
   }
 
+  // Single-project drill-down view
+  if (selectedProjectId) {
+    return (
+      <SingleProjectTimeline
+        projectId={selectedProjectId}
+        onBack={() => setSelectedProjectId(null)}
+      />
+    );
+  }
+
   const today = new Date();
+  const filteredPickerProjects = projectList.filter(p =>
+    !pickerSearch || p.title.toLowerCase().includes(pickerSearch.toLowerCase())
+  );
 
   // Only include projects with a start_date
   const datable = projectList.filter(p => p.start_date);
@@ -175,7 +205,70 @@ export function GanttClient() {
           <p className="text-[11px] text-slate-500">Cross-project Gantt view · {filtered.length} projects</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Project Picker */}
+          <div ref={pickerRef} className="relative">
+            <button
+              onClick={() => setPickerOpen(o => !o)}
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center gap-2 text-[11px] font-bold text-slate-700 shadow-sm"
+            >
+              <CalendarDays className="h-3.5 w-3.5 text-purple-600" />
+              <span>View single project</span>
+              <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
+            </button>
+            {pickerOpen && (
+              <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl border border-slate-200 shadow-lg z-50 overflow-hidden">
+                <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+                  <div className="relative">
+                    <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={pickerSearch}
+                      onChange={e => setPickerSearch(e.target.value)}
+                      placeholder="Search projects…"
+                      className="w-full h-8 pl-8 pr-2 text-[11px] rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400"
+                    />
+                    {pickerSearch && (
+                      <button onClick={() => setPickerSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="max-h-80 overflow-y-auto scrollbar-thin">
+                  {filteredPickerProjects.length === 0 ? (
+                    <div className="p-6 text-center text-[11px] text-slate-400">No projects found.</div>
+                  ) : (
+                    filteredPickerProjects.map(p => {
+                      const ps = STATUS_STYLES[p.status] ?? STATUS_STYLES.active;
+                      const Icon = ps.icon;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setSelectedProjectId(p.id);
+                            setPickerOpen(false);
+                            setPickerSearch("");
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-purple-50 transition-colors border-b border-slate-50 last:border-b-0 flex items-center gap-2.5"
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: ps.bar }} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-slate-800 truncate leading-tight">{p.title}</p>
+                            <p className="text-[9px] text-slate-400 truncate">
+                              {p.owner_name ?? "—"} · {p.status}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* View Mode Selector */}
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
             {(["daily", "weekly", "monthly", "yearly"] as ViewMode[]).map(v => (
@@ -261,7 +354,12 @@ export function GanttClient() {
                 const Icon = style.icon;
                 const daysLeft = getDaysRemaining(p.start_date, p.timebox_days);
                 return (
-                  <div key={p.id} className="h-16 flex items-center px-4 border-b border-slate-50 hover:bg-slate-50/60 transition-colors group">
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedProjectId(p.id)}
+                    className="h-16 flex items-center px-4 border-b border-slate-50 hover:bg-purple-50/40 transition-colors group cursor-pointer"
+                    title="View full timeline for this project"
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Icon className="h-3 w-3 shrink-0" style={{ color: style.bar }} />
