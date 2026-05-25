@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._approval import auto_request
 from ..auth import get_current_user, require_auth
 from ..database import execute_returning, fetchall, fetchone, get_conn
 from ..exceptions import HTTPError
@@ -126,6 +127,14 @@ def _create_leave(event, origin):
         str(body.cover_person_id) if body.cover_person_id else None,
         body.coverage_plan, body.contingency_note, body.is_planned,
     ))
+    auto_request(
+        entity_type="leave",
+        entity_id=str(leave["id"]),
+        requested_by=str(current_user["id"]),
+        title=f"{current_user.get('name', 'Leave')} — {body.type}",
+        description=body.reason,
+        proposed_at=f"{body.start_date}T09:00:00Z",
+    )
     return resp({"leave": leave}, 201, origin)
 
 

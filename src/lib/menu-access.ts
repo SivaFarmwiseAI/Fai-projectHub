@@ -131,6 +131,22 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     defaultRoles: "all",
     allowedRoles: [...ALL_ROLES],
   },
+  {
+    key: "meetings",
+    label: "Meetings",
+    href: "/meetings",
+    section: "Work",
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
+  },
+  {
+    key: "ceo-requests",
+    label: "CEO Requests",
+    href: "/requests",
+    section: "Work",
+    defaultRoles: ["Admin", "CEO"],
+    allowedRoles: ["Admin", "CEO"],
+  },
 
   // ── Team ─────────────────────────────────────────────────────────────
   {

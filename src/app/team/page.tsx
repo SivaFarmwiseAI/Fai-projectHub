@@ -63,7 +63,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Users className="h-7 w-7 text-purple-600" />
@@ -73,9 +73,18 @@ export default function TeamPage() {
             Overview of team member activity and performance metrics
           </p>
         </div>
-        <Badge variant="outline" className="text-sm px-3 py-1">
-          {teamMembers.length} members
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/team/activity"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            Cross-project activity
+          </Link>
+          <Badge variant="outline" className="text-sm px-3 py-1">
+            {teamMembers.length} members
+          </Badge>
+        </div>
       </div>
 
       {/* Empty state */}

@@ -128,35 +128,23 @@ Resources:
   Api:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub projecthub-api-${Env}
+      Name: !Sub fai-projecthub-api-${Env}
       StageName: !Ref Env
       TracingEnabled: true
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
-        Format: >-
-          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp",
-          "method":"$context.httpMethod","path":"$context.path",
-          "status":"$context.status","responseLength":"$context.responseLength",
-          "integrationLatency":"$context.integrationLatency",
-          "responseLatency":"$context.responseLatency",
-          "userAgent":"$context.identity.userAgent",
-          "errorMessage":"$context.error.message"}
+      # API Gateway CloudWatch logging (AccessLogSetting + LoggingLevel) requires
+      # an account-level IAM role ARN set via AWS::ApiGateway::Account. Disabled
+      # here to keep deploys self-contained — Lambda execution logs still flow to
+      # /aws/lambda/projecthub-*-${Env}. Re-enable once the account role is set.
       MethodSettings:
         - ResourcePath: '/*'
           HttpMethod: '*'
           MetricsEnabled: true
-          LoggingLevel: ERROR
-          DataTraceEnabled: false
           ThrottlingRateLimit: 200
           ThrottlingBurstLimit: 400
 
   # ── CloudWatch Log Groups (explicit to control retention) ───────────────────
-
-  ApiAccessLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/apigateway/projecthub-${Env}
-      RetentionInDays: 30
+  # ApiAccessLogGroup removed alongside AccessLogSetting above. Re-add when the
+  # API Gateway account-level CloudWatch role is configured.
 
   HealthLogGroup:
     Type: AWS::Logs::LogGroup
@@ -207,12 +195,11 @@ Resources:
       LogGroupName: !Sub /aws/lambda/projecthub-analytics-${Env}
       RetentionInDays: 30
 
-  AILogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    Properties:
-      LogGroupName: !Sub /aws/lambda/projecthub-ai-${Env}
-      RetentionInDays: 30
+  # AILogGroup intentionally omitted — pre-existing log group
+  # /aws/lambda/projecthub-ai-${Env} from a prior deploy (DeletionPolicy: Retain)
+  # blocks CFN from re-creating it. Lambda will reuse the existing group on first
+  # invocation. Re-import the resource later if you need to manage RetentionInDays
+  # via the stack.
 
   CaptureLogGroup:
     Type: AWS::Logs::LogGroup
@@ -261,6 +248,20 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/projecthub-commitments-${Env}
+      RetentionInDays: 30
+
+  MeetingsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/projecthub-meetings-${Env}
+      RetentionInDays: 30
+
+  ScheduleRequestsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/projecthub-schedule-requests-${Env}
       RetentionInDays: 30
 
   # ── Lambda Functions ────────────────────────────────────────────────────────
@@ -460,7 +461,6 @@ Resources:
 
   AIFunction:
     Type: AWS::Serverless::Function
-    DependsOn: AILogGroup
     Properties:
       FunctionName: !Sub projecthub-ai-${Env}
       Handler: src.handlers.ai.handler
@@ -668,6 +668,56 @@ Resources:
     Metadata:
       BuildMethod: python3.10
 
+  # ── Meetings ────────────────────────────────────────────────────────────────
+
+  MeetingsFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: MeetingsLogGroup
+    Properties:
+      FunctionName: !Sub projecthub-meetings-${Env}
+      Handler: src.handlers.meetings.handler
+      Description: /api/meetings – first-class meetings (project or general)
+      Events:
+        MeetingsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/meetings
+            Method: ANY
+        MeetingsProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/meetings/{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: python3.10
+
+  # ── Schedule Requests (CEO inbox) ───────────────────────────────────────────
+
+  ScheduleRequestsFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: ScheduleRequestsLogGroup
+    Properties:
+      FunctionName: !Sub projecthub-schedule-requests-${Env}
+      Handler: src.handlers.schedule_requests.handler
+      Description: /api/schedule-requests – CEO accept/reschedule/reject queue
+      Events:
+        ScheduleRequestsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/schedule-requests
+            Method: ANY
+        ScheduleRequestsProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/schedule-requests/{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: python3.10
+
 # ── Outputs ───────────────────────────────────────────────────────────────────
 
 Outputs:
@@ -675,7 +725,7 @@ Outputs:
     Description: Public API base URL (set NEXT_PUBLIC_API_URL to this value)
     Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${Env}
     Export:
-      Name: !Sub ProjectHub-ApiUrl-${Env}
+      Name: !Sub fai-ProjectHub-ApiUrl-${Env}
 
   ApiId:
     Description: API Gateway REST API ID

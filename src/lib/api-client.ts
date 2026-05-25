@@ -168,6 +168,9 @@ export const phases = {
   attachments: (id: string) => get<{ attachments: PhaseAttachment[] }>(`/phases/${id}/attachments`),
   addAttachment: (id: string, data: { title: string; type?: string; url?: string }) =>
     post<{ attachment: PhaseAttachment }>(`/phases/${id}/attachments`, data),
+  revisions:    (id: string) => get<{ revisions: PhaseRevision[] }>(`/phases/${id}/revisions`),
+  addRevision:  (id: string, data: CreateRevisionPayload) =>
+    post<{ revision: PhaseRevision }>(`/phases/${id}/revisions`, data),
   delete: (id: string) => del<void>(`/phases/${id}`),
 };
 
@@ -203,6 +206,14 @@ export const tasks = {
     post<{ task_id: string; assignees: TaskAssignee[] }>(`/tasks/${taskId}/assignees`, { user_id: userId }),
   removeAssignee: (taskId: string, userId: string) =>
     del<void>(`/tasks/${taskId}/assignees/${userId}`),
+
+  // Revisions (history) + standalone attachments
+  revisions:     (id: string) => get<{ revisions: TaskRevision[] }>(`/tasks/${id}/revisions`),
+  addRevision:   (id: string, data: CreateRevisionPayload) =>
+    post<{ revision: TaskRevision }>(`/tasks/${id}/revisions`, data),
+  attachments:   (id: string) => get<{ attachments: TaskAttachment[] }>(`/tasks/${id}/attachments`),
+  addAttachment: (id: string, data: { title: string; type?: string; url?: string; content?: string }) =>
+    post<{ attachment: TaskAttachment }>(`/tasks/${id}/attachments`, data),
 };
 
 // ── Submissions ───────────────────────────────────────────────────────────────
@@ -267,6 +278,28 @@ export const reviews = {
     patch<{ review: ReviewTask }>(`/reviews/${id}`, data),
   delete: (id: string) => del<void>(`/reviews/${id}`),
   stats:  () => get<{ stats: ReviewStats }>("/reviews/stats/summary"),
+};
+
+// ── Meetings ──────────────────────────────────────────────────────────────────
+export const meetings = {
+  list:   (params?: { project_id?: string; scope?: "general" | "project"; status?: string }) =>
+    get<{ meetings: Meeting[] }>(`/meetings${_qs(params)}`),
+  create: (data: CreateMeetingPayload) => post<{ meeting: Meeting }>("/meetings", data),
+  get:    (id: string) => get<{ meeting: Meeting }>(`/meetings/${id}`),
+  update: (id: string, data: Partial<CreateMeetingPayload> & { status?: string }) =>
+    patch<{ meeting: Meeting }>(`/meetings/${id}`, data),
+  delete: (id: string) => del<void>(`/meetings/${id}`),
+};
+
+// ── Schedule Requests (CEO approval inbox) ────────────────────────────────────
+export const scheduleRequests = {
+  list:   (params?: { status?: string; entity_type?: string }) =>
+    get<{ requests: ScheduleRequestRow[] }>(`/schedule-requests${_qs(params)}`),
+  get:    (id: string) => get<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}`),
+  accept: (id: string, data?: { rescheduled_to?: string; ceo_note?: string }) =>
+    post<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}/accept`, data ?? {}),
+  reject: (id: string, data?: { ceo_note?: string }) =>
+    post<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}/reject`, data ?? {}),
 };
 
 // ── Commitments ───────────────────────────────────────────────────────────────
@@ -670,6 +703,65 @@ export interface ReviewStats {
   high_priority_open: number;
 }
 
+export interface MeetingAttendee {
+  id: string;
+  name: string;
+  avatar_color: string;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  agenda?: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  location?: string;
+  project_id?: string;
+  project_title?: string;
+  status: string;
+  created_by: string;
+  created_by_name?: string;
+  created_by_color?: string;
+  attendees: MeetingAttendee[];
+  approval_status?: "pending" | "accepted" | "rejected" | null;
+  rescheduled_to?: string | null;
+  ceo_note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleRequestRow {
+  id: string;
+  entity_type: "meeting" | "review" | "commitment" | "discussion" | "leave" | "follow_up";
+  entity_id: string;
+  status: "pending" | "accepted" | "rejected";
+  title?: string;
+  description?: string;
+  proposed_at?: string;
+  rescheduled_to?: string;
+  ceo_note?: string;
+  project_id?: string;
+  project_title?: string;
+  requested_by: string;
+  requested_by_name?: string;
+  requested_by_color?: string;
+  decided_by?: string;
+  decided_by_name?: string;
+  decided_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateMeetingPayload {
+  title: string;
+  agenda?: string;
+  scheduled_at: string;
+  duration_minutes?: number;
+  location?: string;
+  project_id?: string;
+  attendee_ids?: string[];
+}
+
 export interface Commitment {
   id: string;
   title: string;
@@ -725,6 +817,82 @@ export interface PhaseAttachment {
   uploaded_by?: string;
   url?: string;
   created_at: string;
+}
+
+export type RevisionAttachmentType = "url" | "repo" | "figma" | "design" | "document" | "code";
+
+export interface RevisionAttachment {
+  id: string;
+  title: string;
+  type: RevisionAttachmentType | string;
+  url?: string;
+  content?: string;
+  created_at: string;
+}
+
+export interface RevisionAttachmentInput {
+  title: string;
+  type: RevisionAttachmentType | string;
+  url?: string;
+  content?: string;
+}
+
+export type RevisionChangeType =
+  | "revision"
+  | "status_change"
+  | "closure"
+  | "description_edit"
+  | "note";
+
+export interface PhaseRevision {
+  id: string;
+  phase_id: string;
+  author_id?: string;
+  author_name?: string;
+  author_color?: string;
+  change_type: RevisionChangeType | string;
+  summary: string;
+  details?: string;
+  previous_value?: string;
+  new_value?: string;
+  attachments: RevisionAttachment[];
+  created_at: string;
+}
+
+export interface TaskRevision {
+  id: string;
+  task_id: string;
+  author_id?: string;
+  author_name?: string;
+  author_color?: string;
+  change_type: RevisionChangeType | string;
+  summary: string;
+  details?: string;
+  previous_value?: string;
+  new_value?: string;
+  attachments: RevisionAttachment[];
+  created_at: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  title: string;
+  type: string;
+  uploaded_by?: string;
+  uploader?: string;
+  url?: string;
+  content?: string;
+  created_at: string;
+}
+
+export interface CreateRevisionPayload {
+  summary: string;
+  details?: string;
+  change_type?: RevisionChangeType | string;
+  previous_value?: string;
+  new_value?: string;
+  attachments?: RevisionAttachmentInput[];
 }
 
 export interface PhaseDiscussion {

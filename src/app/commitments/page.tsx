@@ -43,6 +43,7 @@ import {
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
+import { refreshScheduleRequests } from "@/lib/scheduling-requests";
 
 const statusColors: Record<string, string> = {
   pending:     "text-amber-700 border-amber-200 bg-amber-50",
@@ -347,7 +348,8 @@ function CommitmentFormDialog({
           assignee_id: assigneeId || undefined,
           project_id: projectId || undefined,
         });
-        showToast.success("Commitment created");
+        void refreshScheduleRequests(true);
+        showToast.success("Commitment raised to CEO", "Pending approval before it hits the calendar.");
         onSaved(created);
       }
       onOpenChange(false);

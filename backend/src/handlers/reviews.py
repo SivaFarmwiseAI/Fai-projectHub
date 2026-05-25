@@ -2,6 +2,7 @@
 import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._approval import auto_request
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -80,6 +81,15 @@ def _create_review(event, origin):
         str(body.submission_id) if body.submission_id else None,
         body.priority, body.due_date,
     ))
+    auto_request(
+        entity_type="review",
+        entity_id=str(review["id"]),
+        requested_by=str(current_user["id"]),
+        title=body.title,
+        description=body.description,
+        proposed_at=f"{body.due_date}T09:00:00Z" if body.due_date else None,
+        project_id=str(body.project_id) if body.project_id else None,
+    )
     return resp({"review": review}, 201, origin)
 
 

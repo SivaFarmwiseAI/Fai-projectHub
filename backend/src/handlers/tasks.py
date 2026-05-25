@@ -259,6 +259,91 @@ def _add_update(event, origin, task_id):
     return resp({"update": update}, 201, origin)
 
 
+# ── Revisions (history) ──────────────────────────────────────────────────────
+
+def _list_task_revisions(event, origin, task_id):
+    get_current_user(event)
+    revisions = fetchall("""
+        SELECT r.*, u.name AS author_name, u.avatar_color AS author_color,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', a.id, 'title', a.title, 'type', a.type,
+              'url', a.url, 'content', a.content, 'created_at', a.created_at
+            ) ORDER BY a.created_at)
+            FROM task_revision_attachments a WHERE a.revision_id = r.id
+          ), '[]'::JSON) AS attachments
+        FROM task_revisions r
+        LEFT JOIN users u ON u.id = r.author_id
+        WHERE r.task_id = %s
+        ORDER BY r.created_at DESC
+    """, (task_id,))
+    return resp({"revisions": revisions}, origin=origin)
+
+
+def _add_task_revision(event, origin, task_id):
+    current_user = get_current_user(event)
+    body = get_body(event)
+    summary = (body.get("summary") or "").strip()
+    if not summary:
+        raise HTTPError(400, "summary is required")
+    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+        raise HTTPError(404, "Task not found")
+
+    revision = execute_returning("""
+        INSERT INTO task_revisions
+          (task_id, author_id, change_type, summary, details, previous_value, new_value)
+        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+    """, (task_id, current_user["id"],
+          body.get("change_type", "revision"),
+          summary, body.get("details"),
+          body.get("previous_value"), body.get("new_value")))
+
+    attachments = []
+    for att in (body.get("attachments") or []):
+        title = (att.get("title") or "").strip()
+        if not title:
+            continue
+        row = execute_returning("""
+            INSERT INTO task_revision_attachments (revision_id, title, type, url, content)
+            VALUES (%s,%s,%s,%s,%s) RETURNING *
+        """, (revision["id"], title, att.get("type", "url"),
+              att.get("url"), att.get("content")))
+        attachments.append(row)
+
+    revision["attachments"] = attachments
+    revision["author_name"] = current_user.get("name")
+    revision["author_color"] = current_user.get("avatar_color")
+    return resp({"revision": revision}, 201, origin)
+
+
+# ── Task attachments (standalone, not tied to a revision) ────────────────────
+
+def _list_task_attachments(event, origin, task_id):
+    get_current_user(event)
+    atts = fetchall("""
+        SELECT ta.*, u.name AS uploader
+        FROM task_attachments ta LEFT JOIN users u ON u.id = ta.uploaded_by
+        WHERE ta.task_id = %s ORDER BY ta.created_at DESC
+    """, (task_id,))
+    return resp({"attachments": atts}, origin=origin)
+
+
+def _add_task_attachment(event, origin, task_id):
+    current_user = get_current_user(event)
+    body = get_body(event)
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPError(400, "title is required")
+    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+        raise HTTPError(404, "Task not found")
+    att = execute_returning("""
+        INSERT INTO task_attachments (task_id, title, type, uploaded_by, url, content)
+        VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
+    """, (task_id, title, body.get("type", "url"), current_user["id"],
+          body.get("url"), body.get("content")))
+    return resp({"attachment": att}, 201, origin)
+
+
 # ── Milestones ────────────────────────────────────────────────────────────────
 
 def _create_milestone(event, origin, task_id):
@@ -298,6 +383,10 @@ handler = make_handler([
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/steps",                                     _create_step),
     ("PATCH",  rf"/api/tasks/(?P<task_id>{PARAM})/steps/(?P<step_id>{PARAM})",                _update_step),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/updates",                                   _add_update),
+    ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/revisions",                                 _list_task_revisions),
+    ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/revisions",                                 _add_task_revision),
+    ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _list_task_attachments),
+    ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _add_task_attachment),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/milestones",                                _create_milestone),
     ("PATCH",  rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})",             _update_milestone),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/assignees",                                 _add_task_assignee),

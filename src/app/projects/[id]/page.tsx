@@ -23,6 +23,8 @@ import {
   ApiError,
 } from "@/lib/api-client";
 import { ManageTeamDialog } from "@/components/manage-team-dialog";
+import { ProjectPerformanceTab } from "@/components/project-performance-tab";
+import { RevisionHistory } from "@/components/revision-history";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
 import { useAuth } from "@/contexts/auth-context";
@@ -1618,6 +1620,13 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
             </div>
           )}
 
+          <RevisionHistory
+            entity="task"
+            entityId={task.id}
+            entityLabel={task.title}
+            accent="slate"
+          />
+
           {/* ── Action Buttons ── */}
           <div className="flex items-center gap-2 pt-1 flex-wrap">
             {viewRole === "ceo" && (
@@ -2718,6 +2727,13 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                         <span className="text-muted-foreground italic">Pending sign-off</span>
                       )}
                     </div>
+
+                    <RevisionHistory
+                      entity="phase"
+                      entityId={phase.id}
+                      entityLabel={phase.phase_name}
+                      accent="indigo"
+                    />
 
                     {/* ── Phase Action Buttons ── */}
                     <Separator />
@@ -4089,6 +4105,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     { id: "documents", label: "Documents", icon: <BookOpen className="h-3.5 w-3.5" />, count: documents.length },
     { id: "phases", label: "Phases & Tasks", icon: <GitBranch className="h-3.5 w-3.5" />, count: phases.length },
     { id: "tasks", label: "All Tasks", icon: <Layers className="h-3.5 w-3.5" />, count: totalTasks },
+    { id: "performance", label: "Performance", icon: <Activity className="h-3.5 w-3.5" />, count: (project.assignees?.length ?? 0) + (project.co_owners?.length ?? 0) },
     { id: "results", label: "Results & Reviews", icon: <Trophy className="h-3.5 w-3.5" /> },
   ];
 
@@ -4945,6 +4962,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <PhasesTimelineSection phases={phases} viewRole={viewRole} projectId={project.id} />
           )}
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ─── TAB: PERFORMANCE ───────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {activeTab === "performance" && (
+        <ProjectPerformanceTab project={project} tasks={tasks} />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}

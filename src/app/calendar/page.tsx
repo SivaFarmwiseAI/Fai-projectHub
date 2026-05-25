@@ -13,6 +13,7 @@ import {
   Plus,
 } from "lucide-react";
 import { ScheduleDialog, type ScheduleTab } from "@/components/schedule-dialog";
+import { isVisibleOnCalendar, getRequest, useScheduleRequestsTick } from "@/lib/scheduling-requests";
 import {
   projects as projectsApi,
   tasks as tasksApi,
@@ -22,6 +23,7 @@ import {
   reviews as reviewsApi,
   discussions as discussionsApi,
   commitments as commitmentsApi,
+  meetings as meetingsApi,
   type Project,
   type Task,
   type LeaveRequest,
@@ -30,6 +32,7 @@ import {
   type ReviewTask,
   type Discussion,
   type Commitment,
+  type Meeting,
 } from "@/lib/api-client";
 import {
   startOfMonth,
@@ -206,6 +209,7 @@ function buildCalendarEvents(
   reviewTasks: ReviewTask[],
   discussionList: Discussion[],
   commitmentList: Commitment[],
+  meetingList: Meeting[],
   projectMap: Record<string, Project>,
 ): CalendarEvent[] {
   const events: CalendarEvent[] = [];
@@ -236,6 +240,7 @@ function buildCalendarEvents(
   // 2. Leaves — one event per day of leave
   for (const leave of allLeaves) {
     if (leave.status === "rejected") continue;
+    if (!isVisibleOnCalendar("leave", leave.id)) continue;
     const user = _userMap[leave.user_id];
     const userName = user?.name ?? "Unknown";
     const start = safeParseDateString(leave.start_date);
@@ -270,6 +275,11 @@ function buildCalendarEvents(
   for (const item of captureItems) {
     const mappedType = captureTypeMap[item.type];
     if (!mappedType || !item.due_date) continue;
+    // Follow-ups and meetings & commitments captured as items need CEO approval too
+    const approvalType = mappedType === "follow_up" ? "follow_up"
+      : mappedType === "meeting" ? "meeting"
+      : "commitment";
+    if (!isVisibleOnCalendar(approvalType, item.id)) continue;
     const dueDate = safeParseDateString(item.due_date);
     if (!dueDate) continue;
     events.push({
@@ -289,9 +299,20 @@ function buildCalendarEvents(
   // 5b. Commitments — one event per day across the from→to window.
   for (const c of commitmentList) {
     if (c.status === "cancelled") continue;
-    const start = safeParseDateString(c.from_date);
-    const end = safeParseDateString(c.to_date);
+    if (!isVisibleOnCalendar("commitment", c.id)) continue;
+    const req = getRequest("commitment", c.id);
+    // Honor CEO reschedule: shift the window so it starts on the new date
+    let start = safeParseDateString(c.from_date);
+    let end = safeParseDateString(c.to_date);
     if (!start || !end) continue;
+    if (req?.rescheduledTo) {
+      const newStart = safeParseDateString(req.rescheduledTo);
+      if (newStart) {
+        const spanMs = end.getTime() - start.getTime();
+        start = newStart;
+        end = new Date(newStart.getTime() + spanMs);
+      }
+    }
     const days = eachDayOfInterval({ start, end });
     const project = c.project_id ? projectMap[c.project_id] : undefined;
     for (const day of days) {
@@ -316,7 +337,10 @@ function buildCalendarEvents(
   // 6a. Review tasks — show on due_date (or created_at if no due_date)
   for (const review of reviewTasks) {
     if (review.status === "completed" || review.status === "rejected") continue;
+    if (!isVisibleOnCalendar("review", review.id)) continue;
+    const req = getRequest("review", review.id);
     const targetDate =
+      safeParseDateString(req?.rescheduledTo) ??
       safeParseDateString(review.due_date) ??
       safeParseDateString(review.created_at);
     if (!targetDate) continue;
@@ -342,7 +366,10 @@ function buildCalendarEvents(
   // 6b. Discussions — prefer scheduled_at if set; otherwise updated_at for open
   // threads and created_at for resolved threads.
   for (const disc of discussionList) {
+    if (!isVisibleOnCalendar("discussion", disc.id)) continue;
+    const req = getRequest("discussion", disc.id);
     const anchor =
+      safeParseDateString(req?.rescheduledTo) ??
       safeParseDateString(disc.scheduled_at) ??
       (disc.is_resolved
         ? safeParseDateString(disc.created_at)
@@ -362,6 +389,29 @@ function buildCalendarEvents(
         status: disc.is_resolved ? "resolved" : "open",
         messageCount: String(disc.message_count ?? 0),
         scheduled: disc.scheduled_at ? "1" : "",
+      },
+    });
+  }
+
+  // 6c. Meetings — first-class scheduled events from the meetings table.
+  for (const m of meetingList) {
+    if (!isVisibleOnCalendar("meeting", m.id)) continue;
+    const when = safeParseDateString(m.rescheduled_to ?? m.scheduled_at);
+    if (!when) continue;
+    const project = m.project_id ? projectMap[m.project_id] : undefined;
+    events.push({
+      id: `meet-${m.id}`,
+      type: "meeting",
+      title: m.title,
+      description: m.agenda,
+      date: toDateKey(when),
+      userId: m.created_by,
+      projectTitle: project?.title ?? m.project_title,
+      meta: {
+        time: format(when, "HH:mm"),
+        duration: String(m.duration_minutes ?? ""),
+        location: m.location ?? "",
+        attendees: String(m.attendees?.length ?? 0),
       },
     });
   }
@@ -608,6 +658,7 @@ export default function CEOCalendarPage() {
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[]>([]);
   const [discussionList, setDiscussionList] = useState<Discussion[]>([]);
   const [commitmentList, setCommitmentList] = useState<Commitment[]>([]);
+  const [meetingList, setMeetingList] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -618,6 +669,7 @@ export default function CEOCalendarPage() {
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleTab, setScheduleTab] = useState<ScheduleTab>("leave");
+  const requestsTick = useScheduleRequestsTick();
 
   const loadCalendarData = useCallback(() => {
     setLoading(true);
@@ -630,7 +682,8 @@ export default function CEOCalendarPage() {
       reviewsApi.list().then(r => r.reviews).catch(() => [] as ReviewTask[]),
       discussionsApi.list().then(r => r.discussions).catch(() => [] as Discussion[]),
       commitmentsApi.list().then(r => r.commitments).catch(() => [] as Commitment[]),
-    ]).then(([projs, tasks, leaves, users, caps, revs, discs, comms]) => {
+      meetingsApi.list().then(r => r.meetings).catch(() => [] as Meeting[]),
+    ]).then(([projs, tasks, leaves, users, caps, revs, discs, comms, meets]) => {
       _userMap = Object.fromEntries(users.map(u => [u.id, u]));
       setProjects(projs);
       setAllTasks(tasks);
@@ -639,6 +692,7 @@ export default function CEOCalendarPage() {
       setReviewTasks(revs);
       setDiscussionList(discs);
       setCommitmentList(comms);
+      setMeetingList(meets);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -657,8 +711,9 @@ export default function CEOCalendarPage() {
   );
 
   const allEvents = useMemo(
-    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, projectMap),
-    [projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, projectMap]
+    () => buildCalendarEvents(projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, meetingList, projectMap),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, allTasks, allLeaves, captureItems, reviewTasks, discussionList, commitmentList, meetingList, projectMap, requestsTick]
   );
 
   const eventsByDate = useMemo(() => {

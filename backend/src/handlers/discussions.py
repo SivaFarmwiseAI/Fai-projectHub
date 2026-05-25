@@ -2,6 +2,7 @@
 import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._approval import auto_request
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -50,6 +51,14 @@ def _create_discussion(event, origin):
         body.title, current_user["id"],
         body.scheduled_at,
     ))
+    auto_request(
+        entity_type="discussion",
+        entity_id=str(disc["id"]),
+        requested_by=str(current_user["id"]),
+        title=body.title,
+        proposed_at=body.scheduled_at,
+        project_id=str(body.project_id) if body.project_id else None,
+    )
     return resp({"discussion": disc}, 201, origin)
 
 

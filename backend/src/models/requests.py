@@ -349,6 +349,40 @@ class UpdateCommitmentRequest(BaseModel):
     project_id: Optional[UUID] = None
 
 
+# ── Meetings ──────────────────────────────────────────────────────────────────
+
+class CreateMeetingRequest(BaseModel):
+    title: str
+    agenda: Optional[str] = None
+    scheduled_at: str                 # ISO-8601 datetime
+    duration_minutes: int = 30
+    location: Optional[str] = None
+    project_id: Optional[UUID] = None # null = general meeting
+    attendee_ids: List[UUID] = Field(default_factory=list)
+
+
+class UpdateMeetingRequest(BaseModel):
+    title: Optional[str] = None
+    agenda: Optional[str] = None
+    scheduled_at: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    location: Optional[str] = None
+    project_id: Optional[UUID] = None
+    status: Optional[str] = None
+    attendee_ids: Optional[List[UUID]] = None
+
+
+# ── Schedule requests (CEO approval queue) ────────────────────────────────────
+
+class AcceptScheduleRequest(BaseModel):
+    rescheduled_to: Optional[str] = None  # ISO datetime; null = accept as-proposed
+    ceo_note: Optional[str] = None
+
+
+class RejectScheduleRequest(BaseModel):
+    ceo_note: Optional[str] = None
+
+
 # ── AI ────────────────────────────────────────────────────────────────────────
 
 class GeneratePlanRequest(BaseModel):

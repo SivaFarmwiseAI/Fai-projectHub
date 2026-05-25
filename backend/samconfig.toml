@@ -29,8 +29,8 @@ build_dir     = "C:/sam-build/projecthub"
 # ── Production ────────────────────────────────────────────────────────────────
 
 [default.deploy.parameters]
-stack_name        = "fai-projecthub-api-dev"
-s3_bucket         = "fai-projecthub"
+stack_name        = "fai-projecthub-backend-dev"
+s3_bucket         = "fai-projecthub-dev"
 s3_prefix         = "projecthub/api"
 region            = "ap-south-1"
 profile           = "AWSAdministratorAccess-448658736283"
@@ -52,7 +52,7 @@ tags = "Project=ProjectHub Environment=dev Team=FarmwiseAI ManagedBy=SAM"
 
 [staging.deploy.parameters]
 stack_name        = "projecthub-api-staging"
-s3_bucket         = "YOUR-SAM-ARTIFACTS-BUCKET"
+s3_bucket         = "fai-projecthub-dev"
 s3_prefix         = "projecthub/api"
 region            = "ap-south-1"
 confirm_changeset = false

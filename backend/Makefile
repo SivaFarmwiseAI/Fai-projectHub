@@ -17,10 +17,10 @@ db-create:
 	psql -U postgres -c "CREATE DATABASE projecthub;" || true
 
 migrate:
-	psql $(DB_URL) -f migrations/001_schema.sql
-	psql $(DB_URL) -f migrations/002_indexes.sql
-	psql $(DB_URL) -f migrations/003_functions.sql
-	psql $(DB_URL) -f migrations/004_views.sql
+	@for f in migrations/*.sql; do \
+		echo "→ Applying $$f"; \
+		psql $(DB_URL) -f $$f || exit 1; \
+	done
 	@echo "✓ Migrations applied"
 
 seed:
@@ -46,10 +46,10 @@ package:
 # Migrate remote DB (set DB_URL to the RDS endpoint before running)
 migrate-remote:
 	@test -n "$(DB_URL)" || (echo "DB_URL is required" && exit 1)
-	psql $(DB_URL) -f migrations/001_schema.sql
-	psql $(DB_URL) -f migrations/002_indexes.sql
-	psql $(DB_URL) -f migrations/003_functions.sql
-	psql $(DB_URL) -f migrations/004_views.sql
+	@for f in migrations/*.sql; do \
+		echo "→ Applying $$f"; \
+		psql $(DB_URL) -f $$f || exit 1; \
+	done
 	@echo "✓ Remote migrations applied"
 
 # Refresh materialized views (useful after bulk data loads)

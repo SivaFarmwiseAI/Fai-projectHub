@@ -119,6 +119,63 @@ def _list_attachments(event, origin, phase_id):
     return resp({"attachments": atts}, origin=origin)
 
 
+# ── Revisions (history) ──────────────────────────────────────────────────────
+
+def _list_revisions(event, origin, phase_id):
+    get_current_user(event)
+    revisions = fetchall("""
+        SELECT r.*, u.name AS author_name, u.avatar_color AS author_color,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', a.id, 'title', a.title, 'type', a.type,
+              'url', a.url, 'content', a.content, 'created_at', a.created_at
+            ) ORDER BY a.created_at)
+            FROM phase_revision_attachments a WHERE a.revision_id = r.id
+          ), '[]'::JSON) AS attachments
+        FROM phase_revisions r
+        LEFT JOIN users u ON u.id = r.author_id
+        WHERE r.phase_id = %s
+        ORDER BY r.created_at DESC
+    """, (phase_id,))
+    return resp({"revisions": revisions}, origin=origin)
+
+
+def _add_revision(event, origin, phase_id):
+    current_user = get_current_user(event)
+    body = get_body(event)
+    summary = (body.get("summary") or "").strip()
+    if not summary:
+        raise HTTPError(400, "summary is required")
+    if not fetchone("SELECT 1 FROM phases WHERE id = %s", (phase_id,)):
+        raise HTTPError(404, "Phase not found")
+
+    revision = execute_returning("""
+        INSERT INTO phase_revisions
+          (phase_id, author_id, change_type, summary, details, previous_value, new_value)
+        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+    """, (phase_id, current_user["id"],
+          body.get("change_type", "revision"),
+          summary, body.get("details"),
+          body.get("previous_value"), body.get("new_value")))
+
+    attachments = []
+    for att in (body.get("attachments") or []):
+        title = (att.get("title") or "").strip()
+        if not title:
+            continue
+        row = execute_returning("""
+            INSERT INTO phase_revision_attachments (revision_id, title, type, url, content)
+            VALUES (%s,%s,%s,%s,%s) RETURNING *
+        """, (revision["id"], title, att.get("type", "url"),
+              att.get("url"), att.get("content")))
+        attachments.append(row)
+
+    revision["attachments"] = attachments
+    revision["author_name"] = current_user.get("name")
+    revision["author_color"] = current_user.get("avatar_color")
+    return resp({"revision": revision}, 201, origin)
+
+
 def _delete_phase(event, origin, phase_id):
     current_user = get_current_user(event)
     phase = fetchone(
@@ -190,6 +247,8 @@ handler = make_handler([
     ("POST",   r"/api/phases",                                          _create_phase),
     ("GET",    rf"/api/phases/(?P<phase_id>{PARAM})/attachments",       _list_attachments),
     ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/attachments",       _add_attachment),
+    ("GET",    rf"/api/phases/(?P<phase_id>{PARAM})/revisions",         _list_revisions),
+    ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/revisions",         _add_revision),
     ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/sign-off",          _sign_off),
     ("GET",    rf"/api/phases/(?P<phase_id>{PARAM})",                   _get_phase),
     ("PATCH",  rf"/api/phases/(?P<phase_id>{PARAM})",                   _update_phase),

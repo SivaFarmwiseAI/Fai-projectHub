@@ -30,6 +30,7 @@ import {
   type User,
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { refreshScheduleRequests } from "@/lib/scheduling-requests";
 
 export type ScheduleTab = "leave" | "review" | "discussion";
 
@@ -157,7 +158,8 @@ function LeaveForm({
         coverage_plan: coveragePlan || undefined,
         is_planned: type === "planned",
       });
-      onSuccess("Leave request raised", "Awaiting approval.");
+      void refreshScheduleRequests(true);
+      onSuccess("Leave request raised to CEO", "Pending approval before it hits the calendar.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Please try again.";
       showToast.error("Failed to raise leave", msg);
@@ -287,7 +289,8 @@ function ReviewForm({
         project_id: projectId || undefined,
         due_date: dueDate || undefined,
       });
-      onSuccess("Review scheduled", dueDate ? `Due ${dueDate}` : "Added to review queue.");
+      void refreshScheduleRequests(true);
+      onSuccess("Review raised to CEO", dueDate ? `Proposed due ${dueDate}` : "Awaiting CEO approval.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Please try again.";
       showToast.error("Failed to schedule review", msg);
@@ -430,9 +433,10 @@ function DiscussionForm({
         project_id: projectId || undefined,
         scheduled_at: scheduledAt,
       });
+      void refreshScheduleRequests(true);
       onSuccess(
-        "Discussion scheduled",
-        scheduledAt ? `Scheduled for ${scheduledDate}` : "Open thread created.",
+        "Discussion raised to CEO",
+        scheduledAt ? `Proposed for ${scheduledDate}` : "Open thread — CEO approval pending.",
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Please try again.";
