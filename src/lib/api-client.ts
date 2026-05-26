@@ -11,6 +11,27 @@ export class ApiError extends Error {
   }
 }
 
+/** Endpoints whose 401 is informational (e.g. session-restore probe) and
+ *  should NOT trigger a login redirect. */
+const AUTH_PROBE_PATHS = new Set(["/auth/me", "/auth/login"]);
+
+/** Best-effort: when a session-expired 401 lands on a protected endpoint,
+ *  bounce the browser to /login. Runs only in the browser. */
+function handleUnauthorized(path: string) {
+  if (typeof window === "undefined") return;
+  if (AUTH_PROBE_PATHS.has(path)) return;
+  if (window.location.pathname === "/login") return;
+  try {
+    localStorage.removeItem("projecthub_session");
+  } catch {
+    // localStorage may be unavailable in some environments — ignore.
+  }
+  const next = encodeURIComponent(
+    window.location.pathname + window.location.search,
+  );
+  window.location.replace(`/login?next=${next}`);
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -30,6 +51,7 @@ async function request<T>(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
+    if (res.status === 401) handleUnauthorized(path);
     throw new ApiError(res.status, err.detail || res.statusText);
   }
 

@@ -13,6 +13,7 @@ import {
   type TaskMilestone,
   type DeadlineExtension,
   type Phase,
+  type PhaseAttachment,
   type User,
   type ProjectUpdate,
   type Submission,
@@ -87,7 +88,7 @@ import {
   Trophy, RotateCcw, Plus, Layers, Eye, Send, Paperclip, UserPlus,
   Settings, SwitchCamera, X, ClipboardList, Package, FileCheck, ArrowRight,
   Star, BarChart3, BookOpen, GitCommit, MessageCircle, Shield, Zap, Hash,
-  List, Flag, AlertOctagon, Lightbulb, ScrollText, Trash2,
+  List, Flag, AlertOctagon, Lightbulb, ScrollText, Trash2, Loader2,
 } from "lucide-react";
 
 // ─── View Role Context ────────────────────────────────────
@@ -168,13 +169,150 @@ const deliverableTypeConfig: Record<string, { icon: React.ReactNode; label: stri
 };
 
 // ─── Attachment / Upload Bar (reusable) ───────────────────
+// Functional file uploader: hidden <input type="file"> picker plus a paste-link
+// affordance. Optional `value` / `onChange` make it a controlled chip that the
+// parent form can submit; uncontrolled use still works as a quick attach UI.
 
-function AttachmentBar({ label, compact }: { label?: string; compact?: boolean }) {
+const ATTACH_ACCEPT =
+  ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.gif,.svg,.webp,.zip";
+const ATTACH_MAX_BYTES = 8 * 1024 * 1024;
+
+async function fileToBase64String(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+export type AttachmentBarValue = { url: string; fileName?: string } | null;
+
+function AttachmentBar({
+  label,
+  compact,
+  value,
+  onChange,
+}: {
+  label?: string;
+  compact?: boolean;
+  value?: AttachmentBarValue;
+  onChange?: (v: AttachmentBarValue) => void;
+}) {
   const [showUpload, setShowUpload] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Uncontrolled fallback so the bar still shows a result chip even when no
+  // parent state is wired up (older call sites).
+  const [internalValue, setInternalValue] = useState<AttachmentBarValue>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const currentValue = value !== undefined ? value : internalValue;
+  const setValue = (v: AttachmentBarValue) => {
+    if (onChange) onChange(v);
+    else setInternalValue(v);
+  };
+
+  const collapse = () => {
+    setShowUpload(false);
+    setShowLink(false);
+    setLinkInput("");
+    setError(null);
+  };
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    if (file.size > ATTACH_MAX_BYTES) {
+      setError("File too large — max 8 MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const b64 = await fileToBase64String(file);
+      const { url } = await uploadsApi.uploadFile(
+        file.name,
+        file.type || "application/octet-stream",
+        b64,
+      );
+      setValue({ url, fileName: file.name });
+      collapse();
+      showToast.success("File attached", file.name);
+    } catch (err) {
+      let msg = "Upload failed — try again";
+      if (err instanceof ApiError) {
+        if (err.status === 413) msg = "File too large — max 8 MB";
+        else if (err.status === 503) msg = "File upload is not configured on the server";
+        else msg = err.message;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      setError(msg);
+      showToast.error("Upload failed", msg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submitLink = () => {
+    const trimmed = linkInput.trim();
+    if (!trimmed) return;
+    let safe: URL;
+    try { safe = new URL(trimmed); } catch { setError("That doesn't look like a valid URL"); return; }
+    if (safe.protocol !== "http:" && safe.protocol !== "https:") {
+      setError("Only http/https links are allowed");
+      return;
+    }
+    setValue({ url: trimmed });
+    collapse();
+    showToast.success("Link attached");
+  };
+
+  if (currentValue) {
+    return (
+      <div className={`flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+        <CheckCircle2 className={compact ? "h-3 w-3 text-emerald-600 shrink-0" : "h-3.5 w-3.5 text-emerald-600 shrink-0"} />
+        <span className="flex-1 truncate font-medium text-emerald-800">
+          {currentValue.fileName || currentValue.url}
+        </span>
+        <a
+          href={currentValue.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-emerald-700 hover:text-emerald-900"
+          title="Open"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+        <button
+          type="button"
+          onClick={() => setValue(null)}
+          className="text-rose-500 hover:text-rose-700"
+          title="Remove"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept={ATTACH_ACCEPT}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // Reset so picking the same file twice still fires onChange.
+          e.target.value = "";
+          if (file) handleFile(file);
+        }}
+      />
       {!showUpload ? (
         <button
+          type="button"
           onClick={() => setShowUpload(true)}
           className={`flex items-center gap-1.5 text-blue-600 hover:text-blue-800 transition-colors ${compact ? "text-[10px]" : "text-[11px]"}`}
         >
@@ -185,25 +323,65 @@ function AttachmentBar({ label, compact }: { label?: string; compact?: boolean }
         <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium text-blue-700 uppercase tracking-wider">Attach</span>
-            <button onClick={() => setShowUpload(false)} className="text-muted-foreground hover:text-gray-700">
+            <button
+              type="button"
+              onClick={collapse}
+              className="text-muted-foreground hover:text-gray-700"
+              title="Cancel"
+            >
               <X className="h-3 w-3" />
             </button>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="text-[10px] h-7 gap-1 flex-1">
-              <Upload className="h-3 w-3" /> Upload File
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-[10px] h-7 gap-1 flex-1"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Upload className="h-3 w-3" />}
+              {uploading ? "Uploading…" : "Upload File"}
             </Button>
-            <Button variant="outline" size="sm" className="text-[10px] h-7 gap-1 flex-1">
+            <Button
+              type="button"
+              variant={showLink ? "default" : "outline"}
+              size="sm"
+              className="text-[10px] h-7 gap-1 flex-1"
+              disabled={uploading}
+              onClick={() => { setShowLink((s) => !s); setError(null); }}
+            >
               <LinkIcon className="h-3 w-3" /> Paste Link
             </Button>
           </div>
-          <div className="flex gap-1.5">
-            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-100">PDF</Badge>
-            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-100">DOCX</Badge>
-            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-100">PPTX</Badge>
-            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-100">Image</Badge>
-            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-100">Google Doc</Badge>
-          </div>
+          {showLink && (
+            <div className="flex gap-1.5">
+              <Input
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                placeholder="https://…"
+                className="text-[11px] h-7"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); submitLink(); }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-[10px] bg-blue-600 hover:bg-blue-700"
+                onClick={submitLink}
+              >
+                Add
+              </Button>
+            </div>
+          )}
+          {error && <p className="text-[10px] text-rose-600">{error}</p>}
+          <p className="text-[10px] text-blue-700/70">
+            Max 8 MB · PDF, DOCX, PPTX, images, archives
+          </p>
         </div>
       )}
     </div>
@@ -2558,6 +2736,52 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
   const [phaseAddAttachment, setPhaseAddAttachment] = useState<string | null>(null);
   const [phaseAttTitle, setPhaseAttTitle] = useState("");
   const [phaseAttType, setPhaseAttType] = useState<string>("document");
+  const [phaseAttValue, setPhaseAttValue] = useState<AttachmentBarValue>(null);
+  const [phaseAttSaving, setPhaseAttSaving] = useState(false);
+  // Local mirror of newly-added attachments so the timeline updates without a
+  // full project refetch when the parent doesn't pass an onChange callback.
+  const [phaseExtraAttachments, setPhaseExtraAttachments] = useState<Record<string, PhaseAttachment[]>>({});
+
+  const resetPhaseAttachmentForm = () => {
+    setPhaseAddAttachment(null);
+    setPhaseAttTitle("");
+    setPhaseAttType("document");
+    setPhaseAttValue(null);
+    setPhaseAttSaving(false);
+  };
+
+  const savePhaseAttachment = async (phaseId: string) => {
+    const title = phaseAttTitle.trim();
+    if (!title) {
+      showToast.warning("Add a title before uploading");
+      return;
+    }
+    if (!phaseAttValue?.url) {
+      showToast.warning("Upload a file or paste a link first");
+      return;
+    }
+    setPhaseAttSaving(true);
+    try {
+      const { attachment } = await phasesApi.addAttachment(phaseId, {
+        title,
+        type: phaseAttType,
+        url: phaseAttValue.url,
+      });
+      setPhaseExtraAttachments((prev) => ({
+        ...prev,
+        [phaseId]: [attachment, ...(prev[phaseId] ?? [])],
+      }));
+      showToast.success("Attachment added", title);
+      resetPhaseAttachmentForm();
+    } catch (err) {
+      const msg = err instanceof ApiError || err instanceof Error
+        ? err.message
+        : "Could not save attachment";
+      showToast.error("Save failed", msg);
+    } finally {
+      setPhaseAttSaving(false);
+    }
+  };
 
   const togglePhase = (id: string) => {
     setExpandedPhases(prev => ({ ...prev, [id]: !prev[id] }));
@@ -2621,6 +2845,12 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                     {checklistTotal > 0 && (
                       <span className="text-[10px] text-muted-foreground font-mono">{phasePct}%</span>
                     )}
+                    <RevisionHistory
+                      entity="phase"
+                      entityId={phase.id}
+                      entityLabel={phase.phase_name}
+                      compact
+                    />
                     {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                   </div>
                 </div>
@@ -2684,32 +2914,39 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                     )}
 
                     {/* Phase Attachments */}
-                    {(phase.attachments ?? []).length > 0 && (
-                      <div>
-                        <h6 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
-                          <Paperclip className="h-3 w-3" /> Attachments ({(phase.attachments ?? []).length})
-                        </h6>
-                        <div className="space-y-1">
-                          {(phase.attachments ?? []).map(att => {
-                            const attConfig = attachmentTypeBadge[att.type] || { color: "text-gray-600 bg-gray-50 border-gray-200", icon: <FileText className="h-2.5 w-2.5" /> };
-                            return (
-                              <div key={att.id} className="flex items-center gap-2 text-[11px] p-1.5 rounded border border-border bg-white">
-                                <Badge variant="outline" className={`text-[9px] gap-0.5 ${attConfig.color}`}>
-                                  {attConfig.icon} {att.type.replace("_", " ")}
-                                </Badge>
-                                <span className="font-medium truncate flex-1">{att.title}</span>
-                                <span className="text-[9px] text-muted-foreground">{getUser(att.uploaded_by ?? "")?.name}</span>
-                                {att.url && (
-                                  <a href={att.url} className="text-blue-600 hover:text-blue-800">
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                              </div>
-                            );
-                          })}
+                    {(() => {
+                      const allAttachments = [
+                        ...(phaseExtraAttachments[phase.id] ?? []),
+                        ...(phase.attachments ?? []),
+                      ];
+                      if (allAttachments.length === 0) return null;
+                      return (
+                        <div>
+                          <h6 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" /> Attachments ({allAttachments.length})
+                          </h6>
+                          <div className="space-y-1">
+                            {allAttachments.map(att => {
+                              const attConfig = attachmentTypeBadge[att.type] || { color: "text-gray-600 bg-gray-50 border-gray-200", icon: <FileText className="h-2.5 w-2.5" /> };
+                              return (
+                                <div key={att.id} className="flex items-center gap-2 text-[11px] p-1.5 rounded border border-border bg-white">
+                                  <Badge variant="outline" className={`text-[9px] gap-0.5 ${attConfig.color}`}>
+                                    {attConfig.icon} {att.type.replace("_", " ")}
+                                  </Badge>
+                                  <span className="font-medium truncate flex-1">{att.title}</span>
+                                  <span className="text-[9px] text-muted-foreground">{getUser(att.uploaded_by ?? "")?.name}</span>
+                                  {att.url && (
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Sign-off status */}
                     <div className="flex items-center gap-2 text-[10px]">
@@ -2727,13 +2964,6 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                         <span className="text-muted-foreground italic">Pending sign-off</span>
                       )}
                     </div>
-
-                    <RevisionHistory
-                      entity="phase"
-                      entityId={phase.id}
-                      entityLabel={phase.phase_name}
-                      accent="indigo"
-                    />
 
                     {/* ── Phase Action Buttons ── */}
                     <Separator />
@@ -2810,7 +3040,13 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                       <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider">Upload Attachment</span>
-                          <button onClick={() => setPhaseAddAttachment(null)} className="text-muted-foreground hover:text-gray-700"><X className="h-3 w-3" /></button>
+                          <button
+                            type="button"
+                            onClick={resetPhaseAttachmentForm}
+                            className="text-muted-foreground hover:text-gray-700"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
                         <div>
                           <label className="text-[10px] text-blue-600 font-medium">Title</label>
@@ -2826,6 +3062,7 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                           <div className="flex gap-1.5 mt-1 flex-wrap">
                             {(["document", "mom", "feedback", "proof", "architecture", "prototype"] as const).map(at => (
                               <button
+                                type="button"
                                 key={at}
                                 onClick={() => setPhaseAttType(at)}
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border flex items-center gap-1 ${phaseAttType === at
@@ -2838,12 +3075,31 @@ function PhasesTimelineSection({ phases, viewRole, projectId }: { phases: Phase[
                             ))}
                           </div>
                         </div>
-                        <AttachmentBar label="Select file to upload" />
+                        <AttachmentBar
+                          label="Select file to upload"
+                          value={phaseAttValue}
+                          onChange={setPhaseAttValue}
+                        />
                         <div className="flex gap-2">
-                          <Button size="sm" className="text-[10px] h-6 gap-1 bg-blue-600 hover:bg-blue-700">
-                            <Upload className="h-3 w-3" /> Upload
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="text-[10px] h-6 gap-1 bg-blue-600 hover:bg-blue-700"
+                            disabled={phaseAttSaving || !phaseAttTitle.trim() || !phaseAttValue?.url}
+                            onClick={() => savePhaseAttachment(phase.id)}
+                          >
+                            {phaseAttSaving
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Upload className="h-3 w-3" />}
+                            {phaseAttSaving ? "Saving…" : "Save attachment"}
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={() => setPhaseAddAttachment(null)}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] h-6"
+                            onClick={resetPhaseAttachmentForm}
+                          >
                             Cancel
                           </Button>
                         </div>

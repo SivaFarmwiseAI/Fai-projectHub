@@ -44,6 +44,11 @@ type Props = {
   entityLabel?: string;
   /** Tone of the embedded panel — phase cards use indigo, task cards use slate. */
   accent?: "indigo" | "slate";
+  /**
+   * Render only inline action buttons (Revise · History) suitable for embedding
+   * in a row header. The full timeline is still reachable via the drawer.
+   */
+  compact?: boolean;
 };
 
 export function RevisionHistory({
@@ -51,11 +56,15 @@ export function RevisionHistory({
   entityId,
   entityLabel,
   accent = "indigo",
+  compact = false,
 }: Props) {
   const [revisions, setRevisions] = useState<AnyRevision[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  /** In compact mode we only fetch the count up front so we don't hammer the API
+   *  for every collapsed phase row. The full list is loaded lazily when needed. */
+  const [loadedFull, setLoadedFull] = useState(false);
 
   const load = useMemo(
     () => async () => {
@@ -66,6 +75,7 @@ export function RevisionHistory({
             ? await phasesApi.revisions(entityId)
             : await tasksApi.revisions(entityId);
         setRevisions(r.revisions ?? []);
+        setLoadedFull(true);
       } catch (err) {
         showToast.error(
           "Could not load history",
@@ -80,11 +90,22 @@ export function RevisionHistory({
   );
 
   useEffect(() => {
+    if (compact) return; // panel mode loads eagerly; compact loads on demand
     load();
-  }, [load]);
+  }, [load, compact]);
+
+  const ensureLoaded = () => {
+    if (!loadedFull && !loading) load();
+  };
+
+  const openDrawer = () => {
+    ensureLoaded();
+    setDrawerOpen(true);
+  };
 
   const handleAdded = (rev: AnyRevision) => {
     setRevisions((prev) => (prev ? [rev, ...prev] : [rev]));
+    setLoadedFull(true);
   };
 
   const recent = (revisions ?? []).slice(0, 3);
@@ -93,6 +114,120 @@ export function RevisionHistory({
     accent === "indigo"
       ? "border-indigo-200/70 bg-gradient-to-br from-indigo-50/60 to-white"
       : "border-slate-200 bg-slate-50/60";
+  const count = revisions?.length;
+
+  const dialogs = (
+    <>
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-gradient-to-b from-white to-white/95 px-6 pt-5 pb-3 backdrop-blur">
+            <SheetHeader className="space-y-1">
+              <SheetTitle className="flex items-center gap-2 text-base">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+                  <History className="h-4 w-4" />
+                </span>
+                Revision history
+              </SheetTitle>
+              {entityLabel && (
+                <p className="text-xs text-slate-500 truncate">
+                  {entity === "phase" ? "Phase" : "Task"} · {entityLabel}
+                </p>
+              )}
+            </SheetHeader>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                {revisions?.length ?? 0} revision
+                {(revisions?.length ?? 0) === 1 ? "" : "s"} · most recent first
+              </p>
+              <Button
+                size="sm"
+                className="h-7 gap-1 bg-indigo-600 hover:bg-indigo-700"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Revise
+              </Button>
+            </div>
+          </div>
+
+          <div className="px-6 pb-8 pt-4">
+            {loading && !loadedFull ? (
+              <RevisionSkeleton />
+            ) : (revisions ?? []).length === 0 ? (
+              <EmptyState
+                message="No history captured yet. Use Revise to log your first change or closure."
+                onAdd={() => setAddOpen(true)}
+              />
+            ) : (
+              <ol className="relative ml-3 border-l-2 border-dashed border-indigo-200 pl-5 space-y-4">
+                {(revisions ?? []).map((rev) => (
+                  <li key={rev.id} className="relative">
+                    <span className="absolute -left-[29px] top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white ring-2 ring-indigo-400 shadow-sm">
+                      <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                    </span>
+                    <RevisionRow rev={rev} />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AddRevisionDialog
+        entity={entity}
+        entityId={entityId}
+        entityLabel={entityLabel}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAdded={handleAdded}
+      />
+    </>
+  );
+
+  if (compact) {
+    return (
+      <span
+        className="inline-flex items-center gap-1"
+        data-revision-history-compact
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-[10px] gap-1 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50"
+          onClick={(e) => {
+            e.stopPropagation();
+            openDrawer();
+          }}
+          title="View revision history"
+        >
+          <History className="h-3 w-3" />
+          History
+          {typeof count === "number" && count > 0 && (
+            <span className="ml-0.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700">
+              {count}
+            </span>
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 px-2 text-[10px] gap-1 bg-indigo-600 hover:bg-indigo-700"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAddOpen(true);
+          }}
+          title="Log a new revision"
+        >
+          <Plus className="h-3 w-3" />
+          Revise
+        </Button>
+        {dialogs}
+      </span>
+    );
+  }
 
   return (
     <>
@@ -115,7 +250,7 @@ export function RevisionHistory({
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-xs"
-              onClick={() => setDrawerOpen(true)}
+              onClick={openDrawer}
             >
               View all
             </Button>
@@ -146,7 +281,7 @@ export function RevisionHistory({
               <li>
                 <button
                   type="button"
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={openDrawer}
                   className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
                 >
                   + {(revisions?.length ?? 0) - recent.length} earlier
@@ -158,52 +293,7 @@ export function RevisionHistory({
         )}
       </div>
 
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="sm:max-w-lg w-full overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>
-              {entityLabel ? `History · ${entityLabel}` : "Revision history"}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="px-6 pb-6 pt-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500">
-                {revisions?.length ?? 0} revision
-                {(revisions?.length ?? 0) === 1 ? "" : "s"} · most recent first
-              </p>
-              <Button size="sm" onClick={() => setAddOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Revise
-              </Button>
-            </div>
-            {(revisions ?? []).length === 0 ? (
-              <EmptyState
-                message="No history captured yet. Use Revise to log your first change or closure."
-              />
-            ) : (
-              <ol className="relative ml-3 border-l border-slate-200 pl-5 space-y-5">
-                {(revisions ?? []).map((rev) => (
-                  <li key={rev.id} className="relative">
-                    <span className="absolute -left-[27px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-indigo-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                    </span>
-                    <RevisionRow rev={rev} />
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <AddRevisionDialog
-        entity={entity}
-        entityId={entityId}
-        entityLabel={entityLabel}
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onAdded={handleAdded}
-      />
+      {dialogs}
     </>
   );
 }
@@ -247,37 +337,55 @@ function EmptyState({
 }
 
 function RevisionRow({ rev, compact }: { rev: AnyRevision; compact?: boolean }) {
+  const authorInitial = (rev.author_name ?? "?").charAt(0).toUpperCase();
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm hover:border-indigo-200 hover:shadow transition">
+      <div className="flex flex-wrap items-start gap-2">
         <ChangeTypeBadge type={rev.change_type} />
-        <span className="text-sm font-medium text-slate-900">{rev.summary}</span>
+        <span className="flex-1 text-sm font-semibold text-slate-900 leading-tight">
+          {rev.summary}
+        </span>
       </div>
-      <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-        <Clock className="h-3 w-3" />
-        {formatTime(rev.created_at)}
+      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
         {rev.author_name && (
           <>
-            <span>·</span>
+            <span
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white"
+              style={{ backgroundColor: rev.author_color || "#6366f1" }}
+              title={rev.author_name}
+            >
+              {authorInitial}
+            </span>
             <span className="font-medium text-slate-700">{rev.author_name}</span>
+            <span className="text-slate-300">·</span>
           </>
         )}
+        <Clock className="h-3 w-3" />
+        <span title={new Date(rev.created_at).toLocaleString()}>
+          {formatTime(rev.created_at)}
+        </span>
       </div>
       {!compact && rev.details && (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+        <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">
           {rev.details}
         </p>
       )}
       {!compact && (rev.previous_value || rev.new_value) && (
         <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 text-xs">
           {rev.previous_value && (
-            <div className="rounded-md bg-rose-50/70 px-2 py-1 text-rose-800">
-              <span className="font-semibold">Before:</span> {rev.previous_value}
+            <div className="rounded-md border border-rose-200/70 bg-rose-50/70 px-2 py-1.5 text-rose-800">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-rose-600">
+                Before
+              </span>
+              <span className="whitespace-pre-wrap">{rev.previous_value}</span>
             </div>
           )}
           {rev.new_value && (
-            <div className="rounded-md bg-emerald-50/70 px-2 py-1 text-emerald-800">
-              <span className="font-semibold">After:</span> {rev.new_value}
+            <div className="rounded-md border border-emerald-200/70 bg-emerald-50/70 px-2 py-1.5 text-emerald-800">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+                After
+              </span>
+              <span className="whitespace-pre-wrap">{rev.new_value}</span>
             </div>
           )}
         </div>
