@@ -316,6 +316,22 @@ def _add_task_revision(event, origin, task_id):
     return resp({"revision": revision}, 201, origin)
 
 
+def _delete_task_revision(event, origin, task_id, revision_id):
+    current_user = get_current_user(event)
+    rev = fetchone(
+        "SELECT id, author_id FROM task_revisions WHERE id = %s AND task_id = %s",
+        (revision_id, task_id),
+    )
+    if not rev:
+        raise HTTPError(404, "Revision not found")
+    is_author = str(rev["author_id"]) == str(current_user["id"])
+    is_admin = current_user["role_type"] in ("CEO", "Admin", "Team Lead")
+    if not (is_author or is_admin):
+        raise HTTPError(403, "Only the author or a CEO/Admin/Team Lead can delete this revision")
+    execute("DELETE FROM task_revisions WHERE id = %s", (revision_id,))
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 # ── Task attachments (standalone, not tied to a revision) ────────────────────
 
 def _list_task_attachments(event, origin, task_id):
@@ -385,6 +401,7 @@ handler = make_handler([
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/updates",                                   _add_update),
     ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/revisions",                                 _list_task_revisions),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/revisions",                                 _add_task_revision),
+    ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})/revisions/(?P<revision_id>{PARAM})",        _delete_task_revision),
     ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _list_task_attachments),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _add_task_attachment),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/milestones",                                _create_milestone),

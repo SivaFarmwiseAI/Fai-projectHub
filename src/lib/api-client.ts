@@ -193,6 +193,8 @@ export const phases = {
   revisions:    (id: string) => get<{ revisions: PhaseRevision[] }>(`/phases/${id}/revisions`),
   addRevision:  (id: string, data: CreateRevisionPayload) =>
     post<{ revision: PhaseRevision }>(`/phases/${id}/revisions`, data),
+  deleteRevision: (phaseId: string, revisionId: string) =>
+    del<void>(`/phases/${phaseId}/revisions/${revisionId}`),
   delete: (id: string) => del<void>(`/phases/${id}`),
 };
 
@@ -233,6 +235,8 @@ export const tasks = {
   revisions:     (id: string) => get<{ revisions: TaskRevision[] }>(`/tasks/${id}/revisions`),
   addRevision:   (id: string, data: CreateRevisionPayload) =>
     post<{ revision: TaskRevision }>(`/tasks/${id}/revisions`, data),
+  deleteRevision: (taskId: string, revisionId: string) =>
+    del<void>(`/tasks/${taskId}/revisions/${revisionId}`),
   attachments:   (id: string) => get<{ attachments: TaskAttachment[] }>(`/tasks/${id}/attachments`),
   addAttachment: (id: string, data: { title: string; type?: string; url?: string; content?: string }) =>
     post<{ attachment: TaskAttachment }>(`/tasks/${id}/attachments`, data),

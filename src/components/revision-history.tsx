@@ -7,6 +7,7 @@ import {
   FileText,
   GitBranch,
   History,
+  Loader2,
   Paintbrush,
   Paperclip,
   PenTool,
@@ -14,6 +15,7 @@ import {
   Code as CodeIcon,
   Link as LinkIcon,
   Tag,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useConfirm } from "@/components/confirm-provider";
 import {
   phases as phasesApi,
   tasks as tasksApi,
@@ -62,6 +65,8 @@ export function RevisionHistory({
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const confirm = useConfirm();
   /** In compact mode we only fetch the count up front so we don't hammer the API
    *  for every collapsed phase row. The full list is loaded lazily when needed. */
   const [loadedFull, setLoadedFull] = useState(false);
@@ -106,6 +111,43 @@ export function RevisionHistory({
   const handleAdded = (rev: AnyRevision) => {
     setRevisions((prev) => (prev ? [rev, ...prev] : [rev]));
     setLoadedFull(true);
+  };
+
+  const handleDelete = async (rev: AnyRevision) => {
+    const ok = await confirm({
+      title: "Delete this revision?",
+      description: (
+        <span>
+          This will permanently remove the entry
+          {rev.summary ? (
+            <>
+              {" "}<span className="font-medium text-slate-900">&ldquo;{rev.summary}&rdquo;</span>
+            </>
+          ) : null}
+          {" "}and any attachments tied to it. This action cannot be undone.
+        </span>
+      ),
+      confirmLabel: "Delete revision",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDeletingId(rev.id);
+    try {
+      if (entity === "phase") {
+        await phasesApi.deleteRevision(entityId, rev.id);
+      } else {
+        await tasksApi.deleteRevision(entityId, rev.id);
+      }
+      setRevisions((prev) => (prev ? prev.filter((r) => r.id !== rev.id) : prev));
+      showToast.success("Revision deleted");
+    } catch (err) {
+      showToast.error(
+        "Could not delete revision",
+        err instanceof Error ? err.message : "Please try again",
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const recent = (revisions ?? []).slice(0, 3);
@@ -165,7 +207,11 @@ export function RevisionHistory({
                     <span className="absolute -left-[29px] top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white ring-2 ring-indigo-400 shadow-sm">
                       <span className="h-2 w-2 rounded-full bg-indigo-500" />
                     </span>
-                    <RevisionRow rev={rev} />
+                    <RevisionRow
+                      rev={rev}
+                      onDelete={() => handleDelete(rev)}
+                      deleting={deletingId === rev.id}
+                    />
                   </li>
                 ))}
               </ol>
@@ -275,7 +321,13 @@ export function RevisionHistory({
         ) : (
           <ol className="space-y-2.5">
             {recent.map((rev) => (
-              <RevisionRow key={rev.id} rev={rev} compact />
+              <RevisionRow
+                key={rev.id}
+                rev={rev}
+                compact
+                onDelete={() => handleDelete(rev)}
+                deleting={deletingId === rev.id}
+              />
             ))}
             {hasMore && (
               <li>
@@ -336,15 +388,43 @@ function EmptyState({
   );
 }
 
-function RevisionRow({ rev, compact }: { rev: AnyRevision; compact?: boolean }) {
+function RevisionRow({
+  rev,
+  compact,
+  onDelete,
+  deleting,
+}: {
+  rev: AnyRevision;
+  compact?: boolean;
+  onDelete?: () => void;
+  deleting?: boolean;
+}) {
   const authorInitial = (rev.author_name ?? "?").charAt(0).toUpperCase();
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm hover:border-indigo-200 hover:shadow transition">
+    <div className="group/rev rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm hover:border-indigo-200 hover:shadow transition">
       <div className="flex flex-wrap items-start gap-2">
         <ChangeTypeBadge type={rev.change_type} />
         <span className="flex-1 text-sm font-semibold text-slate-900 leading-tight">
           {rev.summary}
         </span>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            disabled={deleting}
+            title="Delete revision"
+            className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition opacity-0 group-hover/rev:opacity-100 focus:opacity-100"
+          >
+            {deleting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
       </div>
       <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
         {rev.author_name && (

@@ -967,6 +967,7 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
 // ─── Task Card (the primary unit) ───────────────────────────
 
 function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, phases }: { task: Task; projectId: string; projectTitle: string; viewRole: ViewRole; onReviewUpdate?: () => void; phases?: Phase[] }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(task.status === "in_progress" || task.status === "planning");
   const [showSteps, setShowSteps] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -975,6 +976,33 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
   const [showAssigneeEditor, setShowAssigneeEditor] = useState(false);
   const [showAddUpdate, setShowAddUpdate] = useState(false);
   const [updateText, setUpdateText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteTask = async () => {
+    const ok = await confirm({
+      title: "Delete this task?",
+      description: (
+        <span>
+          <span className="font-medium text-slate-900">&ldquo;{task.title}&rdquo;</span>
+          {" "}and all of its steps, milestones, updates, attachments, and revision
+          history will be permanently removed. This cannot be undone.
+        </span>
+      ),
+      confirmLabel: "Delete task",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setIsDeleting(true);
+    try {
+      await tasksApi.delete(task.id);
+      showToast.success("Task deleted");
+      onReviewUpdate?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again";
+      showToast.error("Failed to delete task", msg);
+      setIsDeleting(false);
+    }
+  };
 
   const [showAddMilestoneForm, setShowAddMilestoneForm] = useState(false);
   const [milestoneTitle, setMilestoneTitle] = useState("");
@@ -1817,6 +1845,17 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
                 </Button>
                 <Button variant="outline" size="sm" className="text-[11px] h-7 gap-1">
                   <UserPlus className="h-3 w-3" /> Reassign
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[11px] h-7 gap-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 ml-auto"
+                  onClick={handleDeleteTask}
+                  disabled={isDeleting}
+                  title="Delete task"
+                >
+                  {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  Delete Task
                 </Button>
               </>
             )}

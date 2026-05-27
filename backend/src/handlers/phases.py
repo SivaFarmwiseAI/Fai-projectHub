@@ -176,6 +176,22 @@ def _add_revision(event, origin, phase_id):
     return resp({"revision": revision}, 201, origin)
 
 
+def _delete_revision(event, origin, phase_id, revision_id):
+    current_user = get_current_user(event)
+    rev = fetchone(
+        "SELECT id, author_id FROM phase_revisions WHERE id = %s AND phase_id = %s",
+        (revision_id, phase_id),
+    )
+    if not rev:
+        raise HTTPError(404, "Revision not found")
+    is_author = str(rev["author_id"]) == str(current_user["id"])
+    is_admin = current_user["role_type"] in ("CEO", "Admin", "Team Lead")
+    if not (is_author or is_admin):
+        raise HTTPError(403, "Only the author or a CEO/Admin/Team Lead can delete this revision")
+    execute("DELETE FROM phase_revisions WHERE id = %s", (revision_id,))
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
 def _delete_phase(event, origin, phase_id):
     current_user = get_current_user(event)
     phase = fetchone(
@@ -249,6 +265,7 @@ handler = make_handler([
     ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/attachments",       _add_attachment),
     ("GET",    rf"/api/phases/(?P<phase_id>{PARAM})/revisions",         _list_revisions),
     ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/revisions",         _add_revision),
+    ("DELETE", rf"/api/phases/(?P<phase_id>{PARAM})/revisions/(?P<revision_id>{PARAM})", _delete_revision),
     ("POST",   rf"/api/phases/(?P<phase_id>{PARAM})/sign-off",          _sign_off),
     ("GET",    rf"/api/phases/(?P<phase_id>{PARAM})",                   _get_phase),
     ("PATCH",  rf"/api/phases/(?P<phase_id>{PARAM})",                   _update_phase),
