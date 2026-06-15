@@ -1,7 +1,7 @@
 """Auth Lambda handler — /api/auth/*"""
 import logging
 
-from .base import PARAM, err, get_body, make_handler, resp
+from .base import PARAM, err, get_body, get_query, make_handler, resp
 from ..auth import (
     COOKIE_NAME,
     create_access_token,
@@ -77,9 +77,11 @@ def _register(event, origin):
 
 def _change_password(event, origin):
     current_user = get_current_user(event)
-    body = get_body(event)
-    old_password = body.get("old_password") or ""
-    new_password = body.get("new_password") or ""
+    # Accept credentials from the JSON body (current client) or the query string
+    # (older clients / not-yet-redeployed callers) so this works either way.
+    src = {**get_query(event), **get_body(event)}
+    old_password = src.get("old_password") or ""
+    new_password = src.get("new_password") or ""
     if len(new_password) < 8:
         raise HTTPError(400, "New password must be at least 8 characters")
     user = fetchone("SELECT password_hash FROM users WHERE id = %s", (current_user["id"],))
