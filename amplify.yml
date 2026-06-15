@@ -1,3 +1,5 @@
+# Next.js SSR app — deployed at repo root (NO appRoot / monorepo settings).
+# baseDirectory MUST be .next so Amplify publishes SSR compute resources, not a static S3 site.
 version: 1
 frontend:
   phases:
