@@ -367,6 +367,18 @@ Resources:
                 - s3:GetObject
               Resource:
                 - !Sub "arn:aws:s3:::${DocumentsBucketName}/*"
+            # If the documents bucket is encrypted with a customer-managed KMS
+            # key, PutObject also needs these on that key — otherwise S3 returns
+            # AccessDenied. Replace the key ARN with the one from
+            # `aws s3api get-bucket-encryption --bucket <bucket>` and redeploy.
+            # The KMS *key policy* must also grant this role.
+            # - Effect: Allow
+            #   Action:
+            #     - kms:GenerateDataKey
+            #     - kms:Encrypt
+            #     - kms:Decrypt
+            #   Resource:
+            #     - arn:aws:kms:ap-south-1:448658736283:key/REPLACE-WITH-KEY-ID
       Events:
         ProjectsBase:
           Type: Api

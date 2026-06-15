@@ -175,24 +175,20 @@ export default function NewProjectPage() {
 
   const handleFileUpload = async (file: File) => {
     setUploadError(null);
+    if (file.size > 8 * 1024 * 1024) {
+      setUploadError("File too large — max 8 MB.");
+      return;
+    }
     setUploadedFile(file.name);
     setUploading(true);
     setUploadProgress(10);
 
     try {
-      // Convert file to base64 — routes through Next.js proxy, no CORS issue
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const b64 = btoa(binary);
-
+      // uploadFileSmart picks the transport by size: ≤4 MB goes through the
+      // Lambda as base64, larger files upload browser→S3 directly to avoid the
+      // Lambda 6 MB payload limit.
       setUploadProgress(40);
-      const { url } = await uploadsApi.uploadFile(
-        file.name,
-        file.type || "application/octet-stream",
-        b64,
-      );
+      const url = await uploadsApi.uploadFileSmart(file);
       setDocumentUrl(url);
       setUploadProgress(100);
       setUploading(false);

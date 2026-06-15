@@ -20,28 +20,78 @@ from ..models.requests import (
 
 log = logging.getLogger(__name__)
 
+# Roles that may view every project regardless of assignment.
+# Team Leads and Members are scoped to projects they own, co-own, or are
+# assigned to.
+_PRIVILEGED_ROLES = ("CEO", "Admin")
+
+
+def _require_view_access(event, project_id):
+    """Authenticate the caller and ensure they may view this project.
+
+    CEO/Admin can view everything. A Team Lead or Member may only view a
+    project they own, co-own, or are assigned to. Raises 404 if the project
+    does not exist and 403 if it exists but the caller is not on it.
+    Returns the current user dict on success.
+    """
+    user = get_current_user(event)
+    if user["role_type"] in _PRIVILEGED_ROLES:
+        return user
+    row = fetchone(
+        """
+        SELECT (
+              p.owner_id = %s
+           OR EXISTS (SELECT 1 FROM project_co_owners co
+                        WHERE co.project_id = p.id AND co.user_id = %s)
+           OR EXISTS (SELECT 1 FROM project_assignees pa
+                        WHERE pa.project_id = p.id AND pa.user_id = %s)
+        ) AS has_access
+        FROM projects p
+        WHERE p.id = %s
+        """,
+        (user["id"], user["id"], user["id"], project_id),
+    )
+    if row is None:
+        raise HTTPError(404, "Project not found")
+    if not row["has_access"]:
+        raise HTTPError(403, "You do not have access to this project")
+    return user
+
 
 def _timeline(event, origin):
-    get_current_user(event)
-    return resp(call_fn("fn_timeline_data") or {"projects": []}, origin=origin)
+    current_user = get_current_user(event)
+    return resp(
+        call_fn("fn_timeline_data", current_user["id"], current_user["role_type"])
+        or {"projects": []},
+        origin=origin,
+    )
 
 
 def _global_search(event, origin):
-    get_current_user(event)
+    current_user = get_current_user(event)
     q = get_query(event).get("q", "")
     if len(q) < 2:
         raise HTTPError(400, "Query must be at least 2 characters")
-    return resp(call_fn("fn_global_search", q) or {"projects": [], "tasks": [], "users": []}, origin=origin)
+    return resp(
+        call_fn("fn_global_search", q, current_user["id"], current_user["role_type"])
+        or {"projects": [], "tasks": [], "users": []},
+        origin=origin,
+    )
 
 
 def _list_projects(event, origin):
-    get_current_user(event)
+    current_user = get_current_user(event)
     p = get_query(event)
+    # Team Leads and Members only see projects they own, co-own, or are
+    # assigned to. CEO/Admin (or NULL viewer) see everything. The viewer
+    # scoping is applied inside fn_projects_list so pagination/totals stay
+    # correct.
     result = call_fn(
         "fn_projects_list",
         p.get("status"), p.get("type"), p.get("priority"),
         p.get("owner_id"), p.get("assignee_id"), p.get("search"),
         int(p.get("limit", 50)), int(p.get("offset", 0)),
+        current_user["id"], current_user["role_type"],
     )
     return resp(result or {"projects": [], "total": 0}, origin=origin)
 
@@ -199,7 +249,7 @@ def _create_project(event, origin):
 
 
 def _get_project(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     data = call_fn("fn_project_full", project_id)
     if not data:
         raise HTTPError(404, "Project not found")
@@ -207,7 +257,7 @@ def _get_project(event, origin, project_id):
 
 
 def _update_project(event, origin, project_id):
-    current_user = get_current_user(event)
+    current_user = _require_view_access(event, project_id)
     body = UpdateProjectRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
@@ -320,7 +370,11 @@ def _remove_project_co_owner(event, origin, project_id, user_id):
 
 
 def _delete_project(event, origin, project_id):
-    require_auth(event, "CEO", "Admin", "Team Lead")
+    # CEO/Admin may delete any project; a Team Lead may only delete a project
+    # they own. Members cannot delete projects at all.
+    current_user = require_auth(event, "CEO", "Admin", "Team Lead")
+    if not _can_manage_team(current_user, project_id):
+        raise HTTPError(403, "Only the project owner, CEO, or Admin can delete this project")
     try:
         deleted = execute("DELETE FROM projects WHERE id = %s", (project_id,))
     except Exception as e:
@@ -337,7 +391,7 @@ def _delete_project(event, origin, project_id):
 
 
 def _project_tasks(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     tasks = fetchall("""
         SELECT
           t.id, t.title, t.description, t.approach, t.status, t.priority,
@@ -364,12 +418,12 @@ def _project_tasks(event, origin, project_id):
 
 
 def _project_kanban(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     return resp(call_fn("fn_kanban_board", project_id) or {"columns": {}}, origin=origin)
 
 
 def _project_updates(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     updates = fetchall("""
         SELECT pu.*, u.name AS author_name, u.avatar_color
         FROM project_updates pu JOIN users u ON u.id = pu.user_id
@@ -379,7 +433,7 @@ def _project_updates(event, origin, project_id):
 
 
 def _create_update(event, origin, project_id):
-    current_user = get_current_user(event)
+    current_user = _require_view_access(event, project_id)
     body = CreateProjectUpdateRequest(**get_body(event))
     update = execute_returning("""
         INSERT INTO project_updates
@@ -393,13 +447,13 @@ def _create_update(event, origin, project_id):
 
 
 def _project_documents(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     docs = fetchall("SELECT * FROM project_documents WHERE project_id = %s ORDER BY updated_at DESC", (project_id,))
     return resp({"documents": docs}, origin=origin)
 
 
 def _delete_document(event, origin, project_id, doc_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     if execute(
         "DELETE FROM project_documents WHERE id = %s AND project_id = %s",
         (doc_id, project_id),
@@ -409,7 +463,7 @@ def _delete_document(event, origin, project_id, doc_id):
 
 
 def _project_insights(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     insights = fetchall("""
         SELECT ai.*, u.name AS user_name
         FROM ai_insights ai LEFT JOIN users u ON u.id = ai.user_id
@@ -420,7 +474,7 @@ def _project_insights(event, origin, project_id):
 
 
 def _project_checkpoints(event, origin, project_id):
-    get_current_user(event)
+    _require_view_access(event, project_id)
     rows = fetchall("""
         SELECT c.*, u.name AS decided_by_name
         FROM checkpoints c LEFT JOIN users u ON u.id = c.decided_by

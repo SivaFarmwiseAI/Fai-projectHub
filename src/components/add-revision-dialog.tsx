@@ -55,16 +55,6 @@ type AttachmentDraft = RevisionAttachmentInput & {
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
-async function fileToBase64(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
 const CHANGE_TYPES: { value: RevisionChangeType; label: string }[] = [
   { value: "revision",         label: "Revision (requirement change)" },
   { value: "description_edit", label: "Description edit" },
@@ -147,12 +137,7 @@ export function AddRevisionDialog({
       _uploadError: undefined,
     });
     try {
-      const b64 = await fileToBase64(file);
-      const { url } = await uploadsApi.uploadFile(
-        file.name,
-        file.type || "application/octet-stream",
-        b64,
-      );
+      const url = await uploadsApi.uploadFileSmart(file);
       // Auto-fill title if empty so the chip on the timeline reads cleanly.
       setAttachments((prev) =>
         prev.map((a) =>

@@ -125,6 +125,26 @@ export const roles = {
 };
 
 // ── Uploads ───────────────────────────────────────────────────────────────────
+
+/** Files at or below this size go through the Lambda in a single base64 JSON
+ *  request. Larger files MUST use the multipart presigned-URL flow: AWS Lambda
+ *  rejects any synchronous invocation whose request payload exceeds 6 MB, and
+ *  base64 inflates a file by ~33% — so ~4.4 MB of raw bytes is the real
+ *  single-shot ceiling. Stay comfortably under it. */
+const SINGLE_SHOT_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Base64-encode a File in the browser, chunked so a large input doesn't blow
+ *  the call stack (String.fromCharCode(...hugeArray) overflows the arg limit). */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
 export const uploads = {
   uploadFile: (filename: string, contentType: string, dataB64: string) =>
     post<{ url: string; key: string }>("/projects/upload/file", {
@@ -138,6 +158,51 @@ export const uploads = {
     ),
   multipartComplete: (key: string, uploadId: string, parts: { part_number: number; etag: string }[]) =>
     post<{ cloudfront_url: string }>("/projects/upload/multipart/complete", { key, upload_id: uploadId, parts }),
+
+  /**
+   * Upload a file and return its public CloudFront URL, transparently choosing
+   * the transport that won't fail on size:
+   *   • ≤ 4 MB → one base64 request through the Lambda (no S3 CORS needed).
+   *   • > 4 MB → multipart: each part is PUT browser→S3 directly via a presigned
+   *              URL, bypassing the Lambda 6 MB payload limit entirely.
+   *
+   * The multipart path requires the documents bucket to allow cross-origin PUT
+   * and to expose the ETag response header (CORS ExposedHeaders: ETag).
+   */
+  uploadFileSmart: async (file: File): Promise<string> => {
+    const contentType = file.type || "application/octet-stream";
+
+    if (file.size <= SINGLE_SHOT_MAX_BYTES) {
+      const { url } = await uploads.uploadFile(file.name, contentType, await fileToBase64(file));
+      return url;
+    }
+
+    const { upload_id, key, part_urls, part_size, cloudfront_url } =
+      await uploads.multipartStart(file.name, contentType, file.size);
+
+    const parts: { part_number: number; etag: string }[] = [];
+    for (let i = 0; i < part_urls.length; i++) {
+      const start = i * part_size;
+      const blob = file.slice(start, Math.min(start + part_size, file.size));
+      const res = await fetch(part_urls[i], { method: "PUT", body: blob });
+      if (!res.ok) {
+        throw new ApiError(res.status, "Storage rejected an upload part — please try again.");
+      }
+      // S3 returns the part's entity tag (quoted MD5) in the ETag header; the
+      // browser can only read it when the bucket CORS exposes ETag.
+      const etag = res.headers.get("ETag") ?? res.headers.get("etag");
+      if (!etag) {
+        throw new ApiError(
+          502,
+          "Storage did not return an ETag — the documents bucket needs CORS 'ExposedHeaders: ETag'.",
+        );
+      }
+      parts.push({ part_number: i + 1, etag });
+    }
+
+    const { cloudfront_url: completed } = await uploads.multipartComplete(key, upload_id, parts);
+    return completed || cloudfront_url;
+  },
 };
 
 // ── Projects ──────────────────────────────────────────────────────────────────

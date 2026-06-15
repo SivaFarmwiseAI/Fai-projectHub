@@ -177,14 +177,6 @@ const ATTACH_ACCEPT =
   ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.gif,.svg,.webp,.zip";
 const ATTACH_MAX_BYTES = 8 * 1024 * 1024;
 
-async function fileToBase64String(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
 export type AttachmentBarValue = { url: string; fileName?: string } | null;
 
 function AttachmentBar({
@@ -229,12 +221,7 @@ function AttachmentBar({
     }
     setUploading(true);
     try {
-      const b64 = await fileToBase64String(file);
-      const { url } = await uploadsApi.uploadFile(
-        file.name,
-        file.type || "application/octet-stream",
-        b64,
-      );
+      const url = await uploadsApi.uploadFileSmart(file);
       setValue({ url, fileName: file.name });
       collapse();
       showToast.success("File attached", file.name);
@@ -4326,20 +4313,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const handleDocumentUpload = async (file: File) => {
     setDocUploadError(null);
+    if (file.size > ATTACH_MAX_BYTES) {
+      setDocUploadError("File too large — max 8 MB.");
+      return;
+    }
     setDocUploading(true);
     try {
-      // Same flow as new-project page: upload via /projects/upload/file,
-      // then attach the returned CloudFront URL to the project via PATCH.
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const b64 = btoa(binary);
-      const { url } = await uploadsApi.uploadFile(
-        file.name,
-        file.type || "application/octet-stream",
-        b64,
-      );
+      // uploadFileSmart picks the transport by size: small files go through the
+      // Lambda as base64; files over ~4 MB upload browser→S3 directly so they
+      // don't hit the Lambda 6 MB payload limit. Then attach the CloudFront URL.
+      const url = await uploadsApi.uploadFileSmart(file);
       await projectsApi.update(id, { document_url: url });
       const { documents: refreshed } = await projectsApi.documents(id);
       setDocuments(refreshed);
