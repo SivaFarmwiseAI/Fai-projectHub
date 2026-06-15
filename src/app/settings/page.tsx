@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   User,
@@ -11,6 +12,7 @@ import {
   Mail,
   Briefcase,
   Lock,
+  KeyRound,
   Info,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 
 /* ── Role colour helpers ──────────────────────────────────── */
 const ROLE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -34,6 +37,7 @@ function SettingRow({
   value,
   description,
   href,
+  onClick,
   badge,
   locked,
 }: {
@@ -42,14 +46,16 @@ function SettingRow({
   value?: string;
   description?: string;
   href?: string;
+  onClick?: () => void;
   badge?: string;
   locked?: boolean;
 }) {
+  const interactive = Boolean(href || onClick);
   const inner = (
     <div
       className={cn(
         "flex items-center gap-4 px-5 py-4 rounded-xl transition-all",
-        href
+        interactive
           ? "hover:bg-slate-50 cursor-pointer group"
           : "cursor-default"
       )}
@@ -78,7 +84,7 @@ function SettingRow({
       {value && (
         <span className="text-sm text-slate-500 truncate max-w-[180px] shrink-0">{value}</span>
       )}
-      {href && (
+      {interactive && (
         <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
       )}
     </div>
@@ -86,6 +92,13 @@ function SettingRow({
 
   if (href) {
     return <Link href={href}>{inner}</Link>;
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="w-full text-left">
+        {inner}
+      </button>
+    );
   }
   return inner;
 }
@@ -113,6 +126,7 @@ function SettingsSection({
 /* ── Page ─────────────────────────────────────────────────── */
 export default function SettingsPage() {
   const { user, isCEO, isAdmin } = useAuth();
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
 
   if (!user) return null;
 
@@ -187,6 +201,16 @@ export default function SettingsPage() {
         />
       </SettingsSection>
 
+      {/* ── Security — available to every user ── */}
+      <SettingsSection title="Security">
+        <SettingRow
+          icon={KeyRound}
+          label="Change Password"
+          description="Update your sign-in password. Recommended after onboarding."
+          onClick={() => setPwdDialogOpen(true)}
+        />
+      </SettingsSection>
+
       {/* ── Admin — shown to CEO and Admin ── */}
       {(isCEO || isAdmin) && (
         <SettingsSection title="Administration">
@@ -214,6 +238,8 @@ export default function SettingsPage() {
       <p className="text-center text-xs text-slate-400 pb-2">
         ProjectHub · FarmwiseAI · {new Date().getFullYear()}
       </p>
+
+      <ChangePasswordDialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen} />
     </div>
   );
 }

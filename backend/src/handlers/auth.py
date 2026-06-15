@@ -1,7 +1,7 @@
 """Auth Lambda handler — /api/auth/*"""
 import logging
 
-from .base import PARAM, err, get_body, get_query, make_handler, resp
+from .base import PARAM, err, get_body, make_handler, resp
 from ..auth import (
     COOKIE_NAME,
     create_access_token,
@@ -77,13 +77,17 @@ def _register(event, origin):
 
 def _change_password(event, origin):
     current_user = get_current_user(event)
-    p = get_query(event)
+    body = get_body(event)
+    old_password = body.get("old_password") or ""
+    new_password = body.get("new_password") or ""
+    if len(new_password) < 8:
+        raise HTTPError(400, "New password must be at least 8 characters")
     user = fetchone("SELECT password_hash FROM users WHERE id = %s", (current_user["id"],))
-    if not verify_password(p.get("old_password", ""), user["password_hash"]):
+    if not verify_password(old_password, user["password_hash"]):
         raise HTTPError(400, "Incorrect current password")
     execute(
         "UPDATE users SET password_hash = %s, updated_at = NOW() WHERE id = %s",
-        (hash_password(p.get("new_password", "")), current_user["id"]),
+        (hash_password(new_password), current_user["id"]),
     )
     return resp({"ok": True}, origin=origin)
 
