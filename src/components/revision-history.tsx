@@ -29,6 +29,7 @@ import { useConfirm } from "@/components/confirm-provider";
 import {
   phases as phasesApi,
   tasks as tasksApi,
+  type MilestoneRevision,
   type PhaseRevision,
   type RevisionAttachment,
   type TaskRevision,
@@ -37,13 +38,15 @@ import { showToast } from "@/lib/toast";
 
 import { AddRevisionDialog } from "./add-revision-dialog";
 
-type Entity = "phase" | "task";
+type Entity = "phase" | "task" | "milestone";
 
-type AnyRevision = PhaseRevision | TaskRevision;
+type AnyRevision = PhaseRevision | TaskRevision | MilestoneRevision;
 
 type Props = {
   entity: Entity;
   entityId: string;
+  /** Required when entity === "milestone": the parent task id. */
+  parentId?: string;
   entityLabel?: string;
   /** Tone of the embedded panel — phase cards use indigo, task cards use slate. */
   accent?: "indigo" | "slate";
@@ -57,6 +60,7 @@ type Props = {
 export function RevisionHistory({
   entity,
   entityId,
+  parentId,
   entityLabel,
   accent = "indigo",
   compact = false,
@@ -78,7 +82,9 @@ export function RevisionHistory({
         const r =
           entity === "phase"
             ? await phasesApi.revisions(entityId)
-            : await tasksApi.revisions(entityId);
+            : entity === "milestone"
+              ? await tasksApi.milestoneRevisions(parentId ?? "", entityId)
+              : await tasksApi.revisions(entityId);
         setRevisions(r.revisions ?? []);
         setLoadedFull(true);
       } catch (err) {
@@ -91,7 +97,7 @@ export function RevisionHistory({
         setLoading(false);
       }
     },
-    [entity, entityId],
+    [entity, entityId, parentId],
   );
 
   useEffect(() => {
@@ -135,6 +141,8 @@ export function RevisionHistory({
     try {
       if (entity === "phase") {
         await phasesApi.deleteRevision(entityId, rev.id);
+      } else if (entity === "milestone") {
+        await tasksApi.deleteMilestoneRevision(parentId ?? "", entityId, rev.id);
       } else {
         await tasksApi.deleteRevision(entityId, rev.id);
       }
@@ -172,7 +180,7 @@ export function RevisionHistory({
               </SheetTitle>
               {entityLabel && (
                 <p className="text-xs text-slate-500 truncate">
-                  {entity === "phase" ? "Phase" : "Task"} · {entityLabel}
+                  {entity === "phase" ? "Phase" : entity === "milestone" ? "Milestone" : "Task"} · {entityLabel}
                 </p>
               )}
             </SheetHeader>
@@ -223,6 +231,7 @@ export function RevisionHistory({
       <AddRevisionDialog
         entity={entity}
         entityId={entityId}
+        parentId={parentId}
         entityLabel={entityLabel}
         open={addOpen}
         onOpenChange={setAddOpen}

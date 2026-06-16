@@ -27,6 +27,7 @@ import {
   tasks as tasksApi,
   uploads as uploadsApi,
   type CreateRevisionPayload,
+  type MilestoneRevision,
   type PhaseRevision,
   type RevisionAttachmentInput,
   type RevisionAttachmentType,
@@ -35,15 +36,17 @@ import {
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 
-type Entity = "phase" | "task";
+type Entity = "phase" | "task" | "milestone";
 
 type Props = {
   entity: Entity;
   entityId: string;
+  /** Required when entity === "milestone": the parent task id. */
+  parentId?: string;
   entityLabel?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdded: (rev: PhaseRevision | TaskRevision) => void;
+  onAdded: (rev: PhaseRevision | TaskRevision | MilestoneRevision) => void;
 };
 
 type AttachmentDraft = RevisionAttachmentInput & {
@@ -82,6 +85,7 @@ const emptyAttachment = (): AttachmentDraft => ({
 export function AddRevisionDialog({
   entity,
   entityId,
+  parentId,
   entityLabel,
   open,
   onOpenChange,
@@ -200,7 +204,9 @@ export function AddRevisionDialog({
       const res =
         entity === "phase"
           ? await phasesApi.addRevision(entityId, payload)
-          : await tasksApi.addRevision(entityId, payload);
+          : entity === "milestone"
+            ? await tasksApi.addMilestoneRevision(parentId ?? "", entityId, payload)
+            : await tasksApi.addRevision(entityId, payload);
       onAdded(res.revision);
       showToast.success("Revision recorded");
       onOpenChange(false);

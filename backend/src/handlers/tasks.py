@@ -198,8 +198,9 @@ def _update_task(event, origin, task_id):
         if key in fields: fields[key] = json.dumps(fields[key])
     if "assignee_id" in fields and fields["assignee_id"]:
         fields["assignee_id"] = str(fields["assignee_id"])
-    if fields.get("status") == "completed":
-        fields["completed_at"] = "NOW()"
+    if "status" in fields:
+        # Stamp completion when finishing; clear a stale stamp when re-opening.
+        fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
     set_clause = ", ".join(f"{k} = NOW()" if v == "NOW()" else f"{k} = %s" for k, v in fields.items())
     params = [v for v in fields.values() if v != "NOW()"] + [task_id]
     updated = execute_returning(f"UPDATE tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params)
@@ -367,10 +368,12 @@ def _create_milestone(event, origin, task_id):
     body = CreateMilestoneRequest(**get_body(event))
     ms = execute_returning("""
         INSERT INTO task_milestones
-          (task_id, title, description, deliverable_type, success_criteria, assignee_id, target_day, order_index)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+          (task_id, title, description, deliverable_type, success_criteria,
+           assignee_id, target_day, estimated_hours, order_index)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
     """, (task_id, body.title, body.description, body.deliverable_type, json.dumps(body.success_criteria),
-          str(body.assignee_id) if body.assignee_id else None, body.target_day, body.order_index))
+          str(body.assignee_id) if body.assignee_id else None, body.target_day,
+          body.estimated_hours, body.order_index))
     return resp({"milestone": ms}, 201, origin)
 
 
@@ -380,14 +383,105 @@ def _update_milestone(event, origin, task_id, ms_id):
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPError(400, "No fields to update")
-    if fields.get("status") == "completed":
-        fields["completed_at"] = "NOW()"
+    if "success_criteria" in fields:
+        fields["success_criteria"] = json.dumps(fields["success_criteria"])
+    if "assignee_id" in fields and fields["assignee_id"]:
+        fields["assignee_id"] = str(fields["assignee_id"])
+    if "status" in fields:
+        # Stamp completion when finishing; clear a stale stamp when re-opening.
+        fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
     set_clause = ", ".join(f"{k} = NOW()" if v == "NOW()" else f"{k} = %s" for k, v in fields.items())
     params = [v for v in fields.values() if v != "NOW()"] + [ms_id, task_id]
     updated = execute_returning(f"UPDATE task_milestones SET {set_clause} WHERE id = %s AND task_id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Milestone not found")
     return resp({"milestone": updated}, origin=origin)
+
+
+def _delete_milestone(event, origin, task_id, ms_id):
+    get_current_user(event)
+    deleted = execute_returning(
+        "DELETE FROM task_milestones WHERE id = %s AND task_id = %s RETURNING id",
+        (ms_id, task_id),
+    )
+    if not deleted:
+        raise HTTPError(404, "Milestone not found")
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
+
+
+# ── Milestone revisions (history) — mirrors task revisions ────────────────────
+
+def _list_milestone_revisions(event, origin, task_id, ms_id):
+    get_current_user(event)
+    revisions = fetchall("""
+        SELECT r.*, u.name AS author_name, u.avatar_color AS author_color,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', a.id, 'title', a.title, 'type', a.type,
+              'url', a.url, 'content', a.content, 'created_at', a.created_at
+            ) ORDER BY a.created_at)
+            FROM milestone_revision_attachments a WHERE a.revision_id = r.id
+          ), '[]'::JSON) AS attachments
+        FROM milestone_revisions r
+        LEFT JOIN users u ON u.id = r.author_id
+        WHERE r.milestone_id = %s
+        ORDER BY r.created_at DESC
+    """, (ms_id,))
+    return resp({"revisions": revisions}, origin=origin)
+
+
+def _add_milestone_revision(event, origin, task_id, ms_id):
+    current_user = get_current_user(event)
+    body = get_body(event)
+    summary = (body.get("summary") or "").strip()
+    if not summary:
+        raise HTTPError(400, "summary is required")
+    if not fetchone(
+        "SELECT 1 FROM task_milestones WHERE id = %s AND task_id = %s", (ms_id, task_id)
+    ):
+        raise HTTPError(404, "Milestone not found")
+
+    revision = execute_returning("""
+        INSERT INTO milestone_revisions
+          (milestone_id, author_id, change_type, summary, details, previous_value, new_value)
+        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+    """, (ms_id, current_user["id"],
+          body.get("change_type", "revision"),
+          summary, body.get("details"),
+          body.get("previous_value"), body.get("new_value")))
+
+    attachments = []
+    for att in (body.get("attachments") or []):
+        title = (att.get("title") or "").strip()
+        if not title:
+            continue
+        row = execute_returning("""
+            INSERT INTO milestone_revision_attachments (revision_id, title, type, url, content)
+            VALUES (%s,%s,%s,%s,%s) RETURNING *
+        """, (revision["id"], title, att.get("type", "url"),
+              att.get("url"), att.get("content")))
+        attachments.append(row)
+
+    revision["attachments"] = attachments
+    revision["author_name"] = current_user.get("name")
+    revision["author_color"] = current_user.get("avatar_color")
+    return resp({"revision": revision}, 201, origin)
+
+
+def _delete_milestone_revision(event, origin, task_id, ms_id, revision_id):
+    current_user = get_current_user(event)
+    rev = fetchone(
+        "SELECT id, author_id FROM milestone_revisions WHERE id = %s AND milestone_id = %s",
+        (revision_id, ms_id),
+    )
+    if not rev:
+        raise HTTPError(404, "Revision not found")
+    is_author = str(rev["author_id"]) == str(current_user["id"])
+    is_admin = current_user["role_type"] in ("CEO", "Admin", "Team Lead")
+    if not (is_author or is_admin):
+        raise HTTPError(403, "Only the author or a CEO/Admin/Team Lead can delete this revision")
+    execute("DELETE FROM milestone_revisions WHERE id = %s", (revision_id,))
+    return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 
 # Static deadline-extension routes BEFORE dynamic /<task_id>
@@ -405,7 +499,11 @@ handler = make_handler([
     ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _list_task_attachments),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/attachments",                               _add_task_attachment),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/milestones",                                _create_milestone),
+    ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})/revisions",                          _list_milestone_revisions),
+    ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})/revisions",                          _add_milestone_revision),
+    ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})/revisions/(?P<revision_id>{PARAM})", _delete_milestone_revision),
     ("PATCH",  rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})",             _update_milestone),
+    ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})/milestones/(?P<ms_id>{PARAM})",             _delete_milestone),
     ("POST",   rf"/api/tasks/(?P<task_id>{PARAM})/assignees",                                 _add_task_assignee),
     ("DELETE", rf"/api/tasks/(?P<task_id>{PARAM})/assignees/(?P<user_id>{PARAM})",            _remove_task_assignee),
     ("GET",    rf"/api/tasks/(?P<task_id>{PARAM})",                                           _get_task),

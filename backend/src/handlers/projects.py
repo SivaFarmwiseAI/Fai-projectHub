@@ -392,28 +392,17 @@ def _delete_project(event, origin, project_id):
 
 def _project_tasks(event, origin, project_id):
     _require_view_access(event, project_id)
-    tasks = fetchall("""
-        SELECT
-          t.id, t.title, t.description, t.approach, t.status, t.priority,
-          t.assignee_id, t.estimated_hours, t.actual_hours, t.plan_status,
-          t.review_status, t.order_index, t.phase_id, t.created_at, t.completed_at,
-          u.name AS assignee_name, u.avatar_color AS assignee_color, ph.phase_name,
-          (SELECT COUNT(*) FROM task_steps ts WHERE ts.task_id = t.id) AS step_count,
-          (SELECT COUNT(*) FROM task_milestones tm WHERE tm.task_id = t.id) AS milestone_count,
-          COALESCE((
-            SELECT json_agg(json_build_object(
-              'id', au.id, 'name', au.name, 'avatar_color', au.avatar_color,
-              'role', au.role, 'department', au.department
-            ) ORDER BY au.name)
-            FROM task_assignees ta JOIN users au ON au.id = ta.user_id
-            WHERE ta.task_id = t.id
-          ), '[]'::JSON) AS assignees
+    # Return the FULL task shape (steps, milestones, criteria, deadline
+    # extensions, …) — not just counts. The project-detail page renders nested
+    # milestones/steps from these arrays and refetches this endpoint after every
+    # mutation, so a thin summary leaves created/updated milestones invisible.
+    rows = fetchall("""
+        SELECT fn_task_full(t.id) AS task
         FROM tasks t
-        LEFT JOIN users u  ON u.id  = t.assignee_id
-        LEFT JOIN phases ph ON ph.id = t.phase_id
         WHERE t.project_id = %s
         ORDER BY t.order_index, t.created_at
     """, (project_id,))
+    tasks = [r["task"] for r in rows]
     return resp({"tasks": tasks}, origin=origin)
 
 

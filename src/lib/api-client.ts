@@ -284,6 +284,16 @@ export const tasks = {
     post<{ milestone: TaskMilestone }>(`/tasks/${id}/milestones`, data),
   updateMilestone: (taskId: string, msId: string, data: Partial<TaskMilestone>) =>
     patch<{ milestone: TaskMilestone }>(`/tasks/${taskId}/milestones/${msId}`, data),
+  deleteMilestone: (taskId: string, msId: string) =>
+    del<void>(`/tasks/${taskId}/milestones/${msId}`),
+
+  // Milestone revisions (history) — mirrors task revisions
+  milestoneRevisions: (taskId: string, msId: string) =>
+    get<{ revisions: MilestoneRevision[] }>(`/tasks/${taskId}/milestones/${msId}/revisions`),
+  addMilestoneRevision: (taskId: string, msId: string, data: CreateRevisionPayload) =>
+    post<{ revision: MilestoneRevision }>(`/tasks/${taskId}/milestones/${msId}/revisions`, data),
+  deleteMilestoneRevision: (taskId: string, msId: string, revisionId: string) =>
+    del<void>(`/tasks/${taskId}/milestones/${msId}/revisions/${revisionId}`),
 
   requestExtension: (data: CreateExtensionPayload) =>
     post<{ extension: DeadlineExtension }>("/tasks/deadline-extensions", data),
@@ -616,6 +626,8 @@ export interface TaskMilestone {
   status: string;
   assignee_id?: string;
   target_day?: number;
+  estimated_hours?: number;
+  actual_hours?: number;
   outcome?: string;
   outcome_notes?: string;
   deliverables?: Deliverable[];
@@ -965,6 +977,21 @@ export interface TaskRevision {
   created_at: string;
 }
 
+export interface MilestoneRevision {
+  id: string;
+  milestone_id: string;
+  author_id?: string;
+  author_name?: string;
+  author_color?: string;
+  change_type: RevisionChangeType | string;
+  summary: string;
+  details?: string;
+  previous_value?: string;
+  new_value?: string;
+  attachments: RevisionAttachment[];
+  created_at: string;
+}
+
 export interface TaskAttachment {
   id: string;
   task_id: string;
@@ -1133,7 +1160,7 @@ export interface ExtractedDocument {
 export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
 export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
-export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; target_day?: number }
+export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; target_day?: number; estimated_hours?: number }
 export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }
 export interface CreateSubmissionPayload { phase_id?: string; project_id: string; title: string; type: string; description?: string; link?: string; is_key_milestone?: boolean }
 export interface CreateLeavePayload { type: string; start_date: string; end_date: string; reason?: string; cover_person_id?: string; coverage_plan?: string; is_planned?: boolean }

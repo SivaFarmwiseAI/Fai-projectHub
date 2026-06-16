@@ -27,6 +27,7 @@ import { ManageTeamDialog } from "@/components/manage-team-dialog";
 import { ProjectPerformanceTab } from "@/components/project-performance-tab";
 import { RevisionHistory } from "@/components/revision-history";
 import { showToast } from "@/lib/toast";
+import { fireMilestoneCelebration } from "@/lib/confetti";
 import { useConfirm } from "@/components/confirm-provider";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -804,14 +805,113 @@ function DeliverableCard({ d, viewRole, projectId, projectTitle }: { d: Delivera
 
 // ─── Milestone Card (nested inside Task) ────────────────────
 
-function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projectTitle }: { milestone: TaskMilestone; taskAssignee: string; viewRole: ViewRole; projectId: string; projectTitle: string }) {
+function MilestoneSection({ milestone, taskId, taskAssignee, viewRole, projectId, projectTitle, onUpdate }: { milestone: TaskMilestone; taskId: string; taskAssignee: string; viewRole: ViewRole; projectId: string; projectTitle: string; onUpdate?: () => void }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(milestone.status === "in_progress");
   const [showAssigneeEditor, setShowAssigneeEditor] = useState(false);
   const [showMilestoneReviewTask, setShowMilestoneReviewTask] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // ── Unified "Update progress" panel: status + timing + attachments + note ──
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [updStatus, setUpdStatus] = useState<string>(milestone.status);
+  const [updEst, setUpdEst] = useState<number>(milestone.estimated_hours ?? 0);
+  const [updAct, setUpdAct] = useState<number>(milestone.actual_hours ?? 0);
+  const [updNote, setUpdNote] = useState("");
+  const [updAttachments, setUpdAttachments] = useState<{ url: string; fileName?: string }[]>([]);
+  const [savingUpdate, setSavingUpdate] = useState(false);
+
   const config = deliverableTypeConfig[milestone.deliverable_type ?? "text"] || deliverableTypeConfig.text;
   const assignee = milestone.assignee_id ? getUser(milestone.assignee_id) : getUser(taskAssignee);
   const completedDeliverables = (milestone.deliverables ?? []).filter(d => d.status === "verified").length;
   const totalDeliverables = (milestone.deliverables ?? []).length;
+
+  const openUpdate = () => {
+    setUpdStatus(milestone.status);
+    setUpdEst(milestone.estimated_hours ?? 0);
+    setUpdAct(milestone.actual_hours ?? 0);
+    setUpdNote("");
+    setUpdAttachments([]);
+    setShowUpdate(true);
+  };
+
+  const submitUpdate = async () => {
+    setSavingUpdate(true);
+    try {
+      const statusChanged = updStatus !== milestone.status;
+      const hoursChanged =
+        (updEst || 0) !== (milestone.estimated_hours ?? 0) ||
+        (updAct || 0) !== (milestone.actual_hours ?? 0);
+
+      // 1. Apply status + timing to the milestone itself.
+      await tasksApi.updateMilestone(taskId, milestone.id, {
+        status: updStatus,
+        estimated_hours: updEst || undefined,
+        actual_hours: updAct || undefined,
+      });
+
+      // 2. Record a revision (with attachments) so the change + evidence is
+      //    captured on the milestone's history timeline.
+      if (statusChanged || hoursChanged || updNote.trim() || updAttachments.length) {
+        const parts: string[] = [];
+        if (statusChanged) parts.push(`Status → ${updStatus.replace("_", " ")}`);
+        if (hoursChanged) parts.push(`${updAct || 0}h spent / ${updEst || 0}h est`);
+        const summary = updNote.trim() || parts.join(" · ") || "Progress update";
+        await tasksApi.addMilestoneRevision(taskId, milestone.id, {
+          summary,
+          change_type: statusChanged ? "status_change" : "note",
+          details: updNote.trim() || undefined,
+          attachments: updAttachments.length
+            ? updAttachments.map(a => ({
+                title: a.fileName || a.url,
+                type: a.fileName ? "document" : "url",
+                url: a.url,
+              }))
+            : undefined,
+        });
+      }
+
+      if (updStatus === "completed" && milestone.status !== "completed") fireMilestoneCelebration();
+      showToast.success("Milestone updated");
+      setShowUpdate(false);
+      onUpdate?.();
+    } catch (e) {
+      showToast.error("Failed to update milestone", e instanceof Error ? e.message : undefined);
+    } finally {
+      setSavingUpdate(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: "Delete this milestone?",
+      description: (
+        <span>
+          <span className="font-medium text-slate-900">&ldquo;{milestone.title}&rdquo;</span>
+          {" "}and its deliverables will be permanently removed. This cannot be undone.
+        </span>
+      ),
+      confirmLabel: "Delete milestone",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setIsDeleting(true);
+    try {
+      await tasksApi.deleteMilestone(taskId, milestone.id);
+      showToast.success("Milestone deleted");
+      onUpdate?.();
+    } catch (e) {
+      showToast.error("Failed to delete milestone", e instanceof Error ? e.message : undefined);
+      setIsDeleting(false);
+    }
+  };
+
+  const milestoneStatuses: { value: string; label: string }[] = [
+    { value: "pending", label: "Pending" },
+    { value: "in_progress", label: "In Progress" },
+    { value: "completed", label: "Completed" },
+    { value: "blocked", label: "Blocked" },
+  ];
 
   return (
     <div className={`rounded-lg border ${milestone.status === "completed" ? "border-emerald-200 bg-emerald-50/30" :
@@ -866,6 +966,11 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
           {milestone.target_day && (
             <span className="text-[10px] text-muted-foreground">Day {milestone.target_day}</span>
           )}
+          {(milestone.estimated_hours != null || milestone.actual_hours != null) && (
+            <span className="text-[10px] text-muted-foreground font-mono" title="Actual / estimated hours">
+              {milestone.actual_hours != null ? milestone.actual_hours : "—"}/{milestone.estimated_hours != null ? milestone.estimated_hours : "—"}h
+            </span>
+          )}
           {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
         </div>
       </div>
@@ -873,6 +978,123 @@ function MilestoneSection({ milestone, taskAssignee, viewRole, projectId, projec
       {/* Expanded content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2.5 border-t border-border/50 pt-2.5">
+          {/* Status badge + Update / History / Delete actions */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-[11px]">
+              <Badge variant="outline" className={`text-[9px] ${statusColors[milestone.status] ?? ""}`}>
+                {milestone.status.replace("_", " ")}
+              </Badge>
+              <span className="text-muted-foreground font-mono">
+                {milestone.actual_hours != null ? milestone.actual_hours : "—"}h spent / {milestone.estimated_hours != null ? milestone.estimated_hours : "—"}h est
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {!showUpdate && (
+                <Button
+                  size="sm"
+                  onClick={openUpdate}
+                  className="h-7 text-[10px] gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Pencil className="h-3 w-3" /> Update progress
+                </Button>
+              )}
+              <RevisionHistory entity="milestone" entityId={milestone.id} parentId={taskId} entityLabel={milestone.title} compact />
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="text-red-400 hover:text-red-600 disabled:opacity-50 p-1"
+                title="Delete milestone"
+              >
+                {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Update progress panel — status + timing + attachments + note */}
+          {showUpdate && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
+              {/* Status */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">Status</label>
+                <div className="flex gap-1 flex-wrap">
+                  {milestoneStatuses.map(s => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setUpdStatus(s.value)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                        updStatus === s.value ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timing */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  Estimated h
+                  <Input type="number" min={0} value={updEst || ""} onChange={e => setUpdEst(Number(e.target.value))}
+                    className="h-7 w-20 text-[11px] px-1.5" />
+                </label>
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  Hours spent
+                  <Input type="number" min={0} value={updAct || ""} onChange={e => setUpdAct(Number(e.target.value))}
+                    className="h-7 w-20 text-[11px] px-1.5" />
+                </label>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">Note (optional)</label>
+                <Textarea
+                  value={updNote}
+                  onChange={e => setUpdNote(e.target.value)}
+                  placeholder="What changed / what was done…"
+                  rows={2}
+                  className="text-[11px]"
+                />
+              </div>
+
+              {/* Attachments */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">Attachments</label>
+                {updAttachments.length > 0 && (
+                  <div className="space-y-1 mb-1.5">
+                    {updAttachments.map((a, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2 py-1 text-[10px]">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                        <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate font-medium text-emerald-800 hover:underline">
+                          {a.fileName || a.url}
+                        </a>
+                        <button type="button" onClick={() => setUpdAttachments(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <AttachmentBar
+                  label="Attach file or paste a link"
+                  compact
+                  value={null}
+                  onChange={v => { if (v) setUpdAttachments(prev => [...prev, v]); }}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1 border-t border-blue-100">
+                <Button size="sm" onClick={submitUpdate} disabled={savingUpdate} className="h-7 text-[11px] gap-1 bg-blue-600 hover:bg-blue-700 text-white">
+                  {savingUpdate ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Save update
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowUpdate(false)} className="h-7 text-[11px]">Cancel</Button>
+              </div>
+            </div>
+          )}
+
           {/* Success Criteria */}
           {(milestone.success_criteria ?? []).length > 0 && (
             <div>
@@ -964,6 +1186,24 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
   const [showAddUpdate, setShowAddUpdate] = useState(false);
   const [updateText, setUpdateText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
+  const [completeHours, setCompleteHours] = useState<number>(task.actual_hours ?? task.estimated_hours ?? 0);
+  const [savingComplete, setSavingComplete] = useState(false);
+
+  const completeTask = async () => {
+    setSavingComplete(true);
+    try {
+      await tasksApi.update(task.id, { status: "completed", actual_hours: completeHours || undefined });
+      fireMilestoneCelebration();
+      showToast.success("Task completed");
+      setShowComplete(false);
+      onReviewUpdate?.();
+    } catch (e) {
+      showToast.error("Failed to complete task", e instanceof Error ? e.message : undefined);
+    } finally {
+      setSavingComplete(false);
+    }
+  };
 
   const handleDeleteTask = async () => {
     const ok = await confirm({
@@ -1016,6 +1256,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
   const [editPriority, setEditPriority] = useState(task.priority);
   const [editStatus, setEditStatus] = useState(task.status);
   const [editHours, setEditHours] = useState(task.estimated_hours ?? 0);
+  const [editActualHours, setEditActualHours] = useState(task.actual_hours ?? 0);
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignee_id ?? "");
   const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
     task.assignees?.map(a => a.id) ?? (task.assignee_id ? [task.assignee_id] : [])
@@ -1028,6 +1269,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
     setEditPriority(task.priority);
     setEditStatus(task.status);
     setEditHours(task.estimated_hours ?? 0);
+    setEditActualHours(task.actual_hours ?? 0);
     setEditAssigneeId(task.assignee_id ?? "");
     setEditAssigneeIds(task.assignees?.map(a => a.id) ?? (task.assignee_id ? [task.assignee_id] : []));
     setEditPhaseId(task.phase_id ?? "");
@@ -1039,7 +1281,12 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
 
   const assignee = getUser(task.assignee_id ?? "");
   const completedSteps = (task.steps ?? []).filter(s => s.status === "completed").length;
+  const totalMilestones = (task.milestones ?? []).length;
   const completedMilestones = (task.milestones ?? []).filter(m => m.status === "completed").length;
+  const isCompleted = task.status === "completed";
+  // "Prompt, don't auto-complete": when every milestone is done we surface a
+  // ready-to-complete hint, but the task only flips when the user confirms hours.
+  const allMilestonesComplete = totalMilestones > 0 && completedMilestones === totalMilestones;
   const pendingExtensions = (task.deadline_extensions ?? []).filter(de => de.status === "pending").length;
   const hoursCompleted = (task.steps ?? []).filter(s => s.status === "completed").reduce((sum, s) => sum + (s.estimated_hours ?? 0), 0);
 
@@ -1127,16 +1374,30 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
               </div>
             </div>
 
-            {/* Hours */}
+            {/* Hours (estimated + manual actual) */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Estimated Hours</label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={editHours || ""}
-                onChange={e => setEditHours(Number(e.target.value))}
-                className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
-              />
+              <label className="text-[11px] font-medium text-gray-500 mb-1 block">Hours (est / actual)</label>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Est"
+                  title="Estimated hours"
+                  value={editHours || ""}
+                  onChange={e => setEditHours(Number(e.target.value))}
+                  className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
+                />
+                <span className="text-gray-400 text-xs">/</span>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Actual"
+                  title="Actual hours spent (manual)"
+                  value={editActualHours || ""}
+                  onChange={e => setEditActualHours(Number(e.target.value))}
+                  className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
+                />
+              </div>
             </div>
           </div>
 
@@ -1210,6 +1471,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
                     priority: editPriority,
                     status: editStatus,
                     estimated_hours: editHours || undefined,
+                    actual_hours: editActualHours || undefined,
                     assignee_id: primary || undefined,
                     phase_id: editPhaseId || undefined,
                   });
@@ -1363,6 +1625,60 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
       {/* Expanded Content */}
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-border pt-3">
+
+          {/* ── Task completion (by milestones or directly with hours) ── */}
+          {!isCompleted && (
+            <div className={`rounded-lg border p-3 ${allMilestonesComplete ? "border-emerald-300 bg-emerald-50/60" : "border-border bg-gray-50/60"}`}>
+              {!showComplete ? (
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-[11px] text-muted-foreground">
+                    {totalMilestones > 0 ? (
+                      allMilestonesComplete ? (
+                        <span className="text-emerald-700 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> All {totalMilestones} milestones complete — ready to close out.
+                        </span>
+                      ) : (
+                        <span>{completedMilestones}/{totalMilestones} milestones done. Complete the rest, or close the task directly.</span>
+                      )
+                    ) : (
+                      <span>No milestones — complete the task directly by logging the hours spent.</span>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => { setCompleteHours(task.actual_hours ?? task.estimated_hours ?? 0); setShowComplete(true); }}
+                    className={`text-[11px] h-7 gap-1 ${allMilestonesComplete ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Complete Task
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2 flex-wrap">
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Hours spent {task.estimated_hours ? `(est. ${task.estimated_hours}h)` : ""}</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      autoFocus
+                      value={completeHours || ""}
+                      onChange={e => setCompleteHours(Number(e.target.value))}
+                      className="h-8 w-28 text-xs"
+                      placeholder="0"
+                    />
+                  </div>
+                  <Button size="sm" onClick={completeTask} disabled={savingComplete} className="h-8 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700">
+                    {savingComplete ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Mark Completed
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowComplete(false)} className="h-8 text-[11px]">Cancel</Button>
+                </div>
+              )}
+            </div>
+          )}
+          {isCompleted && task.actual_hours != null && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-2.5 text-[11px] text-emerald-700 flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Completed · {task.actual_hours}h spent{task.estimated_hours ? ` of ${task.estimated_hours}h estimated` : ""}.
+            </div>
+          )}
 
           {/* ── Task Description with Edit ── */}
           <div className="flex items-start gap-2">
@@ -1691,7 +2007,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
 
             <div className="space-y-2">
               {(task.milestones ?? []).map(ms => (
-                <MilestoneSection key={ms.id} milestone={ms} taskAssignee={task.assignee_id ?? ""} viewRole={viewRole} projectId={projectId} projectTitle={projectTitle} />
+                <MilestoneSection key={ms.id} milestone={ms} taskId={task.id} taskAssignee={task.assignee_id ?? ""} viewRole={viewRole} projectId={projectId} projectTitle={projectTitle} onUpdate={onReviewUpdate} />
               ))}
             </div>
           </div>
