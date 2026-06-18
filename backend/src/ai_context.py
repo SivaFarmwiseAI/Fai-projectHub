@@ -179,20 +179,21 @@ def build_person_context(user_id: str) -> dict:
 
 
 def build_team_productivity_context() -> dict:
-    """Team-wide productivity snapshot (uses fn_team_health + velocity)."""
+    """Team-wide productivity snapshot. fn_team_health returns members sorted by
+    health_score ASC, so the cap keeps the members who most need attention — which
+    also keeps the prompt/output small enough to stay under the API Gateway 29s cap."""
     health = call_fn("fn_team_health") or {}
     velocity = call_fn("fn_velocity", 30) or {}
-    workload = call_fn("fn_workload_distribution") or {}
     return {
         "scope": "team",
+        "team_size": len(health.get("team_health", []) or []),
         "avg_health": health.get("avg_team_health"),
         "critical_members": health.get("critical_members"),
         "members": [
             _pick(m, ("name", "department", "health_score", "active_tasks", "completed_tasks",
                       "blocked_tasks", "avg_mood", "on_time_rate", "hours_ratio", "high_escalations"))
-            for m in _cap(health.get("team_health", []), 30)
+            for m in _cap(health.get("team_health", []), 10)
         ],
-        "workload": _cap(workload.get("workload", []), 30),
         "velocity_30d": _cap(velocity.get("velocity", []), 6),
     }
 

@@ -55,13 +55,13 @@ def _extract_json(raw: str, array: bool):
 
 
 def _gen_array(prompt: str, max_tokens: int = 8192) -> list:
-    return _extract_json(
-        gemini.generate_text(prompt, max_tokens=max_tokens, json_mode=True), array=True)
+    return _extract_json(gemini.generate_text(
+        prompt, max_tokens=max_tokens, json_mode=True, thinking_level="low"), array=True)
 
 
 def _gen_object(prompt: str, max_tokens: int = 6144) -> dict:
-    return _extract_json(
-        gemini.generate_text(prompt, max_tokens=max_tokens, json_mode=True), array=False)
+    return _extract_json(gemini.generate_text(
+        prompt, max_tokens=max_tokens, json_mode=True, thinking_level="low"), array=False)
 
 
 # ── insight persistence ───────────────────────────────────────────────────────
