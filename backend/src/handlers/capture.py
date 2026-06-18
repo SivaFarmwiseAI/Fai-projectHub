@@ -1,5 +1,4 @@
 """AI Capture Lambda handler — /api/capture/*"""
-import asyncio
 import json
 import logging
 import re
@@ -7,8 +6,8 @@ from datetime import date, timedelta
 from typing import Optional
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from .. import gemini
 from ..auth import get_current_user
-from ..config import get_settings
 from ..database import execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
 from ..models.requests import CreateCaptureSessionRequest, UpdateCaptureItemRequest
@@ -75,13 +74,10 @@ def _parse_sentences(raw_text: str, users: list[dict]) -> list[dict]:
     return items
 
 
-async def _parse_with_claude(raw_text: str, users: list[dict]) -> list[dict]:
-    cfg = get_settings()
-    if not cfg.anthropic_api_key:
+def _parse_with_gemini(raw_text: str, users: list[dict]) -> list[dict]:
+    if not gemini.is_configured():
         return _parse_sentences(raw_text, users)
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
         user_list = json.dumps([{"name": u["name"], "id": u["id"]} for u in users])
         prompt = f"""Parse this work capture text into discrete action items.
 
@@ -99,12 +95,7 @@ Return a JSON array. Each item must have:
 - priority: "low" | "medium" | "high"
 
 Return only the JSON array, no explanation."""
-        msg = client.messages.create(
-            model=cfg.anthropic_model,
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = msg.content[0].text.strip()
+        raw = gemini.generate_text(prompt, max_tokens=4096).strip()
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         if not match:
             return _parse_sentences(raw_text, users)
@@ -119,7 +110,7 @@ Return only the JSON array, no explanation."""
             "priority":    item.get("priority", "medium"),
         } for item in parsed]
     except Exception as e:
-        log.warning(f"Claude capture parsing failed, falling back to keyword parser: {e}")
+        log.warning(f"Gemini capture parsing failed, falling back to keyword parser: {e}")
         return _parse_sentences(raw_text, users)
 
 
@@ -167,7 +158,7 @@ def _create_session(event, origin):
         (current_user["id"], body.raw_text),
     )
     users = fetchall("SELECT id, name FROM users WHERE is_active")
-    parsed_items = asyncio.run(_parse_with_claude(body.raw_text, users))
+    parsed_items = _parse_with_gemini(body.raw_text, users)
     created = []
     for item in parsed_items:
         ci = execute_returning("""

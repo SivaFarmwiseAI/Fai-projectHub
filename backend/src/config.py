@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     jwt_access_expire_minutes: int = 480
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
     db_pool_min: int = 1
     db_pool_max: int = 5
     cors_origins: str = "*"

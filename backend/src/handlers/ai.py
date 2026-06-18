@@ -4,11 +4,9 @@ import json
 import logging
 import urllib.request
 
-import anthropic as _ant
-
 from .base import get_body, get_query, make_handler, resp
+from .. import gemini
 from ..auth import get_current_user
-from ..config import get_settings
 from ..database import fetchone
 from ..exceptions import HTTPError
 from ..models.requests import AIReviewRequest, GeneratePlanRequest, SuggestStackRequest
@@ -64,13 +62,7 @@ def _template_plan(req: GeneratePlanRequest) -> dict:
     }
 
 
-def _get_client(settings):
-    if not settings.anthropic_api_key:
-        return None
-    return _ant.Anthropic(api_key=settings.anthropic_api_key)
-
-
-def _parse_json_from_claude(text: str) -> dict:
+def _parse_json(text: str) -> dict:
     text = text.strip()
     if "```" in text:
         for part in text.split("```"):
@@ -84,11 +76,9 @@ def _parse_json_from_claude(text: str) -> dict:
 
 def _generate_plan(event, origin):
     get_current_user(event)
-    settings = get_settings()
     body = GeneratePlanRequest(**get_body(event))
 
-    client = _get_client(settings)
-    if not client:
+    if not gemini.is_configured():
         return resp({"plan": _template_plan(body)}, origin=origin)
 
     prompt = f"""Generate a structured execution plan for this project.
@@ -111,14 +101,10 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 }}"""
 
     try:
-        msg = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        plan = _parse_json_from_claude(msg.content[0].text)
+        text = gemini.generate_text(prompt, max_tokens=2048)
+        plan = _parse_json(text)
     except Exception as e:
-        log.warning("Claude plan generation failed, using template: %s", e)
+        log.warning("Gemini plan generation failed, using template: %s", e)
         plan = _template_plan(body)
 
     return resp({"plan": plan}, origin=origin)
@@ -126,15 +112,13 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 
 def _extract_document(event, origin):
     get_current_user(event)
-    settings = get_settings()
     body = get_body(event)
     document_url = body.get("document_url", "")
     if not document_url:
         raise HTTPError(400, "document_url is required")
 
-    client = _get_client(settings)
-    if not client:
-        raise HTTPError(503, "AI not configured — set ANTHROPIC_API_KEY")
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
 
     try:
         req = urllib.request.Request(document_url, headers={"User-Agent": "ProjectHub/1.0"})
@@ -167,25 +151,12 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 }"""
 
     try:
-        msg = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=2048,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {"type": "base64", "media_type": ct, "data": pdf_b64},
-                    },
-                    {"type": "text", "text": extract_prompt},
-                ],
-            }],
-        )
-        extracted = _parse_json_from_claude(msg.content[0].text)
+        text = gemini.generate_with_pdf(extract_prompt, pdf_b64, ct, max_tokens=4096)
+        extracted = _parse_json(text)
     except json.JSONDecodeError:
         raise HTTPError(500, "AI returned an unparseable response")
-    except _ant.APIError as e:
-        log.error("Anthropic API error during extraction: %s", e)
+    except Exception as e:
+        log.error("Gemini API error during extraction: %s", e)
         raise HTTPError(502, "AI extraction failed")
 
     return resp({"extracted": extracted}, origin=origin)

@@ -24,8 +24,19 @@ Parameters:
   AnthropicApiKey:
     Type: String
     NoEcho: true
-    Description: Anthropic API key (sk-ant-...)
-  
+    Default: ""
+    Description: Anthropic API key (sk-ant-...) — legacy, no longer used (AI runs on Gemini)
+
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Description: Google Gemini API key (AIza...)
+
+  GeminiModel:
+    Type: String
+    Default: gemini-3.5-flash
+    Description: Gemini model id for plan generation, document extraction and capture parsing
+
   CloudfrontURL:
     Type: String
     NoEcho: true
@@ -59,6 +70,8 @@ Globals:
         JWT_SECRET: !Ref JwtSecret
         ANTHROPIC_API_KEY: !Ref AnthropicApiKey
         ANTHROPIC_MODEL: claude-sonnet-4-6
+        GEMINI_API_KEY: !Ref GeminiApiKey
+        GEMINI_MODEL: !Ref GeminiModel
         JWT_ACCESS_EXPIRE_MINUTES: '480'
         DB_POOL_MIN: '1'
         DB_POOL_MAX: '5'

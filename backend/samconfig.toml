@@ -46,7 +46,8 @@ parameter_overrides = [
   "DocumentsBucketName=fai-projecthub-dev",
   "DatabaseUrl=postgresql://postgres:dRcO%3AyJb2l%24gxa8i%296%3C9L21U%23%3CES@fai-apps-pg-db.cte4msus2vhc.ap-south-1.rds.amazonaws.com:5432/ProjectHub",
   "JwtSecret=7b9c3e9f6a1d4c1a5d8f0c4b7a2e9d3c5f8b1a6c9d2e4f7a8b0c1d3e5f6a7b9",
-  "AnthropicApiKey=sk-ant-REPLACE",
+  "GeminiApiKey=AIzaSyCgUdQc3d4ZYwn_IK__xTE9vjOU5BYqPyE",
+  "GeminiModel=gemini-3.5-flash",
 ]
 tags = "Project=ProjectHub Environment=dev Team=FarmwiseAI ManagedBy=SAM"
 
