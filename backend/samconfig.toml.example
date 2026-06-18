@@ -1,0 +1,40 @@
+# ── ProjectHub SAM CLI Configuration (EXAMPLE — copy to samconfig.toml) ───────
+#
+# samconfig.toml is gitignored because it holds secrets (DB password, JWT secret,
+# Gemini API key). Copy this file to samconfig.toml and fill in the real values
+# locally. The Gemini key in particular must NEVER be committed — Google's secret
+# scanner flags committed keys and disables them.
+#
+#   cp samconfig.toml.example samconfig.toml   # then fill in the *** values
+#   sam build --use-container && sam deploy
+
+version = 0.1
+
+[default.global.parameters]
+stack_name = "projecthub-api"
+
+[default.build.parameters]
+use_container = true
+parallel      = true
+cached        = true
+
+[default.deploy.parameters]
+stack_name        = "fai-projecthub-backend-dev"
+s3_bucket         = "fai-projecthub-dev"
+s3_prefix         = "projecthub/api"
+region            = "ap-south-1"
+profile           = "AWSAdministratorAccess-237557377577"
+confirm_changeset = true
+capabilities      = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+fail_on_empty_changeset = false
+parameter_overrides = [
+  "Env=dev",
+  "CorsOrigins=*",
+  "CloudfrontURL=d24mw8eeujakzf.cloudfront.net",
+  "DocumentsBucketName=fai-projecthub-dev",
+  "DatabaseUrl=postgresql://USER:***PASSWORD***@HOST:5432/ProjectHub",
+  "JwtSecret=***256BIT_HEX_SECRET***",
+  "GeminiApiKey=***GEMINI_API_KEY_NOT_IN_GIT***",
+  "GeminiModel=gemini-3.5-flash",
+]
+tags = "Project=ProjectHub Environment=dev Team=FarmwiseAI ManagedBy=SAM"

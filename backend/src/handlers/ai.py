@@ -5,9 +5,9 @@ import logging
 import urllib.request
 
 from .base import get_body, get_query, make_handler, resp
-from .. import gemini
+from .. import gemini, ai_intel
 from ..auth import get_current_user
-from ..database import fetchone
+from ..database import fetchall, fetchone
 from ..exceptions import HTTPError
 from ..models.requests import AIReviewRequest, GeneratePlanRequest, SuggestStackRequest
 
@@ -164,7 +164,19 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 
 def _ai_review(event, origin):
     get_current_user(event)
-    return resp({"review": {"summary": "AI review not available.", "issues": [], "suggestions": [], "score": None}}, origin=origin)
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
+    body = get_body(event)
+    content = body.get("content", "")
+    if not content:
+        raise HTTPError(400, "content is required")
+    try:
+        review = ai_intel.review_content(
+            content, body.get("content_type", "text"), body.get("context", ""))
+    except Exception as e:
+        log.error("AI review failed: %s", e)
+        raise HTTPError(502, "AI review failed")
+    return resp({"review": review}, origin=origin)
 
 
 def _suggest_stack(event, origin):
@@ -174,19 +186,107 @@ def _suggest_stack(event, origin):
     return resp({"stack": stack, "rationale": "Default stack for project type."}, origin=origin)
 
 
+# ── Context-grounded intelligence (Gemini) ────────────────────────────────────
+
+def _read_insights(where: str, params: tuple) -> list:
+    return fetchall(f"""
+        SELECT ai.*, p.title AS project_title, u.name AS user_name
+        FROM ai_insights ai
+        LEFT JOIN projects p ON p.id = ai.project_id
+        LEFT JOIN users u    ON u.id = ai.user_id
+        WHERE ai.status = 'active' AND {where}
+        ORDER BY CASE ai.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+                 WHEN 'medium' THEN 2 ELSE 3 END, ai.created_at DESC
+    """, params)
+
+
 def _generate_insights(event, origin):
     get_current_user(event)
-    project_id = get_query(event).get("project_id", "")
-    project = fetchone("SELECT id FROM projects WHERE id = %s", (project_id,))
-    if not project:
-        raise HTTPError(404, "Project not found")
-    return resp({"insights": []}, origin=origin)
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
+    q = get_query(event)
+    scope = q.get("scope", "org")
+    try:
+        if scope == "project":
+            project_id = q.get("project_id", "")
+            if not fetchone("SELECT id FROM projects WHERE id = %s", (project_id,)):
+                raise HTTPError(404, "Project not found")
+            insights = ai_intel.generate_project_insights(project_id)
+        else:
+            insights = ai_intel.generate_org_insights()
+    except HTTPError:
+        raise
+    except Exception as e:
+        log.error("Insight generation failed: %s", e)
+        raise HTTPError(502, "AI insight generation failed")
+    return resp({"insights": insights}, origin=origin)
+
+
+def _assess_productivity(event, origin):
+    get_current_user(event)
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
+    user_id = (get_body(event) or {}).get("user_id") or get_query(event).get("user_id")
+    try:
+        result = ai_intel.assess_productivity(user_id)
+    except Exception as e:
+        log.error("Productivity assessment failed: %s", e)
+        raise HTTPError(502, "AI productivity assessment failed")
+    if result.get("error"):
+        raise HTTPError(404, "User not found")
+    return resp(result, origin=origin)
+
+
+def _get_productivity(event, origin):
+    get_current_user(event)
+    user_id = get_query(event).get("user_id")
+    if user_id:
+        rows = _read_insights("ai.type='performance' AND ai.user_id = %s", (user_id,))
+    else:
+        rows = _read_insights("ai.type='performance' AND ai.project_id IS NULL", ())
+    return resp({"insights": rows}, origin=origin)
+
+
+def _assess_leave(event, origin):
+    get_current_user(event)
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
+    try:
+        result = ai_intel.assess_leave()
+    except Exception as e:
+        log.error("Leave assessment failed: %s", e)
+        raise HTTPError(502, "AI leave assessment failed")
+    return resp(result, origin=origin)
+
+
+def _get_leave_insights(event, origin):
+    get_current_user(event)
+    rows = _read_insights(
+        "ai.user_id IS NOT NULL AND ai.project_id IS NULL AND ai.type <> 'performance'", ())
+    return resp({"insights": rows}, origin=origin)
+
+
+def _ai_briefing(event, origin):
+    get_current_user(event)
+    if not gemini.is_configured():
+        raise HTTPError(503, "AI not configured — set GEMINI_API_KEY")
+    try:
+        result = ai_intel.generate_briefing()
+    except Exception as e:
+        log.error("AI briefing failed: %s", e)
+        raise HTTPError(502, "AI briefing failed")
+    return resp(result, origin=origin)
 
 
 handler = make_handler([
-    ("POST", r"/api/ai/generate-plan",      _generate_plan),
-    ("POST", r"/api/ai/extract-document",   _extract_document),
-    ("POST", r"/api/ai/review",             _ai_review),
-    ("POST", r"/api/ai/suggest-stack",      _suggest_stack),
-    ("POST", r"/api/ai/insights/generate",  _generate_insights),
+    ("POST", r"/api/ai/generate-plan",        _generate_plan),
+    ("POST", r"/api/ai/extract-document",     _extract_document),
+    ("POST", r"/api/ai/review",               _ai_review),
+    ("POST", r"/api/ai/suggest-stack",        _suggest_stack),
+    ("POST", r"/api/ai/insights/generate",    _generate_insights),
+    ("POST", r"/api/ai/briefing",             _ai_briefing),
+    ("POST", r"/api/ai/productivity",         _assess_productivity),
+    ("GET",  r"/api/ai/productivity",         _get_productivity),
+    ("POST", r"/api/ai/leave-assessment",     _assess_leave),
+    ("GET",  r"/api/ai/leave-assessment",     _get_leave_insights),
 ])

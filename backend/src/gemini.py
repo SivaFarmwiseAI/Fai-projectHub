@@ -42,11 +42,15 @@ def _extract_text(body: dict) -> str:
     return text
 
 
-def _generate(payload: dict, max_tokens: int) -> str:
+def _generate(payload: dict, max_tokens: int, json_mode: bool = False) -> str:
     cfg = get_settings()
     if not cfg.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
-    payload.setdefault("generationConfig", {})["maxOutputTokens"] = max_tokens
+    gen = payload.setdefault("generationConfig", {})
+    gen["maxOutputTokens"] = max_tokens
+    if json_mode:
+        # Force strictly-valid JSON output (no markdown fences, no prose).
+        gen["responseMimeType"] = "application/json"
     url = f"{_BASE}/{cfg.gemini_model}:generateContent?key={cfg.gemini_api_key}"
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -57,9 +61,9 @@ def _generate(payload: dict, max_tokens: int) -> str:
     return _extract_text(body)
 
 
-def generate_text(prompt: str, max_tokens: int = 2048) -> str:
-    """Single-prompt text/JSON generation."""
-    return _generate({"contents": [{"parts": [{"text": prompt}]}]}, max_tokens)
+def generate_text(prompt: str, max_tokens: int = 2048, json_mode: bool = False) -> str:
+    """Single-prompt text/JSON generation. json_mode forces strict JSON output."""
+    return _generate({"contents": [{"parts": [{"text": prompt}]}]}, max_tokens, json_mode)
 
 
 def generate_with_pdf(
