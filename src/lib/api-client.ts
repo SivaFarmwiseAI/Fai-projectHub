@@ -454,6 +454,11 @@ export const standup = {
 };
 
 // ── AI ────────────────────────────────────────────────────────────────────────
+export interface ProductivityPerson { name: string; severity: string; assessment: string; action_items: string[] }
+export interface ProductivityAssessment { summary: string; people: ProductivityPerson[] }
+export interface LeaveFinding { name: string; kind: string; severity: string; assessment: string; action_items: string[] }
+export interface LeaveAssessment { summary: string; findings: LeaveFinding[] }
+
 export const ai = {
   generatePlan: (data: { requirement: string; objective?: string; project_type: string; timebox_days: number; tech_stack?: string[] }) =>
     post<{ plan: AiPlan }>("/ai/generate-plan", data),
@@ -463,8 +468,19 @@ export const ai = {
     post<{ review: AiReview }>("/ai/review", data),
   suggestStack: (data: { requirement: string; project_type: string }) =>
     post<{ stack: string[]; rationale: string }>("/ai/suggest-stack", data),
-  generateInsights: (project_id: string) =>
-    post<{ insights: AiInsight[] }>(`/ai/insights/generate?project_id=${project_id}`, {}),
+
+  // Context-grounded intelligence (Gemini). POST = (re)generate via the LLM and
+  // cache into ai_insights; GET = read the cached insights instantly.
+  generateInsights:  () => post<{ insights: AiInsight[] }>(`/ai/insights/generate?scope=org`, {}),
+  generateProjectInsights: (project_id: string) =>
+    post<{ insights: AiInsight[] }>(`/ai/insights/generate?scope=project&project_id=${project_id}`, {}),
+  briefing:          () => post<{ briefing: string }>("/ai/briefing", {}),
+  assessProductivity:(user_id?: string) =>
+    post<ProductivityAssessment>("/ai/productivity", user_id ? { user_id } : {}),
+  getProductivity:   (user_id?: string) =>
+    get<{ insights: AiInsight[] }>(`/ai/productivity${user_id ? `?user_id=${user_id}` : ""}`),
+  assessLeave:       () => post<LeaveAssessment>("/ai/leave-assessment", {}),
+  getLeaveInsights:  () => get<{ insights: AiInsight[] }>("/ai/leave-assessment"),
 };
 
 

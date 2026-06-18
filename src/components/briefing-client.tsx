@@ -9,6 +9,7 @@ import {
 import {
   analytics as analyticsApi, standup as standupApi,
   submissions as submissionsApi, discussions as discussionsApi,
+  ai as aiApi,
 } from "@/lib/api-client";
 import type {
   DashboardStats, Project, AiInsight, StandupEntry, Submission, Discussion,
@@ -78,6 +79,25 @@ export function BriefingClient() {
   const [pendingSubmissions, setPendingSubmissions] = useState<Submission[]>([]);
   const [openDiscussions, setOpenDiscussions] = useState<Discussion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiBriefing, setAiBriefing] = useState<string>("");
+  const [generating, setGenerating] = useState(false);
+
+  const generateAi = async () => {
+    setGenerating(true);
+    try {
+      const [, briefingRes] = await Promise.all([
+        aiApi.generateInsights(),
+        aiApi.briefing(),
+      ]);
+      setAiBriefing(briefingRes.briefing);
+      const r = await analyticsApi.briefing();
+      setInsights(r.insights);
+    } catch {
+      // surfaced via empty state; AI may be momentarily unavailable
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const yesterday = new Date();
@@ -141,14 +161,31 @@ export function BriefingClient() {
           </div>
           <p className="text-sm text-slate-500">Daily CEO briefing · {todayDateStr}</p>
         </div>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all active:scale-95"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={generateAi}
+            disabled={generating}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-60"
+          >
+            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            {generating ? "Analysing…" : "Generate AI briefing"}
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all active:scale-95"
+          >
+            <Printer className="h-4 w-4" />
+            Print
+          </button>
+        </div>
       </div>
+
+      {/* AI-generated narrative briefing */}
+      {aiBriefing && (
+        <Section icon={Sparkles} title="AI Briefing" color="#6366f1">
+          <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{aiBriefing}</p>
+        </Section>
+      )}
 
       {/* Print header */}
       <div className="hidden print:block">
