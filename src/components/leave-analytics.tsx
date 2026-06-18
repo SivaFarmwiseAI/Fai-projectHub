@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { leave as leaveApi } from "@/lib/api-client";
+import { AiLeavePanel } from "@/components/ai-leave-panel";
 import type { LeaveRequest, LeaveAnalytics as LeaveAnalyticsSummary } from "@/lib/api-client";
 
 interface LeaveAnalyticsProps {
@@ -332,6 +333,8 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
                 )}
               </div>
             </div>
+
+            <AiLeavePanel />
           </>
         )}
       </CardContent>

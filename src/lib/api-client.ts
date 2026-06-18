@@ -1044,6 +1044,7 @@ export interface AiInsight {
   project_id?: string;
   project_title?: string;
   user_id?: string;
+  user_name?: string;
   type: string;
   severity: string;
   title: string;

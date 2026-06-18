@@ -4,6 +4,7 @@ import React from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { LeaveAnalytics } from "@/components/leave-analytics";
+import { AiProductivityPanel } from "@/components/ai-productivity-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1721,7 +1722,10 @@ export default function TeamMemberPage({
         </Card>
       </div>
 
-      {/* ===== Section 8: AI Performance Insight ===== */}
+      {/* ===== Section 8: AI Productivity Assessment (Gemini, context-grounded) ===== */}
+      <AiProductivityPanel userId={id} />
+
+      {/* ===== Section 8b: AI Performance Insight (legacy) ===== */}
       {aiInsight && (
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
