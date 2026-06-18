@@ -19,12 +19,14 @@ version = 0.1
 stack_name = "projecthub-api"
 
 [default.build.parameters]
-# use_container builds inside Amazon Linux so psycopg2-binary links correctly.
-use_container = false
+# use_container builds inside Amazon Linux so binary wheels (bcrypt, cryptography,
+# pydantic_core) match the Lambda runtime. Required: there is no local python3.10.
+use_container = true
 parallel      = true
 cached        = true
-# Build output goes to C: (more free space) instead of filling D: drive
-build_dir     = "C:/sam-build/projecthub"
+# NOTE: do NOT set build_dir here. `sam build` honours it but plain `sam deploy`
+# reads the default .aws-sam/build — a mismatch deploys a stale/broken package.
+# Leaving it unset keeps build + deploy pointed at the same .aws-sam/build.
 
 # ── Production ────────────────────────────────────────────────────────────────
 
