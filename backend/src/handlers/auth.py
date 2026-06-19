@@ -24,7 +24,7 @@ def _login(event, origin):
     data = LoginRequest(**get_body(event))
     user = fetchone(
         "SELECT id, name, email, password_hash, role, role_type, department, avatar_color "
-        "FROM users WHERE email = %s AND is_active",
+        "FROM users WHERE lower(email) = lower(%s) AND is_active",
         (data.email,),
     )
     if not user or not verify_password(data.password, user["password_hash"]):
