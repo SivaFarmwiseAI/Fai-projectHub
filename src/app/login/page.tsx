@@ -20,10 +20,10 @@ const features = [
 ];
 
 const demoUsers = [
-  { label: "CEO",       name: "Anand V",          email: "anand@farmwise.ai",        password: "FarmwiseAI@2026", color: "#1e40af", initials: "AV" },
-  { label: "Team Lead", name: "Siva Vignesh",      email: "siva@farmwise.ai",         password: "FarmwiseAI@2026", color: "#10b981", initials: "SV" },
-  { label: "Member",    name: "Mani Bharathi",     email: "manibharathi@farmwise.ai", password: "FarmwiseAI@2026", color: "#059669", initials: "MB" },
-  { label: "Data",      name: "Vishwanathan",      email: "vishwanathan@farmwise.ai", password: "FarmwiseAI@2026", color: "#a855f7", initials: "VM" },
+  { label: "CEO",       name: "Anand V",          email: "anand.vetrivel@farmwiseai.com",          password: "FarmwiseAI@2026", color: "#1e40af", initials: "AV" },
+  { label: "Team Lead", name: "Siva Vignesh",      email: "sivavignesh.sivanandam@farmwiseai.com",  password: "FarmwiseAI@2026", color: "#10b981", initials: "SV" },
+  { label: "Member",    name: "Mani Bharathi",     email: "manibharathi@farmwiseai.com",            password: "FarmwiseAI@2026", color: "#059669", initials: "MB" },
+  { label: "Data",      name: "Vishwanathan",      email: "vishwanathan.m@farmwiseai.com",          password: "FarmwiseAI@2026", color: "#a855f7", initials: "VM" },
 ];
 
 export default function LoginPage() {
@@ -448,7 +448,7 @@ function MobileTabletForm(p: FormProps) {
               required
               value={p.email}
               onChange={(e) => p.onEmail(e.target.value)}
-              placeholder="anand@farmwise.ai"
+              placeholder="anand.vetrivel@farmwiseai.com"
               className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-slate-600 outline-none transition-all"
               style={{
                 background: "rgba(255,255,255,0.07)",
@@ -560,7 +560,7 @@ function DesktopForm(p: FormProps) {
               required
               value={p.email}
               onChange={(e) => p.onEmail(e.target.value)}
-              placeholder="anand@farmwise.ai"
+              placeholder="anand.vetrivel@farmwiseai.com"
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder:text-gray-400 input-focus-ring outline-none transition-all"
             />
           </div>
