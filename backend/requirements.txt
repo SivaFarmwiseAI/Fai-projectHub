@@ -1,16 +1,13 @@
-pydantic==2.10.3
-pydantic-settings==2.7.0
-
-# Database
-pg8000==1.31.2
-
-# Auth
-python-jose[cryptography]==3.3.0
-bcrypt==4.2.1
-passlib==1.7.4
-
-# AI
-anthropic==0.40.0
-
-# Utils
-email-validator==2.2.0
+# Intentionally empty.
+#
+# This file is the pip manifest that `sam build` uses for EVERY Lambda
+# function (they all share CodeUri: . + BuildMethod: python3.10). It is kept
+# empty on purpose so functions build as pure source with NO bundled wheels —
+# all runtime dependencies are provided by the shared DepsLayer.
+#
+# Why: if real deps lived here, a non-Docker build on Windows would bake
+# Windows binaries (cryptography, bcrypt, pydantic-core) into each function
+# package, where they shadow the layer's Linux wheels and crash at import.
+#
+#   - Deployed dependencies -> layer/requirements.txt  (source of truth)
+#   - Local dev dependencies -> requirements-dev.txt

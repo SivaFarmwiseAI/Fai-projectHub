@@ -8,7 +8,7 @@ Parameters:
   Env:
     Type: String
     Default: dev
-    AllowedValues: [dev, staging]
+    AllowedValues: [dev, prod]
     Description: Deployment environment (used as API Gateway stage name)
 
   DatabaseUrl:
@@ -99,7 +99,10 @@ Resources:
         - x86_64
       RetentionPolicy: Retain
     Metadata:
-      BuildMethod: python3.10
+      # Built without Docker via layer/Makefile, which pulls Linux x86_64
+      # (manylinux) wheels so compiled deps (cryptography, bcrypt,
+      # pydantic-core) match the Lambda runtime. Requires GNU make on PATH.
+      BuildMethod: makefile
 
   # ── Document Storage – S3 + CloudFront ─────────────────────────────────────
   #
