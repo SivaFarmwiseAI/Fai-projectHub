@@ -1,5 +1,3 @@
-# Next.js SSR app — deployed at repo root (NO appRoot / monorepo settings).
-# baseDirectory MUST be .next so Amplify publishes SSR compute resources, not a static S3 site.
 version: 1
 frontend:
   phases:
@@ -7,6 +5,14 @@ frontend:
       commands:
         - npm ci
         - npx prisma generate
+        - |
+          if [ "$AWS_BRANCH" = "prod" ] || [ "$AWS_BRANCH" = "main" ]; then
+            echo "API_URL=https://8ijt3g2824.execute-api.ap-south-1.amazonaws.com/prod" > .env.local
+            echo "NEXT_PUBLIC_API_URL=https://8ijt3g2824.execute-api.ap-south-1.amazonaws.com/prod" >> .env.local
+          else
+            echo "API_URL=https://zp5zd210pe.execute-api.ap-south-1.amazonaws.com/dev" > .env.local
+            echo "NEXT_PUBLIC_API_URL=https://zp5zd210pe.execute-api.ap-south-1.amazonaws.com/dev" >> .env.local
+          fi
     build:
       commands:
         - npm run build
