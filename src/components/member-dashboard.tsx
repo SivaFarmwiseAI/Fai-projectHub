@@ -189,7 +189,7 @@ export function MemberDashboard() {
         <div className="space-y-2 animate-fade-in-up stagger-2">
           <p className="text-label-upper text-slate-400 px-1">Needs Attention</p>
           {blockedTasks.slice(0, 3).map(task => (
-            <Link key={task.id} href={`/projects/${task.project_id}`}>
+            <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
               <div className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-all group">
                 <div className="h-8 w-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
                   <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -308,7 +308,7 @@ export function MemberDashboard() {
                 in_progress: "#3b82f6", blocked: "#ef4444", planning: "#94a3b8", redefined: "#f59e0b",
               };
               return (
-                <Link key={task.id} href={`/projects/${task.project_id}`}>
+                <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
                   <div
                     className="flex items-center gap-3 p-3.5 rounded-xl border bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-pointer animate-fade-in-up"
                     style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 40}ms` }}

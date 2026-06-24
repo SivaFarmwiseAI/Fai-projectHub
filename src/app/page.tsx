@@ -632,7 +632,8 @@ export default function DashboardPage() {
             {filteredTasks.slice(0, 20).map(task => {
               const project = projectList.find(p => p.id === task.project_id);
               return (
-                <Card key={task.id} className="hover:bg-gray-50 transition-colors">
+                <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
+                <Card className="hover:bg-gray-50 transition-colors cursor-pointer">
                   <CardContent className="py-3">
                     <div className="flex items-center gap-3">
                       <div className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" :
@@ -661,6 +662,7 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </Link>
               );
             })}
             {filteredTasks.length === 0 && (

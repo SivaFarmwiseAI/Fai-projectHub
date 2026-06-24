@@ -27,6 +27,7 @@ import { projects as projectsApi, users as usersApi } from "@/lib/api-client";
 import type { Project, User } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
+import { useAuth } from "@/contexts/auth-context";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
   if (!startDate) return 0;
@@ -83,6 +84,9 @@ const statusColors: Record<string, string> = {
 
 export default function ProjectsPage() {
   const confirm = useConfirm();
+  const { isCEO, isLead, isAdmin } = useAuth();
+  // Only Management (CEO/Admin) and Team Leads may delete projects.
+  const canDeleteProject = isCEO || isLead || isAdmin;
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [userList, setUserList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,28 +383,30 @@ export default function ProjectsPage() {
                       ))}
                     </div>
 
-                    {/* Delete */}
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const ok = await confirm({
-                          title: "Delete this project?",
-                          description: <><span className="font-medium">{project.title}</span> and all of its tasks, phases, and documents will be permanently removed. This cannot be undone.</>,
-                          confirmLabel: "Delete project",
-                          tone: "danger",
-                        });
-                        if (!ok) return;
-                        projectsApi.delete(project.id)
-                          .then(() => { showToast.success("Project deleted"); setProjectList(prev => prev.filter(p => p.id !== project.id)); })
-                          .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
-                      }}
-                      className="ml-1 p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete project"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Delete — Management (CEO/Admin) and Team Leads only */}
+                    {canDeleteProject && (
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const ok = await confirm({
+                            title: "Delete this project?",
+                            description: <><span className="font-medium">{project.title}</span> and all of its tasks, phases, and documents will be permanently removed. This cannot be undone.</>,
+                            confirmLabel: "Delete project",
+                            tone: "danger",
+                          });
+                          if (!ok) return;
+                          projectsApi.delete(project.id)
+                            .then(() => { showToast.success("Project deleted"); setProjectList(prev => prev.filter(p => p.id !== project.id)); })
+                            .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
+                        }}
+                        className="ml-1 p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete project"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

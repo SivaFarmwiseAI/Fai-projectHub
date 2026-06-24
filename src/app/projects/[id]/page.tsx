@@ -90,6 +90,7 @@ import {
   Settings, SwitchCamera, X, ClipboardList, Package, FileCheck, ArrowRight,
   Star, BarChart3, BookOpen, GitCommit, MessageCircle, Shield, Zap, Hash,
   List, Flag, AlertOctagon, Lightbulb, ScrollText, Trash2, Loader2,
+  Search,
 } from "lucide-react";
 
 // ─── View Role Context ────────────────────────────────────
@@ -1175,9 +1176,14 @@ function MilestoneSection({ milestone, taskId, taskAssignee, viewRole, projectId
 
 // ─── Task Card (the primary unit) ───────────────────────────
 
-function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, phases }: { task: Task; projectId: string; projectTitle: string; viewRole: ViewRole; onReviewUpdate?: () => void; phases?: Phase[] }) {
+function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, phases, initialExpanded }: { task: Task; projectId: string; projectTitle: string; viewRole: ViewRole; onReviewUpdate?: () => void; phases?: Phase[]; initialExpanded?: boolean }) {
   const confirm = useConfirm();
-  const [expanded, setExpanded] = useState(task.status === "in_progress" || task.status === "planning");
+  // In the grouped All Tasks view every task starts collapsed (a compact row);
+  // callers can force-open a specific task (e.g. a deep-linked one) via
+  // initialExpanded. Elsewhere, active tasks auto-expand as before.
+  const [expanded, setExpanded] = useState(
+    initialExpanded ?? (task.status === "in_progress" || task.status === "planning")
+  );
   const [showSteps, setShowSteps] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -4580,7 +4586,46 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const [viewRole, setViewRole] = useState<ViewRole>("ceo");
   const [activeTab, setActiveTab] = useState<string>("overview");
+  // "All Tasks" tab: free-text filter + deep-link target (task id from URL).
+  const [taskSearch, setTaskSearch] = useState("");
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  // Per-phase collapse state for the grouped All Tasks view. A phase id absent
+  // from this map falls back to a "smart" default (open if it has active tasks).
+  const [phaseOpen, setPhaseOpen] = useState<Record<string, boolean>>({});
   const [, forceUpdate] = useState(0);
+
+  // Deep-link support: /projects/<id>?tab=tasks&task=<taskId> opens the All
+  // Tasks tab and highlights/scrolls to the requested task. Dashboards link
+  // here so clicking a task lands the user right on it instead of the overview.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const tab = sp.get("tab");
+    const task = sp.get("task");
+    if (task) {
+      setActiveTab("tasks");
+      setHighlightTaskId(task);
+    } else if (tab) {
+      setActiveTab(tab);
+    }
+  }, [id]);
+
+  // Once the tasks tab is showing, scroll the highlighted task into view and
+  // fade the highlight after a moment so it reads as a transient "here it is".
+  // Also pin its phase group open so the row stays visible after the highlight
+  // clears (otherwise a phase with no active tasks would re-collapse over it).
+  useEffect(() => {
+    if (!highlightTaskId || activeTab !== "tasks" || loading) return;
+    const target = tasks.find(t => t.id === highlightTaskId);
+    if (target) {
+      const groupId = target.phase_id ?? "__no_phase__";
+      setPhaseOpen(prev => (prev[groupId] ? prev : { ...prev, [groupId]: true }));
+    }
+    const el = document.getElementById(`task-${highlightTaskId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlightTaskId(null), 2600);
+    return () => clearTimeout(timer);
+  }, [highlightTaskId, activeTab, loading, tasks]);
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [showAddPhaseForm, setShowAddPhaseForm] = useState(false);
   const [aiSuggestedPhases, setAiSuggestedPhases] = useState<{ name: string; description: string; estimatedDuration: string; checklist: { item: string; done: boolean }[] }[] | null>(null);
@@ -4682,6 +4727,53 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const phases = project.phases ?? [];
   const totalTasks = tasks.length;
+  // "All Tasks" tab filter — match title, description, phase, or assignee names
+  // so a specific task can be found in a long list without endless scrolling.
+  const taskQuery = taskSearch.trim().toLowerCase();
+  const filteredTasks = taskQuery
+    ? tasks.filter(t => {
+        const haystack = [
+          t.title,
+          t.description,
+          t.assignee_name,
+          ...(t.assignees?.map(a => a.name) ?? []),
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(taskQuery);
+      })
+    : tasks;
+
+  // Group the (filtered) tasks by phase for the collapsible All Tasks view.
+  // Phases keep their defined order; tasks with no phase fall into a trailing
+  // "No phase" group.
+  const NO_PHASE = "__no_phase__";
+  const tasksByPhase = new Map<string, Task[]>();
+  for (const t of filteredTasks) {
+    const key = t.phase_id ?? NO_PHASE;
+    (tasksByPhase.get(key) ?? tasksByPhase.set(key, []).get(key)!).push(t);
+  }
+  const orderedPhases = [...(project.phases ?? [])].sort((a, b) => a.order_index - b.order_index);
+  const phaseName = new Map(orderedPhases.map(ph => [ph.id, ph.phase_name]));
+  const phaseRank = new Map(orderedPhases.map((ph, i) => [ph.id, i]));
+  const taskGroups: { id: string; name: string; tasks: Task[] }[] = [...tasksByPhase.keys()]
+    .sort((a, b) => {
+      if (a === NO_PHASE) return 1;
+      if (b === NO_PHASE) return -1;
+      return (phaseRank.get(a) ?? 998) - (phaseRank.get(b) ?? 998);
+    })
+    .map(key => ({
+      id: key,
+      name: key === NO_PHASE ? "No phase" : (phaseName.get(key) ?? "Other phase"),
+      tasks: tasksByPhase.get(key)!,
+    }));
+  const groupHasActive = (ts: Task[]) => ts.some(t => t.status === "in_progress" || t.status === "planning");
+  const isGroupOpen = (g: { id: string; tasks: Task[] }) => {
+    // While searching, open everything so matches are never hidden; always open
+    // the group holding a deep-linked task. Otherwise honour the user's toggle,
+    // falling back to the smart default (open when the phase has active work).
+    if (taskQuery) return true;
+    if (highlightTaskId && g.tasks.some(t => t.id === highlightTaskId)) return true;
+    return phaseOpen[g.id] ?? groupHasActive(g.tasks);
+  };
   const completedTasks = tasks.filter(t => t.status === "completed").length;
   const inProgressTasks = tasks.filter(t => t.status === "in_progress").length;
   const blockedTasks = tasks.filter(t => t.status === "blocked").length;
@@ -4807,25 +4899,30 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           >
             <Kanban className="h-3.5 w-3.5" /> Kanban Board
           </a>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={async () => {
-              const ok = await confirm({
-                title: "Delete this project?",
-                description: <><span className="font-medium">{project.title}</span> and all of its tasks, phases, and documents will be permanently removed. This cannot be undone.</>,
-                confirmLabel: "Delete project",
-                tone: "danger",
-              });
-              if (!ok) return;
-              projectsApi.delete(project.id)
-                .then(() => { showToast.success("Project deleted"); window.location.href = "/projects"; })
-                .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
-            }}
-          >
-            <Trash2 className="h-4 w-4 mr-1" /> Delete Project
-          </Button>
+          {/* Only Management (CEO/Admin) and Team Leads may delete a project.
+              The backend enforces the same rule; this hides the affordance so
+              Members never see a button that would only 403 on them. */}
+          {(isCEO || isLead || isAdmin) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Delete this project?",
+                  description: <><span className="font-medium">{project.title}</span> and all of its tasks, phases, and documents will be permanently removed. This cannot be undone.</>,
+                  confirmLabel: "Delete project",
+                  tone: "danger",
+                });
+                if (!ok) return;
+                projectsApi.delete(project.id)
+                  .then(() => { showToast.success("Project deleted"); window.location.href = "/projects"; })
+                  .catch(err => showToast.error("Delete failed", err instanceof Error ? err.message : undefined));
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Delete Project
+            </Button>
+          )}
         </div>
         <div className="flex items-start justify-between">
           <div>
@@ -5187,9 +5284,30 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <Layers className="h-5 w-5" />
               Tasks ({totalTasks})
             </h2>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowAddTaskForm(!showAddTaskForm)}>
-              <Plus className="h-3.5 w-3.5" /> Add Task
-            </Button>
+            <div className="flex items-center gap-2">
+              {taskGroups.length > 1 && (
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <button
+                    type="button"
+                    className="hover:text-foreground hover:underline"
+                    onClick={() => setPhaseOpen(Object.fromEntries(taskGroups.map(g => [g.id, true])))}
+                  >
+                    Expand all
+                  </button>
+                  <span className="text-gray-300">·</span>
+                  <button
+                    type="button"
+                    className="hover:text-foreground hover:underline"
+                    onClick={() => setPhaseOpen(Object.fromEntries(taskGroups.map(g => [g.id, false])))}
+                  >
+                    Collapse all
+                  </button>
+                </div>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowAddTaskForm(!showAddTaskForm)}>
+                <Plus className="h-3.5 w-3.5" /> Add Task
+              </Button>
+            </div>
           </div>
 
           {/* ── Add Task Form ── */}
@@ -5290,10 +5408,98 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Card>
           )}
 
+          {/* ── Find a task ── */}
+          {totalTasks > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={taskSearch}
+                onChange={e => setTaskSearch(e.target.value)}
+                placeholder="Search tasks by title, description, or assignee…"
+                className="text-sm pl-8 pr-8"
+              />
+              {taskSearch && (
+                <button
+                  type="button"
+                  onClick={() => setTaskSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+          {taskQuery && (
+            <p className="text-xs text-muted-foreground">
+              {filteredTasks.length} of {totalTasks} {totalTasks === 1 ? "task" : "tasks"} match &ldquo;{taskSearch}&rdquo;
+            </p>
+          )}
+
           <div className="space-y-3">
-            {tasks.map(task => (
-              <TaskCard key={task.id} task={task} projectId={project.id} projectTitle={project.title} viewRole={viewRole} onReviewUpdate={refreshTasks} phases={phases} />
-            ))}
+            {taskGroups.map(group => {
+              const open = isGroupOpen(group);
+              const done = group.tasks.filter(t => t.status === "completed").length;
+              const pct = group.tasks.length > 0 ? Math.round((done / group.tasks.length) * 100) : 0;
+              return (
+                <div key={group.id} className="rounded-xl border border-border overflow-hidden bg-white shadow-sm">
+                  {/* ── Phase header (collapsible) ── */}
+                  <button
+                    type="button"
+                    onClick={() => setPhaseOpen(prev => ({ ...prev, [group.id]: !open }))}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50/80 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    {open
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <GitBranch className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-sm font-semibold truncate">{group.name}</span>
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{done}/{group.tasks.length} done</span>
+                    <div className="ml-auto flex items-center gap-2 shrink-0">
+                      <div className="h-1.5 w-20 rounded-full bg-gray-200 overflow-hidden hidden sm:block">
+                        <div className="h-full bg-emerald-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-muted-foreground bg-gray-200/70 rounded-full px-2 py-0.5">{group.tasks.length}</span>
+                    </div>
+                  </button>
+                  {/* ── Tasks in this phase (collapsed rows; click a row to expand) ── */}
+                  {open && (
+                    <div className="p-2.5 space-y-2.5 border-t border-border">
+                      {group.tasks.map(task => (
+                        <div
+                          key={task.id}
+                          id={`task-${task.id}`}
+                          className={highlightTaskId === task.id
+                            ? "rounded-xl ring-2 ring-blue-400 ring-offset-2 transition-shadow"
+                            : "transition-shadow"}
+                        >
+                          <TaskCard
+                            task={task}
+                            projectId={project.id}
+                            projectTitle={project.title}
+                            viewRole={viewRole}
+                            onReviewUpdate={refreshTasks}
+                            phases={phases}
+                            initialExpanded={highlightTaskId === task.id}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {totalTasks > 0 && filteredTasks.length === 0 && (
+              <div className="text-center py-10 text-sm text-muted-foreground">
+                No tasks match &ldquo;{taskSearch}&rdquo;.
+                <button type="button" onClick={() => setTaskSearch("")} className="text-blue-600 hover:underline ml-1">Clear search</button>
+              </div>
+            )}
+            {totalTasks === 0 && (
+              <div className="text-center py-10 text-sm text-muted-foreground">
+                No tasks yet. Use &ldquo;Add Task&rdquo; above to create one.
+              </div>
+            )}
           </div>
         </div>
       )}
