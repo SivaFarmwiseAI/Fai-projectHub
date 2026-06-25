@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FarmwiseAI Performance Assessment Portal</title>
+<style>
+  :root{--green:#1f9d55;--orange:#e07b00;--red:#c0392b;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f4f6f8;--card:#fff;--accent:#2c5fb3;--accent-soft:#eef3fb;--leaf:#1f7a4d;--leaf-soft:#e9f5ee;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  /* layout — horizontal top-nav (app theme) */
+  .app{display:flex;flex-direction:column;min-height:100vh}
+  .side{width:100%;background:linear-gradient(90deg,#13112e 0%,#1a1740 55%,#1e1b4b 100%);color:#94a3b8;position:sticky;top:0;height:auto;overflow:visible;padding:0;z-index:20;box-shadow:0 2px 16px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.04)}
+  .side .brand{padding:9px 20px 8px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:12px}
+  .side .brand h1{font-size:14px;font-weight:800;margin:0;color:#fff;white-space:nowrap;letter-spacing:-.01em}
+  .side .brand p{font-size:10.5px;margin:0;color:rgba(147,197,253,.75);white-space:nowrap;font-weight:600}
+  .side .brand>div:last-child{display:flex;flex-direction:column;gap:1px}
+  .nav{padding:5px 14px 7px;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:1px;scrollbar-width:none}
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{display:flex;align-items:center;gap:7px;padding:6px 11px;color:#94a3b8;text-decoration:none;font-size:12.5px;font-weight:500;cursor:pointer;border-left:none;border-bottom:2px solid transparent;border-radius:8px;white-space:nowrap;flex-shrink:0;transition:background .15s,color .15s}
+  .nav a:hover{background:rgba(255,255,255,.06);color:#cbd5e1}
+  .nav a .num{width:19px;height:19px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:0 0 auto}
+  .nav a.active{background:rgba(59,130,246,.15);border-bottom-color:#3b82f6;color:#fff}
+  .nav a.active .num{background:rgba(59,130,246,.35);color:#93c5fd}
+  .nav a.done .num{background:#3b82f6;color:#fff}
+  .nav a.locked{opacity:.35;cursor:not-allowed}
+  .main{flex:1;min-width:0;width:100%}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:10px 28px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:74px;z-index:5}
+  .topbar .crumb{font-size:13px;color:var(--muted)}
+  .topbar .acts{display:flex;gap:8px}
+  .wrap{max-width:980px;margin:0 auto;padding:24px 28px}
+  .step{display:none}.step.show{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  h2{font-size:19px;margin:0 0 12px}
+  h3.sec{font-size:15px;margin:22px 0 8px;color:var(--leaf);border-bottom:2px solid var(--leaf-soft);padding-bottom:5px}
+  p{margin:0 0 10px}.lead{font-size:15px}
+  ul{margin:6px 0 14px;padding-left:22px}li{margin:3px 0}
+  .pill-list{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+  .pill-list li{background:var(--leaf-soft);color:var(--leaf);font-weight:600;font-size:13px;padding:5px 12px;border-radius:20px;margin:0}
+  .opening{background:linear-gradient(135deg,#f0f8f3,#e9f5ee);border:1px solid #b7dec7;border-left:4px solid var(--leaf);border-radius:0 12px 12px 0;padding:18px 20px;margin:6px 0}
+  .opening p{font-size:15px;margin:0 0 10px}.opening p:last-child{margin-bottom:0}.opening .big{font-size:17px;font-weight:700;color:#14532d}
+  .formula{background:#14532d;color:#fff;border-radius:12px;padding:18px 20px;text-align:center;font-size:20px;font-weight:800;letter-spacing:.5px;margin:14px 0}
+  .formula small{display:block;font-weight:500;font-size:13px;opacity:.85;margin-top:6px;letter-spacing:0}
+  .gb{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 16px}
+  .ex{border-radius:10px;padding:14px;font-size:13.5px}
+  .ex .tag{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;padding:2px 9px;border-radius:20px;margin-bottom:8px}
+  .bad{background:#fdecea;border:1px solid #f5c4bd}.bad .tag{background:var(--red);color:#fff}
+  .good{background:var(--leaf-soft);border:1px solid #b7dec7}.good .tag{background:var(--leaf);color:#fff}
+  .hier{border-left:4px solid var(--leaf);background:#fafdfb;border-radius:0 10px 10px 0;padding:12px 16px;margin:10px 0}
+  .hier h4{margin:0 0 4px;font-size:14px}.hier .q{font-style:italic;color:var(--muted);font-size:13px;margin:2px 0 6px}
+  .hier .lv{font-size:11px;font-weight:800;color:var(--leaf);letter-spacing:.5px;text-transform:uppercase}
+  table.matrix{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:13.5px}
+  table.matrix th,table.matrix td{border:1px solid var(--line);padding:8px 12px;text-align:left}
+  table.matrix th{background:var(--leaf-soft);color:var(--leaf)}
+  table.matrix td.m{color:var(--red);font-weight:700}table.matrix td.p{color:var(--muted);font-weight:600}
+  .tmpl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0 14px}
+  .tmpl div{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px}.tmpl b{color:var(--accent)}
+  .ack{background:var(--leaf-soft);border:1px dashed var(--leaf);border-radius:12px;padding:18px}
+  .ack label{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-bottom:12px;cursor:pointer}
+  .ack input{width:18px;height:18px;margin-top:1px;flex:0 0 auto}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  label.fld{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+  input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit}
+  textarea{resize:vertical;min-height:52px}
+  .hint{font-size:13px;color:var(--muted);margin:0 0 12px}
+  .facets{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
+  .facet{border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;font-size:13.5px;width:calc(50% - 5px)}
+  .facet:hover{border-color:var(--leaf)}.facet.on{border-color:var(--leaf);background:var(--leaf-soft)}
+  .facet b{display:block;margin-bottom:3px}.facet span{color:var(--muted);font-size:12px}
+  .rate{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:8px 0}
+  .rb{border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;font-size:12px}
+  .rb:hover{border-color:var(--accent)}.rb.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+  .rb b{display:block;font-size:15px}
+  .contrib{border:1px solid #dfe6e2;border-radius:12px;padding:16px;margin-bottom:16px;background:#eef2f0}
+  .contrib .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .contrib .ch h4{margin:0;font-size:14px;color:var(--leaf)}
+  .rm{background:#fdecea;color:var(--red);border:1px solid #f5c4bd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .field{margin-bottom:10px}.field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px}
+  .exct{display:none;margin-top:8px;border:1px solid #b7dec7;background:#fafdfb;border-radius:10px;padding:14px}.exct.show{display:block}
+  .exct h5{margin:0 0 8px;font-size:13px;color:var(--leaf)}
+  .tri{margin-top:0}
+  .tri-row{margin-bottom:0}
+  .rate.sm .rb{padding:6px 4px;font-size:10.5px}.rate.sm .rb b{font-size:13px}
+  .sugg{font-size:13px}
+  .suggn{display:inline-block;color:#fff;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;margin-right:6px}
+  .rev-only{background:#eef3fb;border:1px solid #cddcf3;border-radius:8px;padding:10px 12px}
+  .tags{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+  .tag2{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:6px 13px;font-size:12.5px;cursor:pointer;user-select:none;background:#fff;line-height:1.2}
+  .tag2:hover{border-color:var(--accent)}
+  .tag2.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .impwhy{margin-top:8px}
+  .impwhy .row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+  .impwhy .row .lbl{flex:0 0 200px;font-size:12.5px;font-weight:600;color:var(--accent)}
+  .impwhy .row input{flex:1}
+  .block{background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px 16px;margin:0 0 14px}
+  .block.alt{background:#fafdfb;border-color:#cfe6da}
+  .block:last-child{margin-bottom:0}
+  .blockh{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--leaf);margin:0 0 13px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .blockh .stepn{width:22px;height:22px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:0 0 auto}
+  .block .field label{font-size:13px}
+  .req{color:var(--red);font-weight:700}
+  .addbtn{background:var(--leaf-soft);color:var(--leaf);border:1px dashed var(--leaf);border-radius:10px;padding:12px;width:100%;font-size:14px;cursor:pointer;font-weight:600}
+  .gatebox{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+  .gv{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;cursor:pointer;user-select:none}.gv.on{background:#fdecea;border-color:var(--red);color:var(--red);font-weight:600}
+  .sev{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:4px}
+  .sev button{border-radius:0;background:#fff;color:var(--muted);padding:7px 13px;font-size:13px}.sev button.on{background:var(--red);color:#fff}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .toggle button{border-radius:0;background:#fff;color:var(--muted);padding:8px 16px}.toggle button.on{background:var(--accent);color:#fff}
+  button{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  .primary{background:var(--leaf);color:#fff}.accent{background:var(--accent);color:#fff}.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .navbtns{display:flex;justify-content:space-between;margin-top:6px}
+  .legend{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:12px}
+  .legend div{padding:8px;border-radius:8px;text-align:center;color:#fff;font-weight:600}
+  .note{font-size:12.5px;color:var(--muted);background:#fffbe9;border:1px solid #f3e2a9;border-radius:8px;padding:10px 12px;margin-top:10px}
+  .warn{font-size:13px;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;margin-top:12px;display:none}.warn.show{display:block}
+  .cap-note{font-size:13px;color:#7f1d1d;background:#fdecea;border:1px solid #f5c4bd;border-radius:8px;padding:9px 12px;margin-top:12px;display:none}.cap-note.show{display:block}
+  .scorebar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .bignum{font-size:40px;font-weight:800;line-height:1}.cat{font-size:20px;font-weight:800;padding:6px 16px;border-radius:30px;color:#fff}
+  .breakdown{font-size:13px;color:var(--muted)}.breakdown b{color:var(--ink)}
+  .map-row{display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0}.dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+  .draftbar{background:#fff7e6;border:1px solid #f3d27a;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:none;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
+  .draftbar.show{display:flex}
+  .rev-block{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .rev-block h4{margin:0 0 6px;font-size:14px;color:var(--leaf)}
+  .rev-block .kv{font-size:13px;margin:3px 0}.rev-block .kv b{color:var(--ink)}
+  @media (max-width:860px){.nav a span:not(.num){display:none}.nav a{padding:6px 8px}.gb,.tmpl,.grid4,.legend,.facets,.rate{grid-template-columns:1fr 1fr}.facet{width:100%}.tmpl,.rate{grid-template-columns:1fr 1fr}}
+  @media print{.side,.topbar,.navbtns,.addbtn,.rm,button{display:none!important}.step{display:block!important}.main{width:100%}}
+  /* ── validation ── */
+  .req-error{border-color:#ef4444!important;background:#fff8f8!important;box-shadow:0 0 0 2px rgba(239,68,68,.25)!important}
+  .req-error:focus{outline:2px solid rgba(239,68,68,.3)!important}
+  .req-star{color:#ef4444;font-weight:700;font-size:11px;vertical-align:super;line-height:0;margin-left:1px}
+  .err-msg{display:none;font-size:11.5px;color:#dc2626;margin-top:4px;padding:2px 0 0;line-height:1.4}
+  select.req-error{border-color:#ef4444!important;box-shadow:0 0 0 2px rgba(239,68,68,.2)!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="side">
+    <div class="brand">
+      <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 14px rgba(99,102,241,.45)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8h6.1l-4.9 3.6 1.9 5.8L12 15l-4.9 3.2 1.9-5.8L4.1 8.8H10.1z"/></svg>
+      </div>
+      <div><h1>FarmwiseAI</h1><p>Performance Assessment</p></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">Objective &amp; Philosophy</div>
+      <div class="acts">
+        <button class="ghost" onclick="saveDraft()">💾 Save for later</button>
+        <button class="ghost" onclick="window.print()">Print / PDF</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="draftbar" id="draftbar">
+        <span>A saved draft was found on this device.</span>
+        <span><button class="primary" onclick="loadDraft()">Restore</button> <button class="ghost" onclick="discardDraft()">Discard</button></span>
+      </div>
+
+      <!-- STEP 0 : PHILOSOPHY -->
+      <div class="step show" id="s0">
+        <div class="card">
+          <h2>Performance Assessment Philosophy</h2>
+          <p class="lead"><b>A quick read before you begin — it makes filling your assessment much easier.</b></p>
+          <div class="opening">
+            <p class="big">Objective of this assessment</p>
+            <p>The objective is to establish a <b>fair, objective, and evidence-based</b> performance assessment framework for FarmwiseAI — moving away from activity-based assessment and replacing it with <b>outcome-based, impact-based, and adoption-based</b> evaluation.</p>
+            <p>Performance will <b>not</b> be measured by how many meetings were attended, emails sent, reports prepared, modules written, or experiments conducted. It will be measured by the <b>value created</b>.</p>
+            <p style="margin-bottom:0">In simple terms: <b>we'd love to hear not just what you worked on, but the difference it made.</b></p>
+          </div>
+
+          <h3 class="sec">What This Assessment Asks</h3>
+          <p>Every contribution should answer:</p>
+          <ul>
+            <li>What did you create?</li><li>Was it adopted or used?</li><li>Who is using it today?</li>
+            <li>What changed because of your contribution?</li>
+            <li>Did it save time, reduce cost, improve quality, increase revenue, strengthen customer confidence, or create a new company capability?</li>
+            <li>How is FarmwiseAI better because of your work?</li>
+          </ul>
+          <p>The purpose is not to reward activity, effort, or intent alone — it is to recognise meaningful contribution, measurable impact, ownership, innovation, adoption, and professional conduct. Performance is measured through:</p>
+          <ul class="pill-list"><li>Impact</li><li>Adoption</li><li>Ownership</li><li>Innovation</li><li>Revenue</li><li>Cost Reduction</li><li>Time Reduction</li><li>Customer Success</li><li>Team Success</li><li>Organizational Growth</li><li>Professional Conduct</li></ul>
+
+          <h3 class="sec">Activities vs Outcomes</h3>
+          <div class="gb">
+            <div class="ex bad"><span class="tag">Less helpful</span>"I attended 20 meetings." · "I wrote 10 reports." · "I developed 5 modules." · "I participated in 15 tenders."</div>
+            <div class="ex good"><span class="tag">More helpful</span>Revenue created or influenced · time saved · cost saved · technology adopted · capability created · customer, team &amp; organizational impact.</div>
+          </div>
+
+          <h3 class="sec">The Most Important Formula</h3>
+          <div class="formula">Impact = Adoption × Benefit<small>If Adoption = 0, Impact = 0. A brilliant idea nobody uses creates almost no value. A simple idea everyone uses may create enormous value.</small></div>
+          <p>Something you build is a great start; what really brings it to life is seeing it adopted, validated, and put to use. That's the moment effort turns into <b>company value</b> — so do share where your work is being used.</p>
+
+          <h3 class="sec">Hierarchy of Evidence</h3>
+          <p class="hint">Impact is not only revenue or cost. Many roles create value indirectly. Use the strongest evidence you have — any of these is valid.</p>
+          <div class="hier"><span class="lv">Level 1 · Strongest</span><h4>Direct Business Impact</h4><div class="q">Revenue generated/influenced, cost saved, time saved, headcount avoided, client/project won.</div>e.g. Helped secure a ₹5 Cr project · Reduced cloud cost by ₹10L/yr · Cut delivery from 6 months to 20 days.</div>
+          <div class="hier"><span class="lv">Level 2</span><h4>Adoption Impact</h4><div class="q">Did the organization actually use what you built?</div>Tool adopted by 5 projects · used by 20 engineers · workflow became SOP · model in production.</div>
+          <div class="hier"><span class="lv">Level 3</span><h4>Capability Impact</h4><div class="q">Did this create a capability the company did not previously possess?</div>First OCR engine · first satellite monitoring workflow · first drone volume computation system · first AI voice advisory platform · first AI-based land acquisition workflow.</div>
+          <div class="hier"><span class="lv">Level 4</span><h4>Strategic Impact</h4><div class="q">Did it strengthen the company's position?</div>Enabled entry into Telangana / Mines Dept · demo used in 10 presentations · new product offering · credibility with government departments.</div>
+          <div class="hier"><span class="lv">Level 5</span><h4>Customer Impact</h4><div class="q">Did the customer benefit?</div>Fewer complaints · higher satisfaction · fewer delays · better uptime · improved accuracy.</div>
+          <div class="hier"><span class="lv">Level 6 · Often ignored</span><h4>Team Multiplication Impact</h4><div class="q">Did your work make other people more productive?</div>Automation used by 15 employees · reusable library · docs that cut onboarding time · mentoring.</div>
+
+          <h3 class="sec">Impact Evidence Matrix</h3>
+          <p>Instead of "What did you do?", every contribution must answer:</p>
+          <table class="matrix">
+            <tr><th>Question</th><th>Required</th></tr>
+            <tr><td>What did you create?</td><td class="m">Mandatory</td></tr>
+            <tr><td>Was it adopted?</td><td class="m">Mandatory</td></tr>
+            <tr><td>Who used it?</td><td class="m">Mandatory</td></tr>
+            <tr><td>What changed because of it?</td><td class="m">Mandatory</td></tr>
+            <tr><td>How is the company better now?</td><td class="m">Mandatory</td></tr>
+            <tr><td>Is this a one-time contribution, or currently in use?</td><td class="m">Mandatory</td></tr>
+            <tr><td>How many people / projects / customers are using it?</td><td class="m">Mandatory</td></tr>
+            <tr><td>Since when has it been used?</td><td class="p">Preferred</td></tr>
+            <tr><td>What would happen if this contribution did not exist?</td><td class="p">Preferred</td></tr>
+            <tr><td>Can the impact be measured?</td><td class="p">Preferred</td></tr>
+          </table>
+
+          <h3 class="sec">Exceptional Rating Template (mandatory proof)</h3>
+          <p>For an Exceptional (5), sharing all six paints the full picture. If some of the proof isn't ready yet, that's okay — we'll simply count it as Exceeds (4) for now.</p>
+          <div class="tmpl">
+            <div><b>Problem</b><br>What problem existed?</div><div><b>Solution</b><br>What did you create?</div><div><b>Adoption</b><br>Who is using it?</div>
+            <div><b>Impact</b><br>What changed (numbers)?</div><div><b>Evidence</b><br>Metrics, usage, feedback…</div><div><b>Sustainability</b><br>Will the benefit continue?</div>
+          </div>
+
+          <h3 class="sec">Culture &amp; Integrity Gate</h3>
+          <p>We believe a 50-person, high-trust team can outperform a 100-person team weighed down by politics — so how we work together matters as much as what we deliver. Where there are serious concerns around confidentiality, internal politics, gossip, misrepresentation of work, repeated attendance issues, accountability, respect, or policy, the rating is gently capped one band: Exceptional → Exceeds · Exceeds → Meets · Meets → Below.</p>
+
+          <div class="ack">
+            <label><input type="checkbox" id="ackChk" onchange="onAck(this.checked)"> I've read the FarmwiseAI Performance Assessment Philosophy, and I'll describe my contributions through the difference they made — their adoption and measurable impact — rather than activity alone.</label>
+            <button class="primary" id="beginBtn" disabled onclick="goto(1)">I Agree — Continue to Assessment &rarr;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 1 : ABOUT YOU & ROLE -->
+      <div class="step" id="s1">
+        <div class="card">
+          <h2>About You &amp; Your Role</h2>
+          <div style="margin-bottom:14px"><label class="fld">Filled by</label>
+            <div class="toggle" id="modeToggle"><button class="on" data-mode="self" onclick="setMode('self')">Self-assessment</button><button data-mode="rev" onclick="setMode('rev')">Reviewer</button></div>
+          </div>
+          <div class="grid2" style="margin-bottom:12px">
+            <div><label class="fld">Employee <span class="req-star">*</span></label><input id="emp" placeholder="Name"></div>
+            <div><label class="fld" id="byLabel">Employee (self) <span class="req-star">*</span></label><input id="rev" placeholder="Your name"></div>
+          </div>
+          <div class="grid2" style="margin-bottom:16px">
+            <div><label class="fld">Designation <span class="req-star">*</span></label><input id="desig" placeholder="e.g. Senior Engineer"></div>
+            <div><label class="fld">Review period</label><input id="period" placeholder="e.g. H1 2026"></div>
+          </div>
+          <label class="fld">Career level</label>
+          <p class="hint">This tailors the questions and how impact is judged — juniors are assessed on value <i>within their scope</i>, not company-wide revenue.</p>
+          <div class="toggle" id="levelToggle" style="margin-bottom:16px">
+            <button data-lvl="junior" onclick="setLevel('junior')">Fresher / Junior</button>
+            <button class="on" data-lvl="mid" onclick="setLevel('mid')">Mid-level</button>
+            <button data-lvl="senior" onclick="setLevel('senior')">Senior / Lead</button>
+          </div>
+          <label class="fld">Your role areas — select all that apply (mixed roles are normal) <span class="req-star">*</span></label>
+          <p class="hint">Pick every area you actually work in. Your contribution questions adapt to these.</p>
+          <div class="facets" id="facets"></div>
+        </div>
+        <div class="card"><div class="navbtns"><button class="ghost" onclick="goto(0)">&larr; Back</button><button class="primary" onclick="gotoWithValidation(1,2)">Next: Contributions &rarr;</button></div></div>
+      </div>
+
+      <!-- STEP 2 : INDIVIDUAL CONTRIBUTIONS -->
+      <div class="step" id="s2">
+        <div class="card">
+          <h2>Individual Contributions <span class="breakdown" style="font-weight:400">(60%)</span></h2>
+          <p class="hint">Add each meaningful contribution separately and rate it on its own. You may have several — e.g. two Exceptional and one Exceeds. Your individual score is driven by your strongest fully-proven contribution.</p>
+          <div id="levelHint"></div>
+          <div id="facetHints"></div>
+          <div id="contribs"></div>
+          <button class="addbtn" onclick="addContribution()">+ Add a contribution</button>
+        </div>
+        <div class="card"><div class="navbtns"><button class="ghost" onclick="goto(1)">&larr; Back</button><button class="primary" onclick="gotoWithValidation(2,3)">Next: Team &rarr;</button></div></div>
+      </div>
+
+      <!-- STEP 3 : TEAM -->
+      <div class="step" id="s3"><div class="card" id="teamCard"></div><div class="card"><div class="navbtns"><button class="ghost" onclick="goto(2)">&larr; Back</button><button class="primary" onclick="gotoWithValidation(3,4)">Next: Organization &rarr;</button></div></div></div>
+      <!-- STEP 4 : ORG -->
+      <div class="step" id="s4"><div class="card" id="orgCard"></div><div class="card"><div class="navbtns"><button class="ghost" onclick="goto(3)">&larr; Back</button><button class="primary" onclick="gotoWithValidation(4,5)">Next: Culture &rarr;</button></div></div></div>
+      <!-- STEP 5 : CULTURE -->
+      <div class="step" id="s5"><div class="card" id="cultCard"></div><div class="card"><div class="navbtns"><button class="ghost" onclick="goto(4)">&larr; Back</button><button class="primary" onclick="gotoWithValidation(5,6)">Next: Integrity Gate &rarr;</button></div></div></div>
+
+      <!-- STEP 6 : INTEGRITY GATE -->
+      <div class="step" id="s6">
+        <div class="card">
+          <h2>Culture &amp; Integrity Gate <span class="breakdown" style="font-weight:400">(reviewer)</span></h2>
+          <p class="hint">Completed by the reviewer. If a concern is marked <b>serious</b>, the final rating is gently capped one band lower — best raised openly and constructively in the conversation.</p>
+          <div class="gatebox" id="gateBox">
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Shared confidential info</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Internal politics</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Gossip / rumours</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Misrepresentation of work</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Repeated attendance issues</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Lack of accountability</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Disrespectful behaviour</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Harmed team morale</span>
+            <span class="gv" onclick="this.classList.toggle('on');compute()">Policy violation</span>
+          </div>
+          <label class="fld">Severity</label>
+          <div class="sev" id="sevBox"><button class="on" data-sev="none" onclick="setSev('none')">None</button><button data-sev="concern" onclick="setSev('concern')">Concern noted</button><button data-sev="serious" onclick="setSev('serious')">Serious (cap)</button></div>
+        </div>
+        <div class="card"><div class="navbtns"><button class="ghost" onclick="goto(5)">&larr; Back</button><button class="primary" onclick="goto(7)">Review &amp; Submit &rarr;</button></div></div>
+      </div>
+
+      <!-- STEP 7 : REVIEW & SUBMIT -->
+      <div class="step" id="s7">
+        <div class="card">
+          <h2>Review &amp; Submit</h2>
+          <div class="card" style="margin:0 0 16px;background:#fafdfb">
+            <div class="scorebar">
+              <div><div class="bignum" id="score">&ndash;</div><div class="breakdown">weighted / 5.0</div></div>
+              <div id="catBox" class="cat" style="background:#9ca3af">Complete the sections</div>
+              <div class="breakdown">Ind <b id="bInd">&ndash;</b> · Team <b id="bTeam">&ndash;</b> · Org <b id="bOrg">&ndash;</b> · Culture <b id="bCult">&ndash;</b></div>
+            </div>
+            <div class="warn" id="evidWarn"></div>
+            <div class="cap-note" id="capNote"></div>
+          </div>
+          <h3 class="sec">Summary</h3>
+          <div id="reviewBody"></div>
+          <div class="navbtns" style="margin-top:14px">
+            <button class="ghost" onclick="goto(6)">&larr; Back</button>
+            <span style="display:flex;gap:8px">
+              <button class="ghost" onclick="saveDraft()">💾 Save &amp; finish later</button>
+              <button class="primary" onclick="submitAssessment()">Submit</button>
+            </span>
+          </div>
+          <div class="warn" id="submitMsg"></div>
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+            <div class="breakdown" style="margin-bottom:6px"><b>How ratings map to Green / Orange / Red:</b></div>
+            <div class="map-row"><span class="dot" style="background:#1f9d55"></span> Exceptional, Exceeds &amp; Meets &rarr; <b>&nbsp;Green</b></div>
+            <div class="map-row"><span class="dot" style="background:#e07b00"></span> Below Expectation &rarr; <b>&nbsp;Orange</b></div>
+            <div class="map-row"><span class="dot" style="background:#c0392b"></span> Not Satisfactory &rarr; <b>&nbsp;Red</b></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS=["Objective & Philosophy","About You & Role","Individual Contributions","Team Contribution","Organization Contribution","Culture & Conduct","Integrity Gate","Review & Submit"];
+const CATS=[{min:4.5,name:"Exceptional",color:"#1f9d55"},{min:3.5,name:"Exceeds Expectation",color:"#5bb974"},{min:2.5,name:"Meets Expectation",color:"#e07b00"},{min:1.5,name:"Below Expectation",color:"#d98c3a"},{min:0,name:"Not Satisfactory",color:"#c0392b"}];
+function catIndexOf(v){for(let i=0;i<CATS.length;i++)if(v>=CATS[i].min)return i;return 4;}
+const LN=["Exceptional","Exceeds","Meets","Below","Unsatisfactory"], NUM=[5,4,3,2,1];
+
+const FACETS={
+ eng:{label:"Engineering / Development",hint:"Production-ready delivery, reduced delivery time, fewer defects, reusable components adopted by other projects, or a new technical capability."},
+ ds:{label:"Data Science / AI",hint:"Improved accuracy/speed, reduced processing cost, a novel or reusable model, or a new AI capability used in production. (Not: number of models trained or experiments run.)"},
+ sales:{label:"Sales / Business Development",hint:"Revenue won, strategic clients converted, a new state/department opened, or a repeat-revenue stream. (Not: meetings, calls, or tenders participated in.)"},
+ ba:{label:"Product / Business Analysis",hint:"Reduced rework, a feature that became a differentiator, improved customer outcomes, or a process/feature that was adopted. (Not: PRDs written or workshops conducted.)"},
+ delivery:{label:"Delivery / Project Management",hint:"On-time, high-quality delivery, fewer delays/escalations, better delivery predictability, or stronger client confidence."},
+ client:{label:"Client Engagement / Management",hint:"Stronger relationships, new opportunities created, higher satisfaction, or expansion enabled."}
+};
+const RATE_DESC=["New capability / USP, significant revenue-time-cost impact, widely adopted. Requires full proof.","Clearly beyond the brief; adopted; measurable improvement.","Delivered on time, good quality, used/adopted as expected, minimal supervision.","Incomplete, not adopted, or needed rework.","No usable outcome."];
+// Impact categories — broad enough for both junior (within-scope) and senior (company-wide) work.
+const IMPACTS=[['reusable','Reusable asset / component'],['time','Time / effort saved'],['quality','Better quality / fewer errors'],['smarter','Did it a smarter / different way'],['learning','Learned & applied a new skill'],['adoption','Adoption / usage'],['capability','New capability built'],['cost','Cost reduction'],['revenue','Direct revenue'],['strategic','Strategic (new geography / dept / market)'],['customer','Customer impact'],['team','Team multiplication']];
+// What counts as "high impact" depends on career level — juniors are credited for within-scope innovation.
+const HIGH_BY_LEVEL={
+ junior:['reusable','time','quality','smarter','capability','adoption'],
+ mid:['reusable','time','cost','capability','adoption','revenue','strategic'],
+ senior:['revenue','capability','strategic']
+};
+function highSet(){ return HIGH_BY_LEVEL[level]||HIGH_BY_LEVEL.mid; }
+// Category-specific example prompts for the "why does this apply?" inputs.
+const IMPACT_EG={
+ reusable:'e.g. packaged as a shared component, reused in 4 projects',
+ time:'e.g. saved ~6 hrs per cycle / ~400 hrs a year',
+ quality:'e.g. defects down 70% / zero production bugs',
+ smarter:'e.g. automated a manual step / a simpler, cleaner approach',
+ learning:'e.g. learned X and applied it to ship Y faster',
+ adoption:'e.g. used by 20 engineers across 4 projects',
+ capability:'e.g. first OCR engine / a new GeoAI workflow',
+ cost:'e.g. cut cloud cost by ₹10L a year',
+ revenue:'e.g. enabled a ₹5 Cr deal / influenced renewal',
+ strategic:'e.g. opened Telangana / a new department or market',
+ customer:'e.g. fewer complaints / higher satisfaction / better uptime',
+ team:'e.g. automation used by 15 people / mentored 3 juniors'
+};
+function toggleImpact(id,k,el){ const c=contributions.find(x=>x.id===id); if(!c)return; el.classList.toggle('on'); c.impacts=c.impacts||[]; const i=c.impacts.indexOf(k); if(i<0)c.impacts.push(k); else c.impacts.splice(i,1); renderImpactWhy(id); suggest(id); }
+const LEVEL_HINT={
+ junior:'You\'re assessed on value <b>within your scope</b> — a reusable component, a smarter or cleaner approach, time/effort saved, fewer errors, or something you learned and applied. You do <b>not</b> need company-wide revenue to score well. Show what you created, who used it, and the difference it made on your task or team.',
+ mid:'Show outcomes beyond just delivery — improvements, reusable assets, efficiency gains, and work adopted by other projects or teams, ideally with numbers.',
+ senior:'Show broader impact — revenue, new capability, strategic moves (new geography / department / market), and org-wide adoption, backed by measurable proof.'
+};
+function setLevel(l){ level=l; document.querySelectorAll('#levelToggle button').forEach(b=>b.classList.toggle('on',b.dataset.lvl===l)); renderLevelHint(); contributions.forEach(c=>suggest(c.id)); }
+function renderLevelHint(){ const e=$('levelHint'); if(e)e.innerHTML='<div class="note">'+(LEVEL_HINT[level]||'')+'</div>'; }
+function renderImpactWhy(id){
+ const c=contributions.find(x=>x.id===id); if(!c)return; c.impactWhy=c.impactWhy||{};
+ const box=$('c'+id+'_impwhy'); if(!box)return;
+ // preserve current typed values before re-render
+ box.querySelectorAll('input[data-iw]').forEach(inp=>{c.impactWhy[inp.dataset.iw]=inp.value;});
+ const sel=(c.impacts||[]);
+ if(!sel.length){box.innerHTML='';return;}
+ box.innerHTML='<div class="hint" style="margin:4px 0">Briefly, why does each apply? (optional but recommended)</div>'+sel.map(k=>{const lbl=(IMPACTS.find(x=>x[0]===k)||[k,k])[1];const v=(c.impactWhy[k]||'').replace(/"/g,'&quot;');const ph=IMPACT_EG[k]||'Briefly, why does this apply?';return `<div class="row"><span class="lbl">${lbl}</span><input data-iw="${k}" value="${v}" oninput="saveImpactWhy(${id},'${k}',this.value)" placeholder="${ph}"></div>`;}).join('');
+}
+function saveImpactWhy(id,k,v){ const c=contributions.find(x=>x.id===id); if(!c)return; c.impactWhy=c.impactWhy||{}; c.impactWhy[k]=v; }
+
+// Structured questionnaires: each item is rated 1–5; the section score is the average.
+const SCALE5=["5 — Outstanding","4 — Strong","3 — Good / as expected","2 — Inconsistent","1 — Poor"];
+const TEAM={key:'team',title:"Team Contribution",weight:20,items:[
+  ['help','Helps and unblocks teammates'],['mentor','Mentors / shares knowledge'],['collab','Collaborates across functions'],
+  ['comm','Communicates clearly &amp; responsively'],['standard','Sets standards others follow']]};
+const ORG={key:'org',title:"Organization Contribution",weight:10,note:"Counts only if in active use OR proven working — not slideware.",items:[
+  ['build','Built/improved a tool, automation, framework or process'],['adopt','It is adopted across the org (in use / proven)'],
+  ['reuse','Reusable by other teams / projects'],['doc','Created documentation or standards others rely on']]};
+const CULT={key:'culture',title:"Culture &amp; Discipline",weight:10,items:[
+  ['punct','Punctuality — arrives on time'],['attend','Attendance &amp; regularity'],['deliver','Delivers on time / meets commitments'],
+  ['team','Team-friendly &amp; respectful'],['conduct','Professional conduct &amp; confidentiality'],
+  ['commit','Commitment &amp; ownership'],['hours','Manages workload within working hours']]};
+const BUCKETS={team:TEAM,org:ORG,culture:CULT};
+
+let unlocked=false, mode='self', sev='none', cid=0, level='mid';
+let contributions=[]; // {id,self,reviewer,suggested,customN}
+let bItems={team:{},org:{},culture:{}}; // culture: per-item 1–5 ratings
+let entries={team:[],org:[]}, entN=0; // team/org: list of {id,rating}
+const SECT={team:{title:'Team Contribution',weight:20,intro:'Add each team contribution separately — mentoring, helping or unblocking others, knowledge sharing, setting standards. Rate each and add remarks. The section score is the average of your entries.',label:'team'},
+ org:{title:'Organization Contribution',weight:10,intro:'Add each organization-level contribution — a tool, automation, framework, process or initiative. It counts when it is in active use or proven working. Rate each and add remarks. The section score is the average of your entries.',label:'organization'}};
+const W={ind:60,team:20,org:10,culture:10};
+const $=id=>document.getElementById(id);
+const val=id=>{const e=$(id);return e?e.value.trim():'';};
+
+/* ---------- nav ---------- */
+function buildNav(){
+ $('nav').innerHTML=STEPS.map((s,i)=>`<a id="nav${i}" onclick="navClick(${i})"><span class="num">${i+1}</span>${s}</a>`).join("");
+ setActive(0);
+}
+function navClick(i){ if(i>0&&!unlocked)return; goto(i); }
+function setActive(i){
+ STEPS.forEach((s,j)=>{const a=$('nav'+j);a.classList.toggle('active',j===i);a.classList.toggle('locked',j>0&&!unlocked);});
+}
+function goto(i){
+ STEPS.forEach((s,j)=>$('s'+j).classList.toggle('show',j===i));
+ $('crumb').textContent=STEPS[i];
+ setActive(i);
+ if(i===7){buildReview();compute();}
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+function onAck(c){ $('beginBtn').disabled=!c; unlocked=c; setActive(0); STEPS.forEach((s,j)=>{if(j>0)$('nav'+j).classList.toggle('locked',!c);}); }
+
+/* ---------- role facets ---------- */
+function renderFacets(){
+ $('facets').innerHTML=Object.entries(FACETS).map(([k,f])=>`<div class="facet" id="f-${k}" onclick="toggleFacet('${k}')"><b>${f.label}</b><span>${f.hint}</span></div>`).join("");
+}
+function toggleFacet(k){ $('f-'+k).classList.toggle('on'); renderFacetHints(); refreshContribAreas(); }
+function selectedFacets(){ return Object.keys(FACETS).filter(k=>$('f-'+k)&&$('f-'+k).classList.contains('on')); }
+function renderFacetHints(){
+ const sel=selectedFacets();
+ $('facetHints').innerHTML = sel.length? '<div class="note"><b>What counts for your role(s):</b><br>'+sel.map(k=>'• <b>'+FACETS[k].label+':</b> '+FACETS[k].hint).join('<br>')+'</div>' : '<div class="note">Tip: select your role areas on the previous page to see role-specific guidance here.</div>';
+}
+
+/* ---------- contributions ---------- */
+function areaOptions(){ const sel=selectedFacets(); if(!sel.length)return '<option value="">(select role on previous page)</option>'; return sel.map(k=>`<option value="${k}">${FACETS[k].label}</option>`).join(""); }
+function refreshContribAreas(){ contributions.forEach(c=>{const s=$('c'+c.id+'_area'); if(s){const cur=s.value;s.innerHTML=areaOptions();s.value=cur;}}); }
+function addContribution(){
+ const id=++cid; contributions.push({id,self:null,reviewer:null,suggested:null,customN:0,impacts:[],impactWhy:{}});
+ const div=document.createElement('div'); div.className='contrib'; div.id='contrib'+id;
+ const ratebtns=(kind)=>NUM.map((n,i)=>`<div class="rb" onclick="pick${kind}(${id},${n})" id="c${id}_${kind.toLowerCase()}${n}"><b>${n}</b>${LN[i]}</div>`).join("");
+ div.innerHTML=`
+  <div class="ch"><h4>Contribution #${contributions.length}</h4><button class="rm" onclick="removeContribution(${id})">Remove</button></div>
+  <div class="grid2" style="margin-bottom:14px">
+    <div><label class="fld">Task / Project title</label><input id="c${id}_title" placeholder="e.g. SIPCOT spatial DB redesign"></div>
+    <div><label class="fld">Role area</label><select id="c${id}_area">${areaOptions()}</select></div>
+  </div>
+
+  <div class="block">
+    <div class="blockh"><span class="stepn">1</span>Your self-rating</div>
+    <div class="rate sm" id="c${id}_self">${ratebtns('Self')}</div><div id="c${id}_selfhint" class="hint" style="margin-bottom:0"></div>
+  </div>
+
+  <div class="block">
+    <div class="blockh"><span class="stepn">2</span>The work</div>
+    <div class="field"><label>What were you asked to do? (context / scope)</label><textarea id="c${id}_context" oninput="suggest(${id})" placeholder="The brief, the goal, and what was expected of you."></textarea></div>
+    <div class="field"><label>What problem did it address?</label><textarea id="c${id}_problem" oninput="suggest(${id})" placeholder="The problem or need this work responded to."></textarea></div>
+    <div class="field"><label>What did you create? (the solution)</label><textarea id="c${id}_create" oninput="suggest(${id})" placeholder="The product, model, workflow, framework, relationship…"></textarea></div>
+  </div>
+
+  <div class="block">
+    <div class="blockh"><span class="stepn">3</span>Impact &amp; adoption</div>
+    <div class="field"><label>Was it adopted? Who is using it today, and since when?</label><textarea id="c${id}_adopt" oninput="suggest(${id})" placeholder="e.g. In production; used by AgriStack, WRD, SIPCOT since Mar 2026."></textarea></div>
+    <div class="field"><label>What changed because of it? (use numbers)</label><textarea id="c${id}_changed" oninput="suggest(${id})" placeholder="e.g. Query time 15 min → 30 sec; ~70% less manual effort."></textarea></div>
+    <div class="field"><label>How is FarmwiseAI better because of it?</label><textarea id="c${id}_value" oninput="suggest(${id})" placeholder="Revenue, cost, time, capability, customer confidence, strategic position…"></textarea></div>
+    <div class="field" style="margin-bottom:0">
+      <label>What kind of impact did it create? (select all that apply)</label>
+      <div class="tags" id="c${id}_impacts">${IMPACTS.map(([k,l])=>`<span class="tag2" data-imp="${k}" onclick="toggleImpact(${id},'${k}',this)">${l}</span>`).join('')}</div>
+      <div class="impwhy" id="c${id}_impwhy"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="blockh"><span class="stepn">4</span>Evidence &amp; proof</div>
+    <div class="field"><label>Will the benefit continue? (sustainability)</label><textarea id="c${id}_sustain" oninput="suggest(${id})" placeholder="Is it durable, maintained, and likely to keep delivering?"></textarea></div>
+    <div class="field"><label>Evidence — metrics, usage, feedback</label><textarea id="c${id}_evidence" oninput="suggest(${id})" placeholder="The specifics that back up the above."></textarea></div>
+    <div class="grid2" style="margin-bottom:0">
+      <div class="field" style="margin-bottom:0"><label>Attach proof — link / reference</label><input id="c${id}_proofref" oninput="suggest(${id})" placeholder="Link to a doc, dashboard, commit, screenshot…"></div>
+      <div class="field" style="margin-bottom:0"><label>…or choose a file</label><input type="file" id="c${id}_prooffile" onchange="suggest(${id})"></div>
+    </div>
+    <div id="c${id}_custom" style="margin-top:12px"></div>
+    <button class="ghost" style="font-size:12.5px;padding:7px 12px;margin-top:6px" onclick="addCustom(${id})">+ Add your own point</button>
+  </div>
+  <div class="block alt">
+    <div class="blockh"><span class="stepn">5</span>Rating check</div>
+    <div class="tri-row"><label class="fld">System-suggested rating <span class="breakdown">(from the evidence you entered)</span></label>
+      <div id="c${id}_sugg" class="sugg">Fill the fields above to see a suggestion.</div></div>
+    <div class="tri-row rev-only" style="display:none;margin-top:10px"><label class="fld">Reviewer rating</label>
+      <div class="rate sm" id="c${id}_rev">${ratebtns('Reviewer')}</div>
+      <div class="field" style="margin-top:8px;margin-bottom:0"><label>Reviewer justification <span class="req" id="c${id}_rjreq" style="display:none">(a short note helps — this differs from the suggested rating)</span></label><textarea id="c${id}_rjust" oninput="compute()" placeholder="A quick note on why your score is higher or lower than the suggested rating."></textarea></div>
+    </div>
+  </div>`;
+ $('contribs').appendChild(div);
+ if(mode==='rev') div.querySelectorAll('.rev-only').forEach(e=>e.style.display='block');
+ addReqStars(div); suggest(id); compute();
+}
+function addCustom(id,q,a){
+ const c=contributions.find(x=>x.id===id); if(!c)return; const n=++c.customN;
+ const row=document.createElement('div'); row.className='field cust-row'; row.dataset.cid=id;
+ row.innerHTML=`<input class="cust-q" id="c${id}_cq${n}" placeholder="Your own aspect / question" style="margin-bottom:6px" value="${q?q.replace(/"/g,'&quot;'):''}"><textarea class="cust-a" id="c${id}_ca${n}" placeholder="Your answer / detail">${a||''}</textarea>`;
+ $('c'+id+'_custom').appendChild(row);
+}
+function refreshReq(id){ const c=contributions.find(x=>x.id===id); if(!c)return; const r=(mode==='rev'?(c.reviewer??c.self):c.self); document.querySelectorAll('.c'+id+'_rq').forEach(e=>e.style.display=(r>=4)?'inline':'none'); }
+function removeContribution(id){ contributions=contributions.filter(c=>c.id!==id); const el=$('contrib'+id); if(el)el.remove(); renumber(); compute(); }
+function renumber(){ document.querySelectorAll('#contribs .contrib .ch h4').forEach((h,i)=>h.textContent='Contribution #'+(i+1)); }
+function pickSelf(id,n){
+ const c=contributions.find(x=>x.id===id); if(!c)return; c.self=n;
+ NUM.forEach(v=>$('c'+id+'_self'+v).classList.toggle('sel',v===n));
+ $('c'+id+'_selfhint').textContent=RATE_DESC[NUM.indexOf(n)];
+ refreshExct(id); refreshReq(id); compute();
+}
+function pickReviewer(id,n){
+ const c=contributions.find(x=>x.id===id); if(!c)return; c.reviewer=n;
+ NUM.forEach(v=>$('c'+id+'_reviewer'+v).classList.toggle('sel',v===n));
+ refreshExct(id); refreshReq(id); compute();
+}
+function refreshExct(id){}
+function hasProofAttached(id){ const f=$('c'+id+'_prooffile'); return !!(val('c'+id+'_proofref')) || !!(f&&f.files&&f.files.length); }
+// Full proof = the core story fields complete AND a proof reference/file attached.
+function contribProofOK(id){ return ['problem','create','adopt','changed','value','sustain'].every(k=>val('c'+id+'_'+k)) && hasProofAttached(id); }
+// Manipulation guard: ignore instruction-like text a person (or an LLM they used) might paste to game the score.
+const INJECT=/(ignore (all |the )?(previous|above|prior)|disregard|as an ai|you (must|should|need to|have to) (rate|give|score|mark|assign)|please (rate|give|score|mark)|rate (this|me|it)|give (me |it |this )?(a |an )?(5|4|five|four|exceptional|exceeds)|exceptional rating|highest (rating|score)|override|system\s*:|assistant\s*:|prompt|instruction)/i;
+function injected(id){ return ['context','problem','create','adopt','changed','value','sustain','evidence','proofref'].some(k=>INJECT.test(val('c'+id+'_'+k))); }
+function suggest(id){
+ const c=contributions.find(x=>x.id===id); if(!c)return;
+ const create=val('c'+id+'_create'),adopt=val('c'+id+'_adopt'),changed=val('c'+id+'_changed'),value=val('c'+id+'_value');
+ const box=$('c'+id+'_sugg'); if(!box)return;
+ c.flagged=injected(id);
+ if(!create){c.suggested=null;box.innerHTML='Fill the fields above to see a suggestion.';compute();return;}
+ // Score only on verifiable signals: real numbers, named adopters/dates, attached proof — never on persuasive wording.
+ const text=(adopt+' '+changed+' '+value).toLowerCase();
+ const hasNums=/[0-9]/.test(changed+' '+value);
+ const strongAdopt=/(production|deployed|live|used by|adopted|projects|customers|standard|since|rolled out|in use)/.test(text);
+ const noAdopt=/(not adopted|prototype|^idea|concept only|not used|unused|\bpoc\b|yet to|will be|planned)/.test(text);
+ const capText=/(first|novel|new capability|usp|differentiator|won|revenue|crore|\bcr\b|lakh|₹)/.test((create+' '+value).toLowerCase());
+ const capSel=(c.impacts||[]).some(x=>highSet().includes(x));
+ const cap=capText||capSel;
+ const complete=create&&adopt&&changed&&value, proof=contribProofOK(id), attached=hasProofAttached(id);
+ let n=3, why=[];
+ if(!complete){n=2;why.push('story incomplete');}
+ else if(noAdopt){n=2;why.push('not adopted / not in use');}
+ else{ why.push('described and adopted');
+   if(strongAdopt&&hasNums){n=4;why.push('clear adoption + measurable numbers');}
+   if(strongAdopt&&hasNums&&cap&&proof){n=5;why.push('high-impact for your level + attached proof');}
+ }
+ if(n>=4&&!attached){ if(n===5){n=4;} why.push('attach a proof link/file to confirm'); }
+ if(n===5&&!proof){n=4;why.push('Exceptional proof incomplete → Exceeds');}
+ c.suggested=n;
+ const idx=catIndexOf(n);
+ let extra=`<span style="color:var(--muted);font-size:12.5px">${why.join('; ')}</span>`;
+ if(c.flagged) extra+=`<div class="note" style="margin-top:6px">🛡 Instruction-like text was detected and ignored. This rating is based only on verifiable evidence (numbers, named users, dates, attached proof) — not on wording.</div>`;
+ box.innerHTML=`<span class="suggn" style="background:${CATS[idx].color}">${n} · ${LN[NUM.indexOf(n)]}</span>${extra}`;
+ compute();
+}
+function govRating(c){ return (mode==='rev') ? (c.reviewer!=null?c.reviewer:c.self) : c.self; }
+function contribEff(c){ const r=govRating(c); if(r==null)return{eff:null,down:false,r}; if(r===5 && !contribProofOK(c.id))return{eff:4,down:true,r}; return{eff:r,down:false,r}; }
+
+/* ---------- buckets (team/org/culture) ---------- */
+function bucketOptions(key,item){
+ let o='<option value="">—</option>';
+ SCALE5.forEach((s,i)=>{o+=`<option value="${NUM[i]}">${s}</option>`;});
+ return o;
+}
+function buildBucketCard(B){
+ const note=B.note?`<div class="note">${B.note}</div>`:"";
+ const rows=B.items.map(([k,label])=>`<tr><td>${label}</td><td style="width:170px"><select id="b_${B.key}_${k}" onchange="setItem('${B.key}','${k}',this.value)">${bucketOptions(B.key,k)}</select></td></tr>`).join("");
+ return `<h2>${B.title} <span class="breakdown" style="font-weight:400">(${B.weight}%)</span></h2>
+   <p class="hint">Rate each item 1–5. <span class="req-star">*</span> All items are required. The section score is the average of your answers.</p>
+   <table class="matrix"><tr><th>Item</th><th>Rating</th></tr>${rows}</table>
+   <div class="hint" id="avg-${B.key}">Section average: —</div>
+   <div class="field"><label>Comments / justification <span class="breakdown">(optional)</span></label><textarea id="ev-${B.key}" placeholder="Anything to add or explain (optional)."></textarea></div>${note}`;
+}
+function setItem(key,item,v){ if(v===''||v==null)delete bItems[key][item]; else bItems[key][item]=+v; compute(); }
+function bucketAvg(key){ const v=Object.values(bItems[key]); if(!v.length)return null; return v.reduce((a,b)=>a+b,0)/v.length; }
+/* ---- team / org multi-entry sections ---- */
+function renderSection(section){
+ const S=SECT[section];
+ const card=$(section+'Card');
+ card.innerHTML=`<h2>${S.title} <span class="breakdown" style="font-weight:400">(${S.weight}%)</span></h2>
+   <p class="hint">${S.intro}</p>
+   <div id="${section}_entries"></div>
+   <button class="addbtn" onclick="addEntry('${section}')">+ Add a ${S.label} contribution</button>
+   <div class="hint" id="avg-${section}" style="margin-top:8px">Section average: —</div>`;
+}
+function addEntry(section,restore){
+ const eid=++entN; entries[section].push({id:eid,rating:null});
+ const div=document.createElement('div'); div.className='block'; div.id='ent_'+section+'_'+eid;
+ const rb=NUM.map((n,i)=>`<div class="rb" onclick="pickEntry('${section}',${eid},${n})" id="e_${section}_${eid}_r${n}"><b>${n}</b>${LN[i]}</div>`).join("");
+ div.innerHTML=`
+   <div class="ch" style="margin-bottom:8px"><h4 style="margin:0;font-size:13px;color:var(--leaf)">Contribution</h4><button class="rm" onclick="removeEntry('${section}',${eid})">Remove</button></div>
+   <div class="field"><label>What was the contribution?</label><textarea id="e_${section}_${eid}_text" placeholder="${section==='team'?'e.g. Mentored two new engineers; built the onboarding guide the team now uses.':'e.g. Built a deployment script now used by 4 project teams.'}"></textarea></div>
+   <label class="fld">Rating</label>
+   <div class="rate sm" id="e_${section}_${eid}_rate">${rb}</div>
+   <div class="field" style="margin-top:8px;margin-bottom:0"><label>Remarks <span class="breakdown">(optional)</span></label><textarea id="e_${section}_${eid}_remark" placeholder="Who benefited, adoption, evidence…"></textarea></div>`;
+ $(section+'_entries').appendChild(div);
+ renumberEntries(section);
+ if(restore){ $('e_'+section+'_'+eid+'_text').value=restore.text||''; $('e_'+section+'_'+eid+'_remark').value=restore.remark||''; if(restore.rating)pickEntry(section,eid,restore.rating); }
+ addReqStars(div); compute();
+}
+function renumberEntries(section){ document.querySelectorAll('#'+section+'_entries .block .ch h4').forEach((h,i)=>h.textContent='Contribution #'+(i+1)); }
+function pickEntry(section,eid,n){ const e=entries[section].find(x=>x.id===eid); if(!e)return; e.rating=n; NUM.forEach(v=>$('e_'+section+'_'+eid+'_r'+v).classList.toggle('sel',v===n)); compute(); }
+function removeEntry(section,eid){ entries[section]=entries[section].filter(x=>x.id!==eid); const el=$('ent_'+section+'_'+eid); if(el)el.remove(); renumberEntries(section); compute(); }
+function sectionAvg(section){ const v=entries[section].filter(e=>e.rating!=null).map(e=>e.rating); if(!v.length)return null; return v.reduce((a,b)=>a+b,0)/v.length; }
+function avgFor(k){ return k==='culture'?bucketAvg('culture'):sectionAvg(k); }
+function setMode(m){mode=m;document.querySelectorAll('#modeToggle button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));$('byLabel').innerHTML=(m==='self')?'Employee (self) <span class="req-star">*</span>':'Reviewer <span class="req-star">*</span>';$('rev').placeholder=(m==='self')?'Your name':'Reporting head';document.querySelectorAll('#contribs .rev-only').forEach(e=>e.style.display=(m==='rev')?'block':'none');contributions.forEach(c=>refreshReq(c.id));compute();}
+function setSev(s){sev=s;document.querySelectorAll('#sevBox button').forEach(b=>b.classList.toggle('on',b.dataset.sev===s));compute();}
+
+/* ---------- compute ---------- */
+function individualScore(){
+ let best=null,driver=null,anyDown=false;
+ contributions.forEach(c=>{ const {eff,down}=contribEff(c); if(eff==null)return; if(down)anyDown=true; if(best===null||eff>best){best=eff;driver=c;} });
+ return {best,driver,anyDown};
+}
+function compute(){
+ const ind=individualScore();
+ const indVal=ind.best;
+ const tA=avgFor('team'),oA=avgFor('org'),cA=avgFor('culture');
+ ['team','org','culture'].forEach(k=>{const a=$('avg-'+k);if(a){const v=avgFor(k);a.textContent='Section average: '+(v==null?'—':v.toFixed(1)+' / 5');}});
+ $('bInd').textContent = indVal==null?'–':(ind.anyDown?indVal+'*':indVal);
+ $('bTeam').textContent=tA==null?'–':tA.toFixed(1); $('bOrg').textContent=oA==null?'–':oA.toFixed(1); $('bCult').textContent=cA==null?'–':cA.toFixed(1);
+ const ready=indVal!=null&&tA!=null&&oA!=null&&cA!=null;
+ const cb=$('catBox');
+ if(!ready){$('score').textContent='–';cb.textContent='Complete the sections';cb.style.background='#9ca3af';$('capNote').classList.remove('show');
+   warnMsg(ind); return;}
+ const v=(indVal*W.ind+tA*W.team+oA*W.org+cA*W.culture)/100;
+ $('score').textContent=v.toFixed(2);
+ let idx=catIndexOf(v),capped=false; if(sev==='serious'&&idx<3){idx++;capped=true;}
+ cb.textContent=CATS[idx].name; cb.style.background=CATS[idx].color;
+ warnMsg(ind);
+ const cn=$('capNote');
+ if(capped){cn.classList.add('show');cn.innerHTML='Integrity Gate: because a serious concern was flagged, the rating is gently capped one band lower (now <b>'+CATS[idx].name+'</b>). Worth discussing openly in the conversation.';}
+ else if(sev==='concern'){cn.classList.add('show');cn.textContent='Note: a culture concern was flagged (no cap applied). Address it in the conversation.';}
+ else cn.classList.remove('show');
+}
+function warnMsg(ind){
+ let m='';
+ if(ind.anyDown)m+='💡 An Exceptional (5) contribution is still missing part of its proof (the full story plus an attached link/file), so it counts as Exceeds (4) for now — add the details whenever you can.<br>';
+ contributions.forEach((c,i)=>{ const {r}=contribEff(c); if(r!=null&&r>=4&&!hasProofAttached(c.id)) m+='💡 Contribution #'+(i+1)+' is rated 4–5 — attaching a proof link or file will help confirm it.<br>'; });
+ contributions.forEach((c,i)=>{ if(c.flagged) m+='🛡 Contribution #'+(i+1)+': instruction-like text was found and ignored — the suggested rating uses verifiable evidence only.<br>'; });
+ if(mode==='rev'){
+   contributions.forEach((c,i)=>{
+     const need=(c.reviewer!=null && c.suggested!=null && c.reviewer!==c.suggested);
+     const rq=$('c'+c.id+'_rjreq'); if(rq)rq.style.display=need?'inline':'none';
+     if(need && !val('c'+c.id+'_rjust')) m+='💡 Contribution #'+(i+1)+': your score differs from the suggested rating — a short note on why would be helpful.<br>';
+   });
+ }
+ const ew=$('evidWarn'); if(m){ew.classList.add('show');ew.innerHTML=m;}else ew.classList.remove('show');
+}
+
+/* ---------- review ---------- */
+function buildReview(){
+ let h='';
+ h+=`<div class="rev-block"><h4>Employee</h4><div class="kv"><b>${val('emp')||'—'}</b> · ${val('desig')||''} · ${val('period')||''}</div><div class="kv">Filled by: ${mode==='self'?'Self':'Reviewer'} (${val('rev')||'—'})</div><div class="kv">Role areas: ${selectedFacets().map(k=>FACETS[k].label).join(', ')||'—'}</div></div>`;
+ h+=`<div class="rev-block"><h4>Individual Contributions</h4>`;
+ if(!contributions.length)h+='<div class="kv">No contributions added.</div>';
+ const rl=n=>n?LN[NUM.indexOf(n)]+' ('+n+')':'—';
+ const impLabel=k=>{const m=IMPACTS.find(x=>x[0]===k);return m?m[1]:k;};
+ contributions.forEach((c,i)=>{const {down}=contribEff(c);const iw=c.impactWhy||{};const imps=(c.impacts||[]).map(k=>impLabel(k)+(iw[k]?' — '+iw[k]:'')).join('; ');h+=`<div class="kv">#${i+1} <b>${val('c'+c.id+'_title')||'(untitled)'}</b><br><span style="color:var(--muted)">Self: ${rl(c.self)} · Suggested: ${rl(c.suggested)} · Reviewer: ${rl(c.reviewer)}${down?' · Exceptional proof incomplete → counts as Exceeds':''}</span>${imps?'<br><span style="color:var(--muted)">Impact: '+imps+'</span>':''}${hasProofAttached(c.id)?'<br><span style="color:var(--muted)">Proof attached ✓</span>':''}</div>`;});
+ h+='</div>';
+ ['team','org'].forEach(section=>{const a=sectionAvg(section);let rows='';entries[section].forEach((e,i)=>{rows+=`<div class="kv">#${i+1} ${rl(e.rating)} — <span style="color:var(--muted)">${(val('e_'+section+'_'+e.id+'_text')||'(no description)')}</span>${val('e_'+section+'_'+e.id+'_remark')?' · <i>'+val('e_'+section+'_'+e.id+'_remark')+'</i>':''}</div>`;});h+=`<div class="rev-block"><h4>${SECT[section].title}</h4><div class="kv">Average: <b>${a==null?'—':a.toFixed(1)+' / 5'}</b></div>${rows||'<div class="kv" style="color:var(--muted)">No entries.</div>'}</div>`;});
+ {const a=bucketAvg('culture');const items=CULT.items.filter(([ik])=>bItems.culture[ik]!=null).map(([ik,lbl])=>lbl.replace(/&amp;/g,'&')+': '+bItems.culture[ik]).join(' · ');h+=`<div class="rev-block"><h4>Culture &amp; Discipline</h4><div class="kv">Average: <b>${a==null?'—':a.toFixed(1)+' / 5'}</b><br><span style="color:var(--muted)">${items||'not rated'}</span>${val('ev-culture')?'<br><span style="color:var(--muted)">'+val('ev-culture')+'</span>':''}</div></div>`;}
+ const flags=[...document.querySelectorAll('#gateBox .gv.on')].map(g=>g.textContent);
+ h+=`<div class="rev-block"><h4>Integrity Gate</h4><div class="kv">Severity: <b>${sev}</b>${flags.length?' · '+flags.join(', '):''}</div></div>`;
+ $('reviewBody').innerHTML=h;
+}
+
+/* ---------- draft save / load ---------- */
+const KEY='fw_assessment_draft_v1';
+function gather(){
+ const d={mode,sev,level,facets:selectedFacets(),fields:{},bItems,entries:{team:[],org:[]},contribs:[],flags:[...document.querySelectorAll('#gateBox .gv.on')].map(g=>g.textContent)};
+ ['emp','rev','desig','period','ev-culture'].forEach(id=>d.fields[id]=val(id));
+ ['team','org'].forEach(section=>{entries[section].forEach(e=>{d.entries[section].push({rating:e.rating,text:val('e_'+section+'_'+e.id+'_text'),remark:val('e_'+section+'_'+e.id+'_remark')});});});
+ contributions.forEach(c=>{ const iwbox=$('c'+c.id+'_impwhy'); if(iwbox){c.impactWhy=c.impactWhy||{};iwbox.querySelectorAll('input[data-iw]').forEach(inp=>c.impactWhy[inp.dataset.iw]=inp.value);} const o={id:c.id,self:c.self,reviewer:c.reviewer,impacts:c.impacts||[],impactWhy:c.impactWhy||{},f:{},custom:[]};['title','area','context','problem','create','adopt','changed','value','sustain','evidence','proofref','rjust'].forEach(k=>o.f[k]=val('c'+c.id+'_'+k));const pf=$('c'+c.id+'_prooffile');o.f.prooffilename=(pf&&pf.files&&pf.files[0])?pf.files[0].name:'';const cont=$('c'+c.id+'_custom');if(cont)cont.querySelectorAll('.cust-row').forEach(r=>{o.custom.push({q:r.querySelector('.cust-q').value,a:r.querySelector('.cust-a').value});});d.contribs.push(o);});
+ return d;
+}
+function saveDraft(){ try{localStorage.setItem(KEY,JSON.stringify(gather()));flash('Draft saved on this device.');}catch(e){flash('Could not save draft.');} }
+function flash(t){const s=$('submitMsg');if(s){s.classList.add('show');s.textContent=t;setTimeout(()=>s.classList.remove('show'),2500);} else alert(t);}
+function discardDraft(){ localStorage.removeItem(KEY); $('draftbar').classList.remove('show'); }
+function loadDraft(){
+ const raw=localStorage.getItem(KEY); if(!raw)return; const d=JSON.parse(raw);
+ onAck(true); $('ackChk').checked=true;
+ setMode(d.mode||'self'); setSev(d.sev||'none'); setLevel(d.level||'mid');
+ (d.facets||[]).forEach(k=>{const el=$('f-'+k);if(el)el.classList.add('on');});
+ renderFacetHints();
+ ['emp','rev','desig','period'].forEach(id=>{if($(id))$(id).value=(d.fields&&d.fields[id])||'';});
+ // culture (structured questionnaire)
+ bItems={team:{},org:{},culture:{}};
+ if(d.bItems&&d.bItems.culture){Object.keys(d.bItems.culture).forEach(ik=>{bItems.culture[ik]=d.bItems.culture[ik];const sel=$('b_culture_'+ik);if(sel)sel.value=d.bItems.culture[ik];});}
+ if($('ev-culture')&&d.fields)$('ev-culture').value=d.fields['ev-culture']||'';
+ // team / org entries
+ entries={team:[],org:[]}; entN=0;
+ $('team_entries').innerHTML=''; $('org_entries').innerHTML='';
+ if(d.entries){['team','org'].forEach(section=>{(d.entries[section]||[]).forEach(e=>addEntry(section,e));});}
+ // contributions
+ $('contribs').innerHTML=''; contributions=[]; cid=0;
+ (d.contribs||[]).forEach(o=>{addContribution();const id=cid;const cc=contributions.find(x=>x.id===id);['title','area','context','problem','create','adopt','changed','value','sustain','evidence','proofref','rjust'].forEach(k=>{if($('c'+id+'_'+k))$('c'+id+'_'+k).value=(o.f&&o.f[k])||'';});cc.impactWhy=o.impactWhy||{};(o.impacts||[]).forEach(k=>{cc.impacts.push(k);const el=$('c'+id+'_impacts')&&$('c'+id+'_impacts').querySelector('[data-imp="'+k+'"]');if(el)el.classList.add('on');});renderImpactWhy(id);(o.custom||[]).forEach(cp=>addCustom(id,cp.q,cp.a));refreshContribAreas();suggest(id);if(o.self)pickSelf(id,o.self);if(o.reviewer)pickReviewer(id,o.reviewer);});
+ (d.flags||[]).forEach(t=>{document.querySelectorAll('#gateBox .gv').forEach(g=>{if(g.textContent===t)g.classList.add('on');});});
+ $('draftbar').classList.remove('show'); compute(); goto(1);
+}
+function submitAssessment(){ saveDraft(); const s=$('submitMsg'); s.classList.add('show'); s.style.color='#14532d'; s.innerHTML='✅ Assessment submitted (saved on this device). Use Print / PDF to keep a copy or share with your reviewer.'; }
+
+/* ---------- init ---------- */
+function init(){
+ buildNav(); renderFacets(); renderFacetHints(); renderLevelHint();
+ renderSection('team');
+ renderSection('org');
+ $('cultCard').innerHTML=buildBucketCard(CULT);
+ if(localStorage.getItem(KEY))$('draftbar').classList.add('show');
+ compute();
+}
+init();
+
+/* ── Validation (inline errors) ────────────────────────────── */
+const REQ_LABELS=[
+  'Task / Project title','Role area','Your self-rating',
+  'What were you asked to do','What problem did it address',
+  'What did you create','Was it adopted','What changed because of it',
+  'How is FarmwiseAI better','What was the contribution','Rating'
+];
+function addReqStars(root){
+  root.querySelectorAll('label,.fld,.blockh').forEach(el=>{
+    if(el.querySelector('.req-star'))return;
+    const txt=(el.textContent||'');
+    if(REQ_LABELS.some(t=>txt.includes(t)))
+      el.insertAdjacentHTML('beforeend','<span class="req-star"> *</span>');
+  });
+}
+function showFieldErr(fid,msg){
+  const el=$(fid);if(!el)return;
+  el.classList.add('req-error');
+  let e=document.getElementById('err_'+fid);
+  if(!e){e=document.createElement('span');e.id='err_'+fid;e.className='err-msg';el.parentNode.insertBefore(e,el.nextSibling);}
+  e.textContent=msg;e.style.display='block';
+  const clr=()=>{el.classList.remove('req-error');e.style.display='none';};
+  el.addEventListener('input',clr,{once:true});el.addEventListener('change',clr,{once:true});
+}
+function showRatingErr(cid,msg){
+  const el=$(cid);if(!el)return;
+  el.style.outline='2px solid #ef4444';el.style.outlineOffset='3px';el.style.borderRadius='10px';
+  let e=document.getElementById('err_'+cid);
+  if(!e){e=document.createElement('span');e.id='err_'+cid;e.className='err-msg';el.parentNode.insertBefore(e,el.nextSibling);}
+  e.textContent=msg;e.style.display='block';
+  const clr=()=>{el.style.outline='';el.style.outlineOffset='';e.style.display='none';};
+  el.querySelectorAll('.rb').forEach(rb=>rb.addEventListener('click',clr,{once:true}));
+}
+function showFacetErr(msg){
+  const el=$('facets');if(!el)return;
+  el.style.outline='2px solid #ef4444';el.style.outlineOffset='4px';el.style.borderRadius='8px';
+  let e=document.getElementById('err_facets');
+  if(!e){e=document.createElement('span');e.id='err_facets';e.className='err-msg';el.parentNode.insertBefore(e,el.nextSibling);}
+  e.textContent=msg;e.style.display='block';
+  el.querySelectorAll('.facet').forEach(fc=>fc.addEventListener('click',()=>{el.style.outline='';el.style.outlineOffset='';e.style.display='none';},{once:true}));
+}
+function showTopErr(stepId,msg){
+  const card=document.querySelector('#s'+stepId+' .card');if(!card)return;
+  let e=document.getElementById('top_err_s'+stepId);
+  if(!e){e=document.createElement('div');e.id='top_err_s'+stepId;e.className='err-msg';e.style.cssText='font-size:12.5px;padding:8px 12px;background:#fff5f5;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:6px;margin-bottom:12px';card.insertBefore(e,card.firstChild);}
+  e.textContent=msg;e.style.display='block';
+  setTimeout(()=>{e.style.display='none';},8000);
+}
+function scrollToFirstErr(){
+  const el=document.querySelector('.req-error, .err-msg[style*="block"]');
+  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function validateStep(step){
+  let ok=true;
+  function ferr(fid,msg){ok=false;showFieldErr(fid,msg);}
+  function rerr(cid,msg){ok=false;showRatingErr(cid,msg);}
+  if(step===1){
+    if(!val('emp'))ferr('emp','Employee name is required');
+    if(!val('rev'))ferr('rev','Your name is required');
+    if(!val('desig'))ferr('desig','Designation is required');
+    if(!selectedFacets().length){ok=false;showFacetErr('Select at least one role area');}
+  }
+  else if(step===2){
+    if(!contributions.length){ok=false;showTopErr(2,'Add at least one contribution using the button below');}
+    contributions.forEach((c,i)=>{
+      const n=i+1,id=c.id;
+      if(!val('c'+id+'_title'))ferr('c'+id+'_title','Required');
+      const a=$('c'+id+'_area');if(!a||!a.value)ferr('c'+id+'_area','Role area is required');
+      if(c.self==null)rerr('c'+id+'_self','Self-rating required — pick 1–5');
+      if(!val('c'+id+'_context'))ferr('c'+id+'_context','Required');
+      if(!val('c'+id+'_problem'))ferr('c'+id+'_problem','Required');
+      if(!val('c'+id+'_create'))ferr('c'+id+'_create','Required');
+      if(!val('c'+id+'_adopt'))ferr('c'+id+'_adopt','Required');
+      if(!val('c'+id+'_changed'))ferr('c'+id+'_changed','Required');
+      if(!val('c'+id+'_value'))ferr('c'+id+'_value','Required');
+    });
+  }
+  else if(step===3){
+    if(!entries.team.length){ok=false;showTopErr(3,'Add at least one team contribution using the button below');}
+    entries.team.forEach((e,i)=>{
+      if(!val('e_team_'+e.id+'_text'))ferr('e_team_'+e.id+'_text','Required');
+      if(e.rating==null)rerr('e_team_'+e.id+'_rate','Rating required — pick 1–5');
+    });
+  }
+  else if(step===4){
+    if(!entries.org.length){ok=false;showTopErr(4,'Add at least one organisation contribution using the button below');}
+    entries.org.forEach((e,i)=>{
+      if(!val('e_org_'+e.id+'_text'))ferr('e_org_'+e.id+'_text','Required');
+      if(e.rating==null)rerr('e_org_'+e.id+'_rate','Rating required — pick 1–5');
+    });
+  }
+  else if(step===5){
+    CULT.items.forEach(([k,label])=>{
+      if(bItems.culture[k]==null){
+        ok=false;
+        const sel=$('b_culture_'+k);
+        if(sel){sel.classList.add('req-error');showFieldErr('b_culture_'+k,'Rating required');}
+      }
+    });
+  }
+  return ok;
+}
+function gotoWithValidation(from,to){
+  if(!validateStep(from)){scrollToFirstErr();return;}
+  saveDraft();
+  goto(to);
+  const bar=$('draftbar');
+  if(bar){
+    const prev=bar.innerHTML;
+    bar.innerHTML='<span style="color:#16a34a;font-weight:600">✅ Progress saved</span>';
+    bar.classList.add('show');
+    setTimeout(()=>{bar.innerHTML=prev;},2500);
+  }
+}
+</script>
+</body>
+</html>

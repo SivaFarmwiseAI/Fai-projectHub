@@ -17,7 +17,14 @@ export type MenuItemConfig = {
   locked?: boolean;
 };
 
-export const SECTION_ORDER = ["Overview", "Projects", "Work", "Team", "AI", "Settings"] as const;
+export const SECTION_ORDER = [
+  "Overview",
+  "Projects",
+  "Work",
+  "Team",
+  "AI",
+  "Settings",
+] as const;
 
 export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
   // ── Overview ─────────────────────────────────────────────────────────
@@ -172,6 +179,14 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     section: "Team",
     defaultRoles: ["Admin", "CEO", "Team Lead"],
     allowedRoles: ["Admin", "CEO", "Team Lead"],
+  },
+  {
+    key: "performance-assessment",
+    label: "Performance Assessment",
+    href: "/performance-assessment",
+    section: "Team",
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
   },
 
   // ── AI ───────────────────────────────────────────────────────────────
