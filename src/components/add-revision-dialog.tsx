@@ -239,7 +239,9 @@ export function AddRevisionDialog({
                 onValueChange={(v) => setChangeType(v as RevisionChangeType)}
               >
                 <SelectTrigger id="change_type">
-                  <SelectValue />
+                  <SelectValue>
+                    {CHANGE_TYPES.find((t) => t.value === changeType)?.label ?? changeType}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {CHANGE_TYPES.map((t) => (

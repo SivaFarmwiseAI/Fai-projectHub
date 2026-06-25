@@ -160,9 +160,12 @@ export function Sidebar() {
   /* Shared nav item renderer */
   function NavItem({ item }: { item: MenuItemConfig }) {
     const IconComponent = ITEM_ICONS[item.key] ?? LayoutDashboard;
+    const exactMatchExists = visibleItems.some(
+      (other) => other.href !== item.href && pathname === other.href
+    );
     const isActive =
       pathname === item.href ||
-      (item.href !== "/" && pathname.startsWith(item.href));
+      (!exactMatchExists && item.href !== "/" && pathname.startsWith(item.href + "/"));
     const count = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
 
     const iconEl = (

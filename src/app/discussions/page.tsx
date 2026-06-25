@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { discussions as discussionsApi, projects as projectsApi } from "@/lib/api-client";
-import type { Discussion, Project } from "@/lib/api-client";
+import type { Discussion, DiscussionMessage, Project } from "@/lib/api-client";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import { EditDiscussionDialog } from "@/components/edit-discussion-dialog";
 import { showToast } from "@/lib/toast";
@@ -23,14 +23,12 @@ const ThreadCard = memo(function ThreadCard({
   expandedId,
   setExpandedId,
   userInitials,
-  onReply,
+  onAfterReply,
   onResolve,
   onDelete,
   onEdit,
   canEdit,
   canDelete,
-  submittingReply,
-  sentReplies
 }: {
   thread: Discussion;
   index?: number;
@@ -38,24 +36,48 @@ const ThreadCard = memo(function ThreadCard({
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
   userInitials: string;
-  onReply: (id: string, text: string) => Promise<void>;
+  onAfterReply: (id: string) => void;
   onResolve: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onEdit: () => void;
   canEdit: boolean;
   canDelete: boolean;
-  submittingReply: string | null;
-  sentReplies: Set<string>;
 }) {
   const isExpanded = expandedId === thread.id;
   const project = thread.project_id ? projectList.find(p => p.id === thread.project_id) : null;
-  const replySent = sentReplies.has(thread.id);
   const [replyText, setReplyText] = useState("");
+  const [messages, setMessages] = useState<DiscussionMessage[]>(thread.messages ?? []);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
+
+  const fetchMessages = async () => {
+    setLoadingMsgs(true);
+    try {
+      const { discussion } = await discussionsApi.get(thread.id);
+      setMessages(discussion.messages ?? []);
+    } catch {}
+    finally {
+      setLoadingMsgs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isExpanded) fetchMessages();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, thread.id]);
 
   const handleReplySubmit = async () => {
-    if (!replyText.trim()) return;
-    await onReply(thread.id, replyText);
+    if (!replyText.trim() || sendingReply) return;
+    const text = replyText;
     setReplyText("");
+    setSendingReply(true);
+    try {
+      await discussionsApi.addMsg(thread.id, text);
+      await fetchMessages();
+      onAfterReply(thread.id);
+    } finally {
+      setSendingReply(false);
+    }
   };
 
   return (
@@ -63,7 +85,6 @@ const ThreadCard = memo(function ThreadCard({
       className={cn(
         "bg-white rounded-2xl border shadow-card overflow-hidden transition-all",
         thread.is_resolved && "opacity-70",
-        // Only animate on initial appearance if possible, but keeping it simple for now
         "animate-fade-in-up"
       )}
       style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${index * 40}ms` }}
@@ -118,7 +139,7 @@ const ThreadCard = memo(function ThreadCard({
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-1 text-slate-400">
               <MessageSquare className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold">{thread.message_count ?? 0}</span>
+              <span className="text-xs font-semibold">{messages.length > 0 ? messages.length : (thread.message_count ?? 0)}</span>
             </div>
             {canEdit && (
               <button
@@ -149,22 +170,37 @@ const ThreadCard = memo(function ThreadCard({
 
         {isExpanded && (
           <div className="mt-4 space-y-4 animate-fade-in-up">
+            {/* Divider */}
+            <div className="border-t border-gray-100" />
+
             {/* Messages */}
-            {thread.messages && thread.messages.length > 0 && (
-              <div className="space-y-3">
-                {thread.messages.map((msg, i) => (
+            {loadingMsgs ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              </div>
+            ) : messages.length === 0 ? (
+              <p className="text-xs text-center text-slate-400 py-3">No replies yet. Be the first to reply.</p>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg, i) => (
                   <div key={msg.id} className="flex gap-3 animate-fade-in-up" style={{ animationDelay: `${i * 30}ms` }}>
-                    <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-0.5 bg-blue-500">
-                      {(msg.author_name ?? "?")[0]}
+                    <div
+                      className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-0.5"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                    >
+                      {(msg.author_name ?? "?")[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-xs font-bold text-slate-800">{msg.author_name ?? msg.author_id}</span>
                         <span className="text-[10px] text-slate-400">
                           {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
                         </span>
                       </div>
-                      <div className="p-3 rounded-xl text-sm text-slate-700 leading-relaxed" style={{ background: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.08)" }}>
+                      <div
+                        className="px-3.5 py-2.5 rounded-xl text-sm text-slate-700 leading-relaxed"
+                        style={{ background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.1)" }}
+                      >
                         {msg.content}
                       </div>
                     </div>
@@ -175,48 +211,45 @@ const ThreadCard = memo(function ThreadCard({
 
             {/* Reply input */}
             {!thread.is_resolved && (
-              replySent ? (
-                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <p className="text-sm font-medium text-emerald-700">Reply posted!</p>
+              <div className="flex gap-3 pt-1">
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-1"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                >
+                  {userInitials}
                 </div>
-              ) : (
-                <div className="flex gap-3">
-                  <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 mt-1.5 bg-blue-500">
-                    {userInitials}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <textarea
-                      value={replyText}
-                      onChange={e => setReplyText(e.target.value)}
-                      placeholder="Write a reply…"
-                      rows={2}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-none transition-colors focus:bg-white"
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleReplySubmit}
-                        disabled={submittingReply === thread.id || !replyText.trim()}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {submittingReply === thread.id ? (
-                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                        ) : (
-                          <Send className="h-3.5 w-3.5" />
-                        )}
-                        Reply
-                      </button>
-                      <button
-                        onClick={() => onResolve(thread.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Resolve
-                      </button>
-                    </div>
+                <div className="flex-1 space-y-2">
+                  <textarea
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleReplySubmit(); }}
+                    placeholder="Write a reply… (Ctrl+Enter to send)"
+                    rows={2}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-none transition-colors focus:bg-white focus:border-indigo-300"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleReplySubmit}
+                      disabled={sendingReply || !replyText.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {sendingReply ? (
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      Reply
+                    </button>
+                    <button
+                      onClick={() => onResolve(thread.id)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Resolve
+                    </button>
                   </div>
                 </div>
-              )
+              </div>
             )}
           </div>
         )}
@@ -237,8 +270,6 @@ export default function DiscussionsPage() {
   const [showResolved, setShowResolved] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [submittingReply, setSubmittingReply] = useState<string | null>(null);
-  const [sentReplies, setSentReplies] = useState<Set<string>>(new Set());
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Discussion | null>(null);
 
@@ -279,15 +310,8 @@ export default function DiscussionsPage() {
     return threadList.filter(d => !d.is_resolved).length;
   }, [threadList]);
 
-  async function handleReply(threadId: string, text: string) {
-    setSubmittingReply(threadId);
-    try {
-      await discussionsApi.addMsg(threadId, text);
-      setSentReplies(prev => new Set(prev).add(threadId));
-      refreshDiscussions();
-    } finally {
-      setSubmittingReply(null);
-    }
+  function handleAfterReply(_id: string) {
+    refreshDiscussions();
   }
 
   async function handleResolve(id: string) {
@@ -413,14 +437,12 @@ export default function DiscussionsPage() {
               expandedId={expandedId}
               setExpandedId={setExpandedId}
               userInitials={user?.initials ?? "?"}
-              onReply={handleReply}
+              onAfterReply={handleAfterReply}
               onResolve={handleResolve}
               onDelete={handleDelete}
               onEdit={() => setEditTarget(thread)}
               canEdit={thread.author_id === user?.id || isCEO || isAdmin}
               canDelete={thread.author_id === user?.id || isCEO || isAdmin}
-              submittingReply={submittingReply}
-              sentReplies={sentReplies}
             />
           ))
         )}

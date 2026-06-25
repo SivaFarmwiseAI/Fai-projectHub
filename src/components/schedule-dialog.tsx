@@ -172,9 +172,13 @@ function LeaveForm({
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">Type <span className="text-red-500">*</span></Label>
           <Select value={type} onValueChange={v => v && setType(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {({ planned: "Planned", sick: "Sick", personal: "Personal", wfh: "Work from Home", half_day: "Half Day" } as Record<string, string>)[type] ?? type}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="planned">Planned</SelectItem>
               <SelectItem value="sick">Sick</SelectItem>
@@ -185,21 +189,23 @@ function LeaveForm({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Start</Label>
+          <Label className="text-xs">Start <span className="text-red-500">*</span></Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
+            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
         <div>
-          <Label className="text-xs">End</Label>
+          <Label className="text-xs">End <span className="text-red-500">*</span></Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={endDate}
             onChange={e => setEndDate(e.target.value)}
+            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
       </div>
@@ -219,7 +225,9 @@ function LeaveForm({
           <Label className="text-xs">Cover Person</Label>
           <Select value={coverPerson} onValueChange={v => setCoverPerson(v ?? "")}>
             <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="Optional" />
+              <SelectValue placeholder="Optional">
+                {coverPerson ? (users.find(u => u.id === coverPerson)?.name ?? "Optional") : "Optional"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {users.map(u => (
@@ -302,7 +310,7 @@ function ReviewForm({
   return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Title</Label>
+        <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
         <Input
           className="h-9 text-sm mt-1"
           placeholder="What needs reviewing?"
@@ -323,9 +331,13 @@ function ReviewForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">Type <span className="text-red-500">*</span></Label>
           <Select value={type} onValueChange={v => v && setType(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {({ document: "Document", code: "Code", architecture: "Architecture", design: "Design", notebook: "Notebook", demo: "Demo" } as Record<string, string>)[type] ?? type}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="document">Document</SelectItem>
               <SelectItem value="code">Code</SelectItem>
@@ -337,9 +349,13 @@ function ReviewForm({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Priority</Label>
+          <Label className="text-xs">Priority <span className="text-red-500">*</span></Label>
           <Select value={priority} onValueChange={v => v && setPriority(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {({ low: "Low", medium: "Medium", high: "High" } as Record<string, string>)[priority] ?? priority}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
@@ -351,9 +367,10 @@ function ReviewForm({
           <Label className="text-xs">Due Date</Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={dueDate}
             onChange={e => setDueDate(e.target.value)}
+            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
       </div>
@@ -363,7 +380,9 @@ function ReviewForm({
           <Label className="text-xs">Assignee</Label>
           <Select value={assigneeId} onValueChange={v => setAssigneeId(v ?? "")}>
             <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="Pick a reviewer" />
+              <SelectValue placeholder="Pick a reviewer">
+                {assigneeId ? (users.find(u => u.id === assigneeId)?.name ?? "Pick a reviewer") : "Pick a reviewer"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {users.map(u => (
@@ -378,7 +397,9 @@ function ReviewForm({
           <Label className="text-xs">Project (optional)</Label>
           <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
             <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="No project" />
+              <SelectValue placeholder="No project">
+                {projectId ? (projects.find(p => p.id === projectId)?.title ?? "No project") : "No project"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {projects.map(p => (
@@ -449,7 +470,7 @@ function DiscussionForm({
   return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Title</Label>
+        <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
         <Input
           className="h-9 text-sm mt-1"
           placeholder="What do we need to discuss?"
@@ -462,7 +483,9 @@ function DiscussionForm({
         <Label className="text-xs">Project (optional)</Label>
         <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
           <SelectTrigger className="h-9 text-sm mt-1">
-            <SelectValue placeholder="General" />
+            <SelectValue placeholder="General">
+              {projectId ? (projects.find(p => p.id === projectId)?.title ?? "General") : "General"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {projects.map(p => (
@@ -477,19 +500,21 @@ function DiscussionForm({
           <Label className="text-xs">Scheduled Date (optional)</Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
+            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
         <div>
           <Label className="text-xs">Time</Label>
           <Input
             type="time"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={scheduledTime}
             onChange={e => setScheduledTime(e.target.value)}
             disabled={!scheduledDate}
+            onClick={e => !scheduledDate ? undefined : (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
       </div>

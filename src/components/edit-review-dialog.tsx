@@ -105,7 +105,7 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
 
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Title</Label>
+            <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
             <Input
               className="h-9 text-sm mt-1"
               value={title}
@@ -126,7 +126,11 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
             <div>
               <Label className="text-xs">Type</Label>
               <Select value={type} onValueChange={v => v && setType(v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue>
+                    {({ document: "Document", code: "Code", architecture: "Architecture", design: "Design", notebook: "Notebook", demo: "Demo" } as Record<string, string>)[type] ?? type}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="document">Document</SelectItem>
                   <SelectItem value="code">Code</SelectItem>
@@ -140,7 +144,11 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
             <div>
               <Label className="text-xs">Priority</Label>
               <Select value={priority} onValueChange={v => v && setPriority(v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue>
+                    {({ low: "Low", medium: "Medium", high: "High" } as Record<string, string>)[priority] ?? priority}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
@@ -151,7 +159,11 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
             <div>
               <Label className="text-xs">Status</Label>
               <Select value={status} onValueChange={v => v && setStatus(v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue>
+                    {({ pending: "Pending", in_progress: "In Progress", completed: "Completed", rejected: "Rejected" } as Record<string, string>)[status] ?? status}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
@@ -167,7 +179,9 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
               <Label className="text-xs">Assignee</Label>
               <Select value={assigneeId} onValueChange={v => setAssigneeId(v ?? "")}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Unassigned" />
+                  <SelectValue placeholder="Unassigned">
+                    {assigneeId ? (users.find(u => u.id === assigneeId)?.name ?? "Unassigned") : "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {users.map(u => (
@@ -180,7 +194,9 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
               <Label className="text-xs">Project</Label>
               <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="No project" />
+                  <SelectValue placeholder="No project">
+                    {projectId ? (projects.find(p => p.id === projectId)?.title ?? "No project") : "No project"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map(p => (
@@ -193,9 +209,10 @@ export function EditReviewDialog({ open, onOpenChange, review, onSaved }: Props)
               <Label className="text-xs">Due Date</Label>
               <Input
                 type="date"
-                className="h-9 text-sm mt-1"
+                className="h-9 text-sm mt-1 cursor-pointer"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
+                onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
               />
             </div>
           </div>

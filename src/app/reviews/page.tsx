@@ -9,6 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ClipboardCheck, Code, FileText, BookOpen, Presentation,
   MessageSquare, Users, Sparkles, Loader2, Send,
   ArrowRight, CheckCircle2, Clock, Pencil, Trash2, Eye,
@@ -61,6 +67,7 @@ export default function ReviewsPage() {
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[]>([]);
   const [editTarget, setEditTarget] = useState<ReviewTask | null>(null);
   const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
+  const [viewingReview, setViewingReview] = useState<ReviewTask | null>(null);
 
   async function loadReviewData() {
     await Promise.all([
@@ -88,12 +95,13 @@ export default function ReviewsPage() {
   }
 
   async function handleViewReview(rev: ReviewTask) {
-    setExpandedReviewId(prev => (prev === rev.id ? null : rev.id));
+    setViewingReview(rev);
     try {
       const { review } = await reviewsApi.get(rev.id);
+      setViewingReview(review);
       setReviewTasks(prev => prev.map(r => (r.id === rev.id ? review : r)));
     } catch {
-      // best-effort refresh
+      // best-effort
     }
   }
 
@@ -123,6 +131,15 @@ export default function ReviewsPage() {
     () => applyFiltersAndSort(allSubmissions),
     [allSubmissions, filterProject, filterType, sortDirection]
   );
+  const filteredReviewTasks = useMemo(() => {
+    let result = reviewTasks;
+    if (filterProject !== "all") result = result.filter(r => r.project_id === filterProject);
+    if (filterType !== "all") result = result.filter(r => r.type === filterType);
+    return [...result].sort((a, b) => {
+      const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return sortDirection === "newest" ? diff : -diff;
+    });
+  }, [reviewTasks, filterProject, filterType, sortDirection]);
 
   async function handleAiReview(subId: string, type: string) {
     setAiLoading(prev => ({ ...prev, [subId]: true }));
@@ -338,9 +355,9 @@ export default function ReviewsPage() {
           <TabsTrigger value="all">All Submissions</TabsTrigger>
           <TabsTrigger value="tasks">
             Review Tasks
-            {reviewTasks.length > 0 && (
+            {filteredReviewTasks.length > 0 && (
               <span className="ml-1.5 flex items-center justify-center h-5 min-w-[20px] rounded-full bg-blue-500 text-[10px] font-bold text-white px-1.5">
-                {reviewTasks.length}
+                {filteredReviewTasks.length}
               </span>
             )}
           </TabsTrigger>
@@ -360,14 +377,14 @@ export default function ReviewsPage() {
           {allFiltered.map(s => renderCard(s, false))}
         </TabsContent>
         <TabsContent value="tasks" className="mt-4 space-y-3">
-          {reviewTasks.length === 0 ? (
+          {filteredReviewTasks.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ClipboardCheck className="h-8 w-8 mx-auto mb-2 text-blue-400" />
-              <p className="text-sm">No review tasks yet.</p>
-              <p className="text-xs mt-1">Click <span className="font-semibold">Schedule Review</span> above to add one.</p>
+              <p className="text-sm">{reviewTasks.length === 0 ? "No review tasks yet." : "No review tasks match the current filters."}</p>
+              {reviewTasks.length === 0 && <p className="text-xs mt-1">Click <span className="font-semibold">Schedule Review</span> above to add one.</p>}
             </div>
           ) : (
-            reviewTasks.map(rt => (
+            filteredReviewTasks.map(rt => (
               <ReviewTaskCard
                 key={rt.id}
                 review={rt}
@@ -386,6 +403,11 @@ export default function ReviewsPage() {
         onOpenChange={(o) => { if (!o) setEditTarget(null); }}
         review={editTarget}
         onSaved={handleReviewSaved}
+      />
+
+      <ViewReviewDialog
+        review={viewingReview}
+        onOpenChange={(o) => { if (!o) setViewingReview(null); }}
       />
     </div>
   );
@@ -459,22 +481,126 @@ function ReviewTaskCard({
           </div>
         </div>
 
-        {expanded && (
-          <div className="pl-7 space-y-2 border-t pt-3">
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ───────── View Review Dialog ───────── */
+function ViewReviewDialog({
+  review,
+  onOpenChange,
+}: {
+  review: ReviewTask | null;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const statusColors: Record<string, string> = {
+    pending:     "text-amber-700 border-amber-200 bg-amber-50",
+    in_progress: "text-blue-700 border-blue-200 bg-blue-50",
+    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50",
+    rejected:    "text-red-700 border-red-200 bg-red-50",
+  };
+  const priorityColors: Record<string, string> = {
+    high:   "text-red-700 border-red-200 bg-red-50",
+    medium: "text-amber-700 border-amber-200 bg-amber-50",
+    low:    "text-slate-700 border-slate-200 bg-slate-50",
+  };
+
+  return (
+    <Dialog open={!!review} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[540px]">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-blue-600" />
+            Review Details
+          </DialogTitle>
+        </DialogHeader>
+
+        {review && (() => {
+          const statusLabels: Record<string, string> = {
+            pending: "Pending", in_progress: "In Progress",
+            completed: "Completed", rejected: "Rejected",
+          };
+          const priorityLabels: Record<string, string> = {
+            high: "High", medium: "Medium", low: "Low",
+          };
+          const typeLabels: Record<string, string> = {
+            code: "Code", architecture: "Architecture", notebook: "Notebook",
+            document: "Document", demo: "Demo", design: "Design",
+          };
+          return (
+          <div className="space-y-4 text-sm">
+            {/* Title */}
+            <p className="font-semibold text-base text-slate-900">{review.title}</p>
+
+            {/* Badges row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={statusColors[review.status] ?? ""}>
+                {statusLabels[review.status] ?? review.status}
+              </Badge>
+              <Badge variant="outline" className={priorityColors[review.priority] ?? ""}>
+                {priorityLabels[review.priority] ?? review.priority}
+              </Badge>
+              <Badge variant="outline">
+                {typeLabels[review.type] ?? review.type}
+              </Badge>
+            </div>
+
+            {/* Meta grid */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 text-xs border rounded-lg p-3 bg-gray-50">
+              {review.assignee_name && (
+                <div>
+                  <p className="text-muted-foreground mb-0.5">Assigned To</p>
+                  <p className="font-medium text-slate-800">{review.assignee_name}</p>
+                </div>
+              )}
+              {review.requester_name && (
+                <div>
+                  <p className="text-muted-foreground mb-0.5">Requested By</p>
+                  <p className="font-medium text-slate-800">{review.requester_name}</p>
+                </div>
+              )}
+              {review.project_title && (
+                <div className="col-span-2">
+                  <p className="text-muted-foreground mb-0.5">Project</p>
+                  <p className="font-medium text-slate-800">{review.project_title}</p>
+                </div>
+              )}
+              {review.due_date && (
+                <div>
+                  <p className="text-muted-foreground mb-0.5">Due Date</p>
+                  <p className="font-medium text-amber-700">{format(new Date(review.due_date), "MMM d, yyyy")}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-muted-foreground mb-0.5">Created</p>
+                <p className="font-medium text-slate-800">{format(new Date(review.created_at), "MMM d, yyyy")}</p>
+              </div>
+            </div>
+
+            {/* Description */}
             {review.description ? (
-              <p className="text-sm text-muted-foreground whitespace-pre-line">{review.description}</p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
+                <p className="text-slate-700 whitespace-pre-line leading-relaxed">{review.description}</p>
+              </div>
             ) : (
-              <p className="text-xs italic text-muted-foreground">No description.</p>
+              <p className="text-xs italic text-muted-foreground">No description provided.</p>
             )}
+
+            {/* Feedback */}
             {review.feedback_text && (
-              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-[10px] font-semibold uppercase text-blue-600 mb-1">Feedback</p>
-                <p className="text-sm whitespace-pre-line">{review.feedback_text}</p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Feedback</p>
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="text-slate-700 whitespace-pre-line leading-relaxed">{review.feedback_text}</p>
+                </div>
               </div>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
   );
 }

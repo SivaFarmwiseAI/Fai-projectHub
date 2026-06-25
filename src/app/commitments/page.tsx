@@ -148,7 +148,11 @@ export default function CommitmentsPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filterStatus} onValueChange={v => setFilterStatus(v ?? "all")}>
-          <SelectTrigger className="h-8 text-xs w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-40">
+            <SelectValue>
+              {({ all: "All Statuses", pending: "Pending", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" } as Record<string, string>)[filterStatus] ?? filterStatus}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
@@ -158,7 +162,11 @@ export default function CommitmentsPage() {
           </SelectContent>
         </Select>
         <Select value={filterPriority} onValueChange={v => setFilterPriority(v ?? "all")}>
-          <SelectTrigger className="h-8 text-xs w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-40">
+            <SelectValue>
+              {({ all: "All Priorities", high: "High", medium: "Medium", low: "Low" } as Record<string, string>)[filterPriority] ?? filterPriority}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priorities</SelectItem>
             <SelectItem value="high">High</SelectItem>
@@ -372,7 +380,7 @@ function CommitmentFormDialog({
 
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Title</Label>
+            <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
             <Input
               className="h-9 text-sm mt-1"
               value={title}
@@ -396,18 +404,20 @@ function CommitmentFormDialog({
               <Label className="text-xs">From Date</Label>
               <Input
                 type="date"
-                className="h-9 text-sm mt-1"
+                className="h-9 text-sm mt-1 cursor-pointer"
                 value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
+                onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
               />
             </div>
             <div>
               <Label className="text-xs">To Date</Label>
               <Input
                 type="date"
-                className="h-9 text-sm mt-1"
+                className="h-9 text-sm mt-1 cursor-pointer"
                 value={toDate}
                 onChange={e => setToDate(e.target.value)}
+                onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
               />
             </div>
           </div>
@@ -416,7 +426,11 @@ function CommitmentFormDialog({
             <div>
               <Label className="text-xs">Priority</Label>
               <Select value={priority} onValueChange={v => v && setPriority(v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue>
+                    {({ low: "Low", medium: "Medium", high: "High" } as Record<string, string>)[priority] ?? priority}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
@@ -427,7 +441,11 @@ function CommitmentFormDialog({
             <div>
               <Label className="text-xs">Status</Label>
               <Select value={status} onValueChange={v => v && setStatus(v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue>
+                    {({ pending: "Pending", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" } as Record<string, string>)[status] ?? status}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
@@ -443,7 +461,9 @@ function CommitmentFormDialog({
               <Label className="text-xs">Assignee</Label>
               <Select value={assigneeId} onValueChange={v => setAssigneeId(v ?? "")}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="Unassigned" />
+                  <SelectValue placeholder="Unassigned">
+                    {assigneeId ? (users.find(u => u.id === assigneeId)?.name ?? "Unassigned") : "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {users.map(u => (
@@ -456,7 +476,9 @@ function CommitmentFormDialog({
               <Label className="text-xs">Project</Label>
               <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
                 <SelectTrigger className="h-9 text-sm mt-1">
-                  <SelectValue placeholder="No project" />
+                  <SelectValue placeholder="No project">
+                    {projectId ? (projects.find(p => p.id === projectId)?.title ?? "No project") : "No project"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map(p => (

@@ -49,6 +49,7 @@ import {
   uploads as uploadsApi,
   ai as aiApi,
   users as usersApi,
+  auth as authApi,
   ApiError,
   type User,
   type AiPlan,
@@ -142,13 +143,34 @@ export default function NewProjectPage() {
 
   const [defineTab, setDefineTab] = useState("basics");
   const [userList, setUserList] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [tabErrors, setTabErrors] = useState<Record<string, string>>({});
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   useEffect(() => {
-    usersApi.list().then(r => setUserList(r.users)).catch(() => {});
+    Promise.all([
+      usersApi.list(),
+      authApi.me().catch(() => ({ user: null })),
+    ]).then(([usersRes, meRes]) => {
+      const me = meRes.user as User | null;
+      setCurrentUser(me);
+      // Only Team Lead and CEO can appear in the assignee list
+      const eligible = usersRes.users.filter(
+        u => u.role_type === "Team Lead" || u.role_type === "CEO"
+      );
+      setUserList(eligible);
+      // If current user is a Team Lead, auto-select them
+      if (me && me.role_type === "Team Lead") {
+        setSelectedMembers([me.id]);
+      }
+    }).catch(() => {});
   }, []);
 
   const toggleMember = (id: string) => {
+    // Team Lead's own entry cannot be deselected
+    if (currentUser?.role_type === "Team Lead" && id === currentUser.id) return;
     setSelectedMembers(prev =>
       prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
     );
@@ -337,7 +359,16 @@ export default function NewProjectPage() {
   };
 
   const filledCriteria = successCriteria.filter(s => s.trim() !== "").length;
-  const canProceedToGenerate = title.trim() !== "" && objective.trim() !== "" && selectedMembers.length > 0 && filledCriteria > 0;
+  const canProceedToGenerate =
+    title.trim() !== "" &&
+    objective.trim() !== "" &&
+    scope.trim() !== "" &&
+    outcomeType !== "" &&
+    filledCriteria > 0 &&
+    endCriteria.trim() !== "" &&
+    startDateTime !== "" &&
+    endDateTime !== "" &&
+    selectedMembers.length > 0;
 
   const severityColors: Record<string, string> = {
     high:   "text-red-700 border-red-200 bg-red-50",
@@ -508,15 +539,16 @@ export default function NewProjectPage() {
                 {/* Tab 1: Basics */}
                 <TabsContent value="basics" className="space-y-5 mt-0">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Project Title *</Label>
+                    <Label htmlFor="title">Project Title<span className="text-red-500">*</span></Label>
                     <Input
                       id="title"
                       placeholder="e.g., Customer Churn Prediction Platform"
                       value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      className={extracted && title ? "border-emerald-200 bg-emerald-50/30" : ""}
+                      onChange={e => { setTitle(e.target.value); if (tabErrors.title) setTabErrors(p => ({ ...p, title: "" })); }}
+                      className={tabErrors.title ? "border-red-400 focus-visible:ring-red-300" : extracted && title ? "border-emerald-200 bg-emerald-50/30" : ""}
                     />
-                    {extracted && title && (
+                    {tabErrors.title && <p className="text-xs text-red-500">{tabErrors.title}</p>}
+                    {!tabErrors.title && extracted && title && (
                       <p className="text-[10px] text-emerald-600 flex items-center gap-1">
                         <Sparkles className="h-2.5 w-2.5" /> Auto-filled from document
                       </p>
@@ -524,9 +556,13 @@ export default function NewProjectPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Type</Label>
+                      <Label>Type<span className="text-red-500">*</span></Label>
                       <Select value={type} onValueChange={v => v && setType(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {({ engineering: "Engineering", research: "Research / DS", mixed: "Mixed (Eng + Research)" } as Record<string, string>)[type] ?? type}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="engineering">Engineering</SelectItem>
                           <SelectItem value="research">Research / DS</SelectItem>
@@ -535,9 +571,13 @@ export default function NewProjectPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Priority</Label>
+                      <Label>Priority<span className="text-red-500">*</span></Label>
                       <Select value={priority} onValueChange={v => v && setPriority(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue>
+                            {({ low: "Low", medium: "Medium", high: "High", critical: "Critical" } as Record<string, string>)[priority] ?? priority}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="low">Low</SelectItem>
                           <SelectItem value="medium">Medium</SelectItem>
@@ -548,7 +588,12 @@ export default function NewProjectPage() {
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDefineTab("scope")}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                      const errs: Record<string, string> = {};
+                      if (!title.trim()) errs.title = "Please enter Project Title";
+                      setTabErrors(errs);
+                      if (Object.keys(errs).length === 0) setDefineTab("scope");
+                    }}>
                       Next: Scope & Objective <ArrowRight className="h-3 w-3" />
                     </Button>
                   </div>
@@ -558,35 +603,37 @@ export default function NewProjectPage() {
                 <TabsContent value="scope" className="space-y-5 mt-0">
                   <div className="space-y-2">
                     <Label htmlFor="objective">
-                      Project Objective *
+                      Project Objective<span className="text-red-500">*</span>
                       <span className="text-xs text-muted-foreground font-normal ml-2">What are we trying to achieve?</span>
                     </Label>
                     <Textarea
                       id="objective"
                       placeholder="Describe the core goal — what problem does this solve, and for whom?"
                       value={objective}
-                      onChange={e => setObjective(e.target.value)}
+                      onChange={e => { setObjective(e.target.value); if (tabErrors.objective) setTabErrors(p => ({ ...p, objective: "" })); }}
                       rows={4}
-                      className={extracted && objective ? "border-emerald-200 bg-emerald-50/30" : ""}
+                      className={tabErrors.objective ? "border-red-400" : extracted && objective ? "border-emerald-200 bg-emerald-50/30" : ""}
                     />
-                    {extracted && objective && (
+                    {tabErrors.objective && <p className="text-xs text-red-500">{tabErrors.objective}</p>}
+                    {!tabErrors.objective && extracted && objective && (
                       <p className="text-[10px] text-emerald-600 flex items-center gap-1"><Sparkles className="h-2.5 w-2.5" /> Auto-filled</p>
                     )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="scope">
-                      Scope
+                      Scope<span className="text-red-500">*</span>
                       <span className="text-xs text-muted-foreground font-normal ml-2">What&apos;s in and what&apos;s out?</span>
                     </Label>
                     <Textarea
                       id="scope"
                       placeholder="Define boundaries — what's included and what's explicitly out of scope..."
                       value={scope}
-                      onChange={e => setScope(e.target.value)}
+                      onChange={e => { setScope(e.target.value); if (tabErrors.scope) setTabErrors(p => ({ ...p, scope: "" })); }}
                       rows={4}
-                      className={extracted && scope ? "border-emerald-200 bg-emerald-50/30" : ""}
+                      className={tabErrors.scope ? "border-red-400" : extracted && scope ? "border-emerald-200 bg-emerald-50/30" : ""}
                     />
-                    {extracted && scope && (
+                    {tabErrors.scope && <p className="text-xs text-red-500">{tabErrors.scope}</p>}
+                    {!tabErrors.scope && extracted && scope && (
                       <p className="text-[10px] text-emerald-600 flex items-center gap-1"><Sparkles className="h-2.5 w-2.5" /> Auto-filled</p>
                     )}
                   </div>
@@ -621,7 +668,13 @@ export default function NewProjectPage() {
                     <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setDefineTab("basics")}>
                       <ArrowLeft className="h-3 w-3" /> Back
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDefineTab("outcome")}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                      const errs: Record<string, string> = {};
+                      if (!objective.trim()) errs.objective = "Please enter Project Objective";
+                      if (!scope.trim()) errs.scope = "Please enter Scope";
+                      setTabErrors(errs);
+                      if (Object.keys(errs).length === 0) setDefineTab("outcome");
+                    }}>
                       Next: Outcome & Criteria <ArrowRight className="h-3 w-3" />
                     </Button>
                   </div>
@@ -631,7 +684,7 @@ export default function NewProjectPage() {
                 <TabsContent value="outcome" className="space-y-5 mt-0">
                   <div className="space-y-3">
                     <Label>
-                      Project Outcome Type *
+                      Project Outcome Type<span className="text-red-500">*</span>
                       <span className="text-xs text-muted-foreground font-normal ml-2">What kind of project is this?</span>
                     </Label>
                     <div className="grid grid-cols-3 gap-2">
@@ -641,9 +694,11 @@ export default function NewProjectPage() {
                           className={`p-3 rounded-lg border cursor-pointer transition-all text-center ${
                             outcomeType === ot.value
                               ? "border-blue-300 bg-blue-50 ring-1 ring-blue-200"
+                              : tabErrors.outcomeType
+                              ? "border-red-200 hover:border-red-300 hover:bg-red-50/30"
                               : "border-border hover:border-gray-300 hover:bg-gray-50"
                           }`}
-                          onClick={() => setOutcomeType(ot.value)}
+                          onClick={() => { setOutcomeType(ot.value); if (tabErrors.outcomeType) setTabErrors(p => ({ ...p, outcomeType: "" })); }}
                         >
                           <span className="text-lg">{ot.icon}</span>
                           <p className="text-xs font-medium mt-1">{ot.label}</p>
@@ -651,7 +706,8 @@ export default function NewProjectPage() {
                         </div>
                       ))}
                     </div>
-                    {extracted && outcomeType && (
+                    {tabErrors.outcomeType && <p className="text-xs text-red-500">{tabErrors.outcomeType}</p>}
+                    {!tabErrors.outcomeType && extracted && outcomeType && (
                       <p className="text-[10px] text-emerald-600 flex items-center gap-1"><Sparkles className="h-2.5 w-2.5" /> Auto-detected</p>
                     )}
                   </div>
@@ -659,7 +715,7 @@ export default function NewProjectPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <Label>
-                        Success Criteria *
+                        Success Criteria<span className="text-red-500">*</span>
                         <span className="text-xs text-muted-foreground font-normal ml-2">How do we measure success?</span>
                       </Label>
                       <Badge variant="outline" className="text-[10px]">{filledCriteria} defined</Badge>
@@ -671,7 +727,7 @@ export default function NewProjectPage() {
                           <Input
                             placeholder={`Criterion ${i + 1} — e.g., "Model precision >80%"`}
                             value={sc}
-                            onChange={e => updateSuccessCriteria(i, e.target.value)}
+                            onChange={e => { updateSuccessCriteria(i, e.target.value); if (tabErrors.successCriteria) setTabErrors(p => ({ ...p, successCriteria: "" })); }}
                             className={`flex-1 text-sm ${extracted && sc ? "border-emerald-200 bg-emerald-50/30" : ""}`}
                           />
                           {successCriteria.length > 1 && (
@@ -685,22 +741,24 @@ export default function NewProjectPage() {
                         <Plus className="h-3 w-3" /> Add Criterion
                       </Button>
                     </div>
+                    {tabErrors.successCriteria && <p className="text-xs text-red-500">{tabErrors.successCriteria}</p>}
                   </div>
                   <Separator />
                   <div className="space-y-2">
                     <Label htmlFor="endCriteria">
-                      Project Completion Definition *
+                      Project Completion Definition<span className="text-red-500">*</span>
                       <span className="text-xs text-muted-foreground font-normal ml-2">When is this project &quot;done&quot;?</span>
                     </Label>
                     <Textarea
                       id="endCriteria"
                       placeholder="Define what constitutes project completion — deliverables, sign-offs, deployment state..."
                       value={endCriteria}
-                      onChange={e => setEndCriteria(e.target.value)}
+                      onChange={e => { setEndCriteria(e.target.value); if (tabErrors.endCriteria) setTabErrors(p => ({ ...p, endCriteria: "" })); }}
                       rows={3}
-                      className={extracted && endCriteria ? "border-emerald-200 bg-emerald-50/30" : ""}
+                      className={tabErrors.endCriteria ? "border-red-400" : extracted && endCriteria ? "border-emerald-200 bg-emerald-50/30" : ""}
                     />
-                    {extracted && endCriteria && (
+                    {tabErrors.endCriteria && <p className="text-xs text-red-500">{tabErrors.endCriteria}</p>}
+                    {!tabErrors.endCriteria && extracted && endCriteria && (
                       <p className="text-[10px] text-emerald-600 flex items-center gap-1"><Sparkles className="h-2.5 w-2.5" /> Auto-filled</p>
                     )}
                   </div>
@@ -708,7 +766,14 @@ export default function NewProjectPage() {
                     <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setDefineTab("scope")}>
                       <ArrowLeft className="h-3 w-3" /> Back
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDefineTab("team")}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                      const errs: Record<string, string> = {};
+                      if (!outcomeType) errs.outcomeType = "Please select Project Outcome Type";
+                      if (filledCriteria === 0) errs.successCriteria = "Please enter at least one Success Criterion";
+                      if (!endCriteria.trim()) errs.endCriteria = "Please enter Project Completion Definition";
+                      setTabErrors(errs);
+                      if (Object.keys(errs).length === 0) setDefineTab("team");
+                    }}>
                       Next: Team & Timeline <ArrowRight className="h-3 w-3" />
                     </Button>
                   </div>
@@ -720,23 +785,33 @@ export default function NewProjectPage() {
                     <Label>Project Timeline</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label htmlFor="start-datetime" className="text-xs text-muted-foreground font-normal">Start date &amp; time</Label>
+                        <Label htmlFor="start-datetime" className="text-xs text-muted-foreground font-normal">
+                          Start date &amp; time<span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="start-datetime"
                           type="datetime-local"
                           value={startDateTime}
-                          onChange={e => setStartDateTime(e.target.value)}
+                          onChange={e => { setStartDateTime(e.target.value); if (tabErrors.startDate) setTabErrors(p => ({ ...p, startDate: "" })); }}
+                          className={tabErrors.startDate ? "border-red-400" : "cursor-pointer"}
+                          onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
                         />
+                        {tabErrors.startDate && <p className="text-xs text-red-500">{tabErrors.startDate}</p>}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="end-datetime" className="text-xs text-muted-foreground font-normal">End date &amp; time</Label>
+                        <Label htmlFor="end-datetime" className="text-xs text-muted-foreground font-normal">
+                          End date &amp; time<span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="end-datetime"
                           type="datetime-local"
                           value={endDateTime}
                           min={startDateTime || undefined}
-                          onChange={e => setEndDateTime(e.target.value)}
+                          onChange={e => { setEndDateTime(e.target.value); if (tabErrors.endDate) setTabErrors(p => ({ ...p, endDate: "" })); }}
+                          className={tabErrors.endDate ? "border-red-400" : "cursor-pointer"}
+                          onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
                         />
+                        {tabErrors.endDate && <p className="text-xs text-red-500">{tabErrors.endDate}</p>}
                       </div>
                     </div>
                     {startDateTime && endDateTime && (
@@ -748,32 +823,68 @@ export default function NewProjectPage() {
                     )}
                   </div>
                   <div className="space-y-3">
-                    <Label>Team Members *</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {userList.map(user => (
-                        <div
-                          key={user.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                            selectedMembers.includes(user.id)
-                              ? "border-blue-300 bg-blue-50"
-                              : "border-border hover:bg-gray-100"
-                          }`}
-                          onClick={() => toggleMember(user.id)}
-                        >
-                          <Checkbox checked={selectedMembers.includes(user.id)} onCheckedChange={() => toggleMember(user.id)} />
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                            style={{ backgroundColor: user.avatar_color }}
-                          >
-                            {user.name[0]}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{user.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{user.role_type}</p>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Team Members<span className="text-red-500">*</span></Label>
+                      <Input
+                        placeholder="Search members…"
+                        value={memberSearch}
+                        onChange={e => setMemberSearch(e.target.value)}
+                        className="h-8 text-sm max-w-[220px]"
+                      />
                     </div>
+                    {(() => {
+                      const filtered = userList.filter(u =>
+                        u.name.toLowerCase().includes(memberSearch.toLowerCase())
+                      );
+                      const visible = showAllMembers ? filtered : filtered.slice(0, 6);
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            {visible.map(user => {
+                              const isLocked = currentUser?.role_type === "Team Lead" && user.id === currentUser.id;
+                              return (
+                              <div
+                                key={user.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                                  isLocked
+                                    ? "border-blue-300 bg-blue-50 cursor-not-allowed opacity-80"
+                                    : selectedMembers.includes(user.id)
+                                    ? "border-blue-300 bg-blue-50 cursor-pointer"
+                                    : "border-border hover:bg-gray-100 cursor-pointer"
+                                }`}
+                                onClick={() => { if (!isLocked) { toggleMember(user.id); if (tabErrors.members) setTabErrors(p => ({ ...p, members: "" })); } }}
+                              >
+                                <Checkbox checked={selectedMembers.includes(user.id)} disabled={isLocked} onCheckedChange={() => { if (!isLocked) { toggleMember(user.id); if (tabErrors.members) setTabErrors(p => ({ ...p, members: "" })); } }} />
+                                <div
+                                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                  style={{ backgroundColor: user.avatar_color }}
+                                >
+                                  {user.name[0]}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{user.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{user.role_type}{isLocked && " (you)"}</p>
+                                </div>
+                              </div>
+                              );
+                            })}
+                            {filtered.length === 0 && (
+                              <p className="text-sm text-muted-foreground col-span-2 text-center py-4">No members match &quot;{memberSearch}&quot;</p>
+                            )}
+                          </div>
+                          {filtered.length > 6 && (
+                            <button
+                              type="button"
+                              className="text-xs text-blue-600 hover:underline mt-1"
+                              onClick={() => setShowAllMembers(v => !v)}
+                            >
+                              {showAllMembers ? `Show Less` : `Show All (${filtered.length})`}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                    {tabErrors.members && <p className="text-xs text-red-500 mt-1">{tabErrors.members}</p>}
                   </div>
                   <div className="flex justify-between">
                     <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setDefineTab("outcome")}>
@@ -821,11 +932,6 @@ export default function NewProjectPage() {
                   <><Sparkles className="h-4 w-4" />Generate AI Execution Plan</>
                 )}
               </Button>
-              {!canProceedToGenerate && (
-                <p className="text-[11px] text-muted-foreground text-center mt-2">
-                  Fill in at least: Title, Objective, Success Criteria, and Team Members
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
