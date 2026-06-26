@@ -7,16 +7,30 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck } from "lucide-react";
+import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
 import { bandColor, bandForScore, fmtScore, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 import { cn } from "@/lib/utils";
+
+interface PeerData { competencies?: Record<string, number>; strengths?: string; improvements?: string; comment?: string }
 
 export function PerformanceReviews() {
   const [reviews, setReviews] = useState<PeerReviewAssignment[]>([]);
   const [received, setReceived] = useState<ReviewReceived[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<PeerReviewAssignment | null>(null);
+  const [editInitial, setEditInitial] = useState<PeerData | undefined>(undefined);
+
+  const openWrite = (r: PeerReviewAssignment) => { setEditInitial(undefined); setActive(r); };
+  const openEdit = async (r: PeerReviewAssignment) => {
+    try {
+      const res = await performanceAssessments.get(r.id);
+      setEditInitial((res.assessment.data as PeerData) || {});
+    } catch {
+      setEditInitial(undefined);
+    }
+    setActive(r);
+  };
 
   const load = useCallback(() => {
     Promise.all([
@@ -70,7 +84,7 @@ export function PerformanceReviews() {
                     {r.nominated_by_name ? ` · asked by ${r.nominated_by_name}` : ""}
                   </p>
                 </div>
-                <button onClick={() => setActive(r)}
+                <button onClick={() => openWrite(r)}
                   className="shrink-0 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-3.5 py-2 text-xs font-semibold shadow-glow-blue">
                   <PenLine className="h-3.5 w-3.5" /> Write review
                 </button>
@@ -97,6 +111,10 @@ export function PerformanceReviews() {
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
                 <span className="stat-number text-sm font-bold text-slate-700 w-10 text-right">{fmtScore(r.total_score)}</span>
+                <button onClick={() => openEdit(r)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-slate-200 text-slate-500 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700">
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
               </div>
             ))}
           </div>
@@ -127,17 +145,17 @@ export function PerformanceReviews() {
         </section>
       )}
 
-      {active && <PeerReviewForm assignment={active} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />}
+      {active && <PeerReviewForm assignment={active} initial={editInitial} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />}
     </div>
   );
 }
 
 // ── Peer review form ──────────────────────────────────────────────────────────
-function PeerReviewForm({ assignment, onClose, onDone }: { assignment: PeerReviewAssignment; onClose: () => void; onDone: () => void }) {
-  const [ratings, setRatings] = useState<Record<string, number>>({});
-  const [strengths, setStrengths] = useState("");
-  const [improvements, setImprovements] = useState("");
-  const [comment, setComment] = useState("");
+function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
+  const [ratings, setRatings] = useState<Record<string, number>>(initial?.competencies ?? {});
+  const [strengths, setStrengths] = useState(initial?.strengths ?? "");
+  const [improvements, setImprovements] = useState(initial?.improvements ?? "");
+  const [comment, setComment] = useState(initial?.comment ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 

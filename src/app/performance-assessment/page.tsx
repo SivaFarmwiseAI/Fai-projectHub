@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Award, BarChart3, ClipboardList, Inbox, Users2, CalendarRange, Network, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { performanceAssessments, users as usersApi, type ReviewCycle, type User } from "@/lib/api-client";
+import { performanceAssessments, users as usersApi, type ReviewCycle, type User, type PerformanceAssessmentRow } from "@/lib/api-client";
 import { PerformanceAnalysis } from "@/components/performance-analysis";
 import { PerformanceReviews } from "@/components/performance-reviews";
 import { PerformanceTeam } from "@/components/performance-team";
@@ -314,6 +314,8 @@ export default function PerformanceAssessmentPage() {
   const [reviewerIds, setReviewerIds] = useState<string[]>([]);
   const [reviewerSearch, setReviewerSearch] = useState("");
   const [activeCycle, setActiveCycle] = useState<ReviewCycle | null>(null);
+  const [pendingReviews, setPendingReviews] = useState(0);
+  const [existingSelf, setExistingSelf] = useState<PerformanceAssessmentRow | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
   const [mode, setModeState] = useState<"self" | "rev">("self");
@@ -359,18 +361,33 @@ export default function PerformanceAssessmentPage() {
     }
   }, []);
 
-  // Prefill the employee/self fields from the signed-in user (self-assessment).
+  // Prefill the self-assessment identity fields from the signed-in user.
   useEffect(() => {
-    if (!user?.name) return;
-    setEmp((prev) => prev || user.name);
-    setRev((prev) => (mode === "self" ? prev || user.name : prev));
+    if (!user) return;
+    if (user.name) {
+      setEmp((prev) => prev || user.name);
+      setRev((prev) => prev || user.name);
+    }
+    if (user.role) setDesig((prev) => prev || user.role);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.name]);
+  }, [user?.name, user?.role]);
 
-  // Load the org directory (for reviewer nomination) + the active review cycle.
+  // Default the review period to the open cycle's name once it loads.
+  useEffect(() => {
+    if (activeCycle?.name) setPeriod((prev) => prev || activeCycle.name);
+  }, [activeCycle?.name]);
+
+  // Load the org directory (for reviewer nomination), the active review cycle,
+  // the pending-review count (My Reviews badge) and any already-submitted
+  // self-assessment so we can show/fetch it instead of a blank form.
   useEffect(() => {
     usersApi.list().then((r) => setOrgUsers(r.users || [])).catch(() => {});
     performanceAssessments.activeCycle().then((r) => setActiveCycle(r.cycle)).catch(() => {});
+    performanceAssessments.myReviews("pending").then((r) => setPendingReviews((r.reviews || []).length)).catch(() => {});
+    performanceAssessments.myAssessments().then((r) => {
+      const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
+      if (self) { setExistingSelf(self); setSubmitted(true); }
+    }).catch(() => {});
   }, []);
 
   const toggleReviewer = useCallback((id: string) => {
@@ -777,25 +794,48 @@ export default function PerformanceAssessmentPage() {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(gather())); setIsDirty(false); } catch { /* ignore */ }
   }, [gather]);
 
+  // Apply a saved/submitted snapshot (same shape as gather()) into the form.
+  const applyState = useCallback((d: Record<string, unknown>) => {
+    const dd = d as Record<string, never>;
+    setModeState((dd.mode as "self" | "rev") || "self");
+    setSevState((dd.sev as "none" | "concern" | "serious") || "none");
+    setLevelState((dd.level as "junior" | "mid" | "senior") || "mid");
+    setFacets(new Set((dd.facets as string[]) || []));
+    setEmp(dd.emp || ""); setRev(dd.rev || ""); setDesig(dd.desig || ""); setPeriod(dd.period || "");
+    const contribs = (dd.contributions as Contribution[]) || [];
+    setContributions(contribs);
+    setCCounter(Math.max(0, ...contribs.map((c) => c.id)));
+    const team = (dd.teamEntries as Entry[]) || [];
+    const org = (dd.orgEntries as Entry[]) || [];
+    setTeamEntries(team); setOrgEntries(org);
+    setECounter(Math.max(0, ...team.map((e) => e.id), ...org.map((e) => e.id)));
+    setCultRatings((dd.cultRatings as Record<string, number>) || {}); setCultComment(dd.cultComment || "");
+    setGateFlags(new Set((dd.gateFlags as string[]) || []));
+    onAck(true); setIsDirty(false);
+  }, [onAck]);
+
   const loadDraft = useCallback(() => {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
-      const d = JSON.parse(raw);
-      setModeState(d.mode || "self");
-      setSevState(d.sev || "none");
-      setLevelState(d.level || "mid");
-      setFacets(new Set(d.facets || []));
-      setEmp(d.emp || ""); setRev(d.rev || ""); setDesig(d.desig || ""); setPeriod(d.period || "");
-      setContributions(d.contributions || []);
-      setCCounter(Math.max(0, ...(d.contributions || []).map((c: Contribution) => c.id)));
-      setTeamEntries(d.teamEntries || []); setOrgEntries(d.orgEntries || []);
-      setECounter(Math.max(0, ...(d.teamEntries || []).map((e: Entry) => e.id), ...(d.orgEntries || []).map((e: Entry) => e.id)));
-      setCultRatings(d.cultRatings || {}); setCultComment(d.cultComment || "");
-      setGateFlags(new Set(d.gateFlags || []));
-      onAck(true); setDraftFound(false); setIsDirty(false); goto(1);
+      applyState(JSON.parse(raw));
+      setDraftFound(false);
+      goto(1);
     } catch { /* ignore */ }
-  }, [onAck, goto]);
+  }, [applyState, goto]);
+
+  // Pull the user's already-submitted self-assessment back into the form to
+  // view/edit (re-saving updates the same record).
+  const loadSubmitted = useCallback(async (id: string) => {
+    try {
+      const r = await performanceAssessments.get(id);
+      applyState((r.assessment.data as Record<string, unknown>) || {});
+      setSubmitted(true);
+      goto(7);
+    } catch {
+      showFlash("⚠️ Couldn't load your submitted assessment.");
+    }
+  }, [applyState, goto, showFlash]);
 
   const discardDraft = useCallback(() => { localStorage.removeItem(DRAFT_KEY); setDraftFound(false); }, []);
 
@@ -848,10 +888,15 @@ export default function PerformanceAssessmentPage() {
     try {
       await performanceAssessments.create(payload);
       setSubmitted(true);
+      // Re-fetch so the saved submission persists across reloads / tab switches.
+      performanceAssessments.myAssessments().then((r) => {
+        const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
+        if (self) setExistingSelf(self);
+      }).catch(() => {});
       showFlash(
         reviewerIds.length
-          ? `✅ Assessment submitted. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.`
-          : "✅ Assessment submitted and shared with your reporting line and leadership.",
+          ? `✅ Assessment saved. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.`
+          : "✅ Assessment saved and shared with your reporting line and leadership.",
       );
     } catch (e) {
       console.error("performance assessment submit failed", e);
@@ -963,6 +1008,9 @@ export default function PerformanceAssessmentPage() {
                 )}
               >
                 <Icon className="h-3.5 w-3.5" /> {label}
+                {key === "reviews" && pendingReviews > 0 && (
+                  <span className="flex items-center justify-center h-4 min-w-[16px] rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">{pendingReviews}</span>
+                )}
               </button>
             ))}
           </div>
@@ -1000,6 +1048,19 @@ export default function PerformanceAssessmentPage() {
         </div>
 
         <div className="wrap">
+          {/* Already-submitted banner — fetched from the server on load */}
+          {existingSelf && (
+            <div className="draftbar" style={{ background: "#eef2ff", borderColor: "#c7d2fe" }}>
+              <span style={{ color: "#3730a3" }}>
+                ✓ You submitted your self-assessment{existingSelf.review_period ? <> for <b>{existingSelf.review_period}</b></> : null}
+                {existingSelf.rating_band ? <> — <b>{existingSelf.rating_band}</b></> : null}
+                {existingSelf.total_score != null ? <> ({Number(existingSelf.total_score).toFixed(2)} / 5)</> : null}.
+              </span>
+              <span style={{ display: "flex", gap: 8 }}>
+                <button className="primary" onClick={() => loadSubmitted(existingSelf.id)}>View / edit</button>
+              </span>
+            </div>
+          )}
           {/* Draft / flash banners */}
           {draftFound && (
             <div className="draftbar">
@@ -1122,36 +1183,28 @@ export default function PerformanceAssessmentPage() {
             <>
               <div className="card">
                 <h2>About You &amp; Your Role</h2>
-                <div style={{ marginBottom: 14 }}>
-                  <label className="fld">Filled by</label>
-                  <div className="toggle">
-                    <button className={mode === "self" ? "on" : ""} onClick={() => { setModeState("self"); setIsDirty(true); }}>Self-assessment</button>
-                    <button className={mode === "rev" ? "on" : ""} onClick={() => { setModeState("rev"); setIsDirty(true); }}>Reviewer</button>
-                  </div>
+                <div className="note" style={{ marginTop: 0 }}>
+                  This is your <b>self-assessment</b>{activeCycle ? <> for <b>{activeCycle.name}</b></> : null}. Your name, designation and review period are filled in for you — edit them if needed. Peer reviews of <i>others</i> are completed from the <b>My Reviews</b> tab.
                 </div>
 
-                <div className="grid2" style={{ marginBottom: 12 }}>
+                <div className="grid2" style={{ marginBottom: 12, marginTop: 12 }}>
                   <div>
-                    <label className="fld">Employee <span className="req-star">*</span></label>
-                    <input className={errCls("emp")} value={emp} onChange={(e) => { setEmp(e.target.value); clearErr("emp"); setIsDirty(true); }} placeholder="Full name" />
+                    <label className="fld">Your name <span className="req-star">*</span></label>
+                    <input className={errCls("emp")} value={emp} onChange={(e) => { setEmp(e.target.value); setRev(e.target.value); clearErr("emp"); setIsDirty(true); }} placeholder="Full name" />
                     <Err k="emp" />
                   </div>
-                  <div>
-                    <label className="fld">{mode === "self" ? "Employee (self)" : "Reviewer"} <span className="req-star">*</span></label>
-                    <input className={errCls("rev")} value={rev} onChange={(e) => { setRev(e.target.value); clearErr("rev"); setIsDirty(true); }} placeholder={mode === "self" ? "Your name" : "Reporting head"} />
-                    <Err k="rev" />
-                  </div>
-                </div>
-                <div className="grid2" style={{ marginBottom: 16 }}>
                   <div>
                     <label className="fld">Designation <span className="req-star">*</span></label>
                     <input className={errCls("desig")} value={desig} onChange={(e) => { setDesig(e.target.value); clearErr("desig"); setIsDirty(true); }} placeholder="e.g. Senior Engineer" />
                     <Err k="desig" />
                   </div>
+                </div>
+                <div className="grid2" style={{ marginBottom: 16 }}>
                   <div>
                     <label className="fld">Review period</label>
                     <input value={period} onChange={(e) => { setPeriod(e.target.value); setIsDirty(true); }} placeholder="e.g. H1 2026" />
                   </div>
+                  <div />
                 </div>
 
                 <label className="fld">Career level</label>
