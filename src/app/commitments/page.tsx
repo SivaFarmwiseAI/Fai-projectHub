@@ -44,6 +44,7 @@ import {
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
 import { refreshScheduleRequests } from "@/lib/scheduling-requests";
+import { COMMITMENT_STATUS_LABELS, COMMITMENT_PRIORITY_LABELS } from "@/lib/labels";
 
 const statusColors: Record<string, string> = {
   pending:     "text-amber-700 border-amber-200 bg-amber-50",
@@ -242,10 +243,10 @@ function CommitmentCard({
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-medium text-sm">{c.title}</h3>
               <Badge variant="outline" className={statusColors[c.status] ?? ""}>
-                {c.status.replace(/_/g, " ")}
+                {COMMITMENT_STATUS_LABELS[c.status] ?? c.status}
               </Badge>
               <Badge variant="outline" className={priorityColors[c.priority] ?? ""}>
-                {c.priority}
+                {COMMITMENT_PRIORITY_LABELS[c.priority] ?? c.priority}
               </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
@@ -518,46 +519,67 @@ function ViewCommitmentDialog({
           </DialogTitle>
         </DialogHeader>
         {commitment && (
-          <div className="space-y-3 text-sm">
-            <p className="font-semibold text-base">{commitment.title}</p>
-            {commitment.description && (
-              <p className="text-muted-foreground whitespace-pre-line">{commitment.description}</p>
-            )}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-muted-foreground">From:</span>{" "}
-                <span className="font-medium">{format(new Date(commitment.from_date), "MMM d, yyyy")}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">To:</span>{" "}
-                <span className="font-medium">{format(new Date(commitment.to_date), "MMM d, yyyy")}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Status:</span>{" "}
-                <Badge variant="outline" className={statusColors[commitment.status] ?? ""}>
-                  {commitment.status.replace(/_/g, " ")}
-                </Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Priority:</span>{" "}
-                <Badge variant="outline" className={priorityColors[commitment.priority] ?? ""}>
-                  {commitment.priority}
-                </Badge>
-              </div>
-              {commitment.owner_name && (
-                <div><span className="text-muted-foreground">Owner:</span> <span className="font-medium">{commitment.owner_name}</span></div>
-              )}
-              {commitment.assignee_name && (
-                <div><span className="text-muted-foreground">Assigned to:</span> <span className="font-medium">{commitment.assignee_name}</span></div>
-              )}
-              {commitment.project_title && (
-                <div className="col-span-2"><span className="text-muted-foreground">Project:</span> <span className="font-medium">{commitment.project_title}</span></div>
+          <div className="px-1 pb-2 space-y-5">
+            {/* Title + description */}
+            <div className="space-y-1.5">
+              <p className="text-lg font-bold text-slate-900 leading-snug">{commitment.title}</p>
+              {commitment.description && (
+                <p className="text-sm text-slate-500 whitespace-pre-line leading-relaxed">{commitment.description}</p>
               )}
             </div>
-            <div className="flex justify-end pt-2">
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1">
-                <X className="h-3.5 w-3.5" /> Close
-              </Button>
+
+            {/* Date range */}
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-100">
+              <CalendarRange className="h-4 w-4 text-indigo-500 shrink-0" />
+              <span className="text-sm font-semibold text-indigo-700">
+                {format(new Date(commitment.from_date), "MMM d, yyyy")}
+              </span>
+              <span className="text-indigo-400 font-bold">→</span>
+              <span className="text-sm font-semibold text-indigo-700">
+                {format(new Date(commitment.to_date), "MMM d, yyyy")}
+              </span>
+            </div>
+
+            {/* Status + Priority */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Status</span>
+                <Badge variant="outline" className={`w-fit ${statusColors[commitment.status] ?? ""}`}>
+                  {COMMITMENT_STATUS_LABELS[commitment.status] ?? commitment.status}
+                </Badge>
+              </div>
+              <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Priority</span>
+                <Badge variant="outline" className={`w-fit ${priorityColors[commitment.priority] ?? ""}`}>
+                  {COMMITMENT_PRIORITY_LABELS[commitment.priority] ?? commitment.priority}
+                </Badge>
+              </div>
+            </div>
+
+            {/* People + Project */}
+            <div className="space-y-2.5">
+              {(commitment.owner_name || commitment.assignee_name) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {commitment.owner_name && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Owner</span>
+                      <span className="text-sm font-medium text-slate-800">{commitment.owner_name}</span>
+                    </div>
+                  )}
+                  {commitment.assignee_name && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Assigned to</span>
+                      <span className="text-sm font-medium text-slate-800">{commitment.assignee_name}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {commitment.project_title && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Project</span>
+                  <span className="text-sm font-medium text-slate-800">{commitment.project_title}</span>
+                </div>
+              )}
             </div>
           </div>
         )}

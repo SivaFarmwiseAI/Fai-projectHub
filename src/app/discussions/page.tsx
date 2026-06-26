@@ -83,21 +83,30 @@ const ThreadCard = memo(function ThreadCard({
   return (
     <div
       className={cn(
-        "bg-white rounded-2xl border shadow-card overflow-hidden transition-all",
-        thread.is_resolved && "opacity-70",
-        "animate-fade-in-up"
+        "rounded-2xl border overflow-hidden transition-all animate-fade-in-up",
+        thread.is_resolved
+          ? "bg-emerald-50/40 border-emerald-200/60 shadow-sm"
+          : "bg-white shadow-card"
       )}
-      style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${index * 40}ms` }}
+      style={{ borderColor: thread.is_resolved ? undefined : "rgba(0,0,0,0.06)", animationDelay: `${index * 40}ms` }}
     >
-      <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }} />
+      {/* Top stripe — purple for open, green for resolved */}
+      <div
+        className="h-1 w-full"
+        style={{
+          background: thread.is_resolved
+            ? "linear-gradient(90deg, #10b981, #059669)"
+            : "linear-gradient(90deg, #6366f1, #8b5cf6)"
+        }}
+      />
 
       <div className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               {thread.is_resolved && (
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                  Resolved
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                  <CheckCircle2 className="h-3 w-3" /> Resolved
                 </span>
               )}
             </div>
@@ -106,7 +115,12 @@ const ThreadCard = memo(function ThreadCard({
               onClick={() => setExpandedId(isExpanded ? null : thread.id)}
               className="text-left group"
             >
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base group-hover:text-blue-600 transition-colors leading-snug">
+              <h3 className={cn(
+                "font-bold text-sm sm:text-base leading-snug transition-colors",
+                thread.is_resolved
+                  ? "text-slate-600 group-hover:text-emerald-700"
+                  : "text-slate-900 group-hover:text-blue-600"
+              )}>
                 {thread.title}
               </h3>
             </button>
@@ -267,7 +281,7 @@ export default function DiscussionsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProject, setFilterProject] = useState<string>("all");
-  const [showResolved, setShowResolved] = useState(false);
+  const [statusTab, setStatusTab] = useState<"open" | "resolved">("open");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -284,31 +298,40 @@ export default function DiscussionsPage() {
     ]).finally(() => setLoading(false));
   }, []);
 
+  // Re-fetch whenever status tab or project filter changes
+  useEffect(() => {
+    if (loading) return;
+    discussionsApi.list()
+      .then(r => setThreadList(r.discussions))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusTab, filterProject]);
+
   async function refreshDiscussions() {
     try {
-      const r = await discussionsApi.list({ is_resolved: showResolved ? undefined : false });
+      // Always fetch all — client-side useMemo handles resolved/project filtering
+      const r = await discussionsApi.list();
       setThreadList(r.discussions);
     } catch (err) { }
   }
 
   const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return threadList.filter(d => {
-      if (!showResolved && d.is_resolved) return false;
-      if (filterProject !== "all") {
-        if (filterProject === "general" && d.project_id != null) return false;
-        if (filterProject !== "general" && d.project_id !== filterProject) return false;
-      }
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        return d.title.toLowerCase().includes(q);
-      }
+      // Status tab filter
+      if (statusTab === "open" && d.is_resolved) return false;
+      if (statusTab === "resolved" && !d.is_resolved) return false;
+      // Project filter
+      if (filterProject === "general" && d.project_id != null) return false;
+      if (filterProject !== "all" && filterProject !== "general" && d.project_id !== filterProject) return false;
+      // Search filter
+      if (q && !d.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [threadList, showResolved, filterProject, searchQuery]);
+  }, [threadList, statusTab, filterProject, searchQuery]);
 
-  const openCount = useMemo(() => {
-    return threadList.filter(d => !d.is_resolved).length;
-  }, [threadList]);
+  const openCount = useMemo(() => threadList.filter(d => !d.is_resolved).length, [threadList]);
+  const resolvedCount = useMemo(() => threadList.filter(d => d.is_resolved).length, [threadList]);
 
   function handleAfterReply(_id: string) {
     refreshDiscussions();
@@ -363,15 +386,51 @@ export default function DiscussionsPage() {
         </div>
       </div>
 
-      {/* Summary strip */}
-      <div className="flex items-center gap-3 flex-wrap animate-fade-in-up stagger-1">
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200">
-          <MessageSquare className="h-4 w-4 text-blue-500" />
-          <span className="text-sm font-semibold text-blue-700">{openCount} open</span>
+      {/* Top bar: status tabs + new button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap animate-fade-in-up stagger-1">
+        {/* Open / Resolved tab switcher */}
+        <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setStatusTab("open")}
+            className={cn(
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all",
+              statusTab === "open"
+                ? "bg-white text-blue-700 shadow-sm border border-blue-100"
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Open
+            <span className={cn(
+              "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+              statusTab === "open" ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-slate-500"
+            )}>
+              {openCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setStatusTab("resolved")}
+            className={cn(
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all",
+              statusTab === "resolved"
+                ? "bg-white text-emerald-700 shadow-sm border border-emerald-100"
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Resolved
+            <span className={cn(
+              "ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+              statusTab === "resolved" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-slate-500"
+            )}>
+              {resolvedCount}
+            </span>
+          </button>
         </div>
+
         <button
           onClick={() => setScheduleOpen(true)}
-          className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white btn-gradient"
         >
           <Plus className="h-4 w-4" />
           Schedule Discussion
@@ -385,7 +444,7 @@ export default function DiscussionsPage() {
         onCreated={refreshDiscussions}
       />
 
-      {/* Filters */}
+      {/* Search + project filter */}
       <div className="flex items-center gap-2 flex-wrap animate-fade-in-up stagger-2">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
@@ -407,16 +466,6 @@ export default function DiscussionsPage() {
             <option key={p.id} value={p.id}>{p.title.slice(0, 25)}{p.title.length > 25 ? "…" : ""}</option>
           ))}
         </select>
-        <button
-          onClick={() => setShowResolved(v => !v)}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
-            showResolved ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-white border-gray-200 text-slate-500 hover:border-gray-300"
-          )}
-        >
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Resolved
-        </button>
       </div>
 
       {/* Thread list */}

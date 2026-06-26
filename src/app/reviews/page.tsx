@@ -30,25 +30,24 @@ import { ScheduleDialog } from "@/components/schedule-dialog";
 import { EditReviewDialog } from "@/components/edit-review-dialog";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
+import { REVIEW_STATUS_LABELS, REVIEW_PRIORITY_LABELS, REVIEW_TYPE_LABELS } from "@/lib/labels";
 
 const typeIcons: Record<string, React.ReactNode> = {
-  code:          <Code className="h-4 w-4 text-blue-600" />,
-  architecture:  <FileText className="h-4 w-4 text-purple-600" />,
-  notebook:      <BookOpen className="h-4 w-4 text-amber-600" />,
-  document:      <FileText className="h-4 w-4 text-green-600" />,
-  demo:          <Presentation className="h-4 w-4 text-pink-600" />,
-  status_update: <MessageSquare className="h-4 w-4 text-slate-500" />,
-  meeting_notes: <Users className="h-4 w-4 text-cyan-600" />,
+  document:     <FileText className="h-4 w-4 text-green-600" />,
+  code:         <Code className="h-4 w-4 text-blue-600" />,
+  architecture: <FileText className="h-4 w-4 text-purple-600" />,
+  design:       <Sparkles className="h-4 w-4 text-rose-500" />,
+  notebook:     <BookOpen className="h-4 w-4 text-amber-600" />,
+  demo:         <Presentation className="h-4 w-4 text-pink-600" />,
 };
 
 const typeBadgeColors: Record<string, string> = {
-  code:          "text-blue-700 border-blue-200 bg-blue-50",
-  architecture:  "text-purple-700 border-purple-200 bg-purple-50",
-  notebook:      "text-amber-700 border-amber-200 bg-amber-50",
-  document:      "text-green-700 border-green-200 bg-green-50",
-  demo:          "text-pink-700 border-pink-200 bg-pink-50",
-  status_update: "text-slate-700 border-slate-200 bg-slate-50",
-  meeting_notes: "text-cyan-700 border-cyan-200 bg-cyan-50",
+  document:     "text-green-700 border-green-200 bg-green-50",
+  code:         "text-blue-700 border-blue-200 bg-blue-50",
+  architecture: "text-purple-700 border-purple-200 bg-purple-50",
+  design:       "text-rose-700 border-rose-200 bg-rose-50",
+  notebook:     "text-amber-700 border-amber-200 bg-amber-50",
+  demo:         "text-pink-700 border-pink-200 bg-pink-50",
 };
 
 export default function ReviewsPage() {
@@ -330,7 +329,7 @@ export default function ReviewsPage() {
           className="text-xs border rounded px-2 py-1.5 bg-white"
         >
           <option value="all">All Types</option>
-          {Object.keys(typeIcons).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+          {Object.keys(typeIcons).map(t => <option key={t} value={t}>{REVIEW_TYPE_LABELS[t] ?? t}</option>)}
         </select>
         <select
           value={sortDirection}
@@ -443,12 +442,12 @@ function ReviewTaskCard({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-medium text-sm">{review.title}</h3>
               <Badge variant="outline" className={statusColors[review.status] ?? ""}>
-                {review.status.replace(/_/g, " ")}
+                {REVIEW_STATUS_LABELS[review.status] ?? review.status}
               </Badge>
               <Badge variant="outline" className={priorityColors[review.priority] ?? ""}>
-                {review.priority}
+                {REVIEW_PRIORITY_LABELS[review.priority] ?? review.priority}
               </Badge>
-              <Badge variant="outline">{review.type}</Badge>
+              <Badge variant="outline">{REVIEW_TYPE_LABELS[review.type] ?? review.type}</Badge>
             </div>
             <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
               {review.assignee_name && <span>Assigned: {review.assignee_name}</span>}

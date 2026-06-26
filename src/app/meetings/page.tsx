@@ -300,7 +300,15 @@ export default function MeetingsPage() {
           >
             <SelectTrigger className="h-9 w-36">
               <SelectValue>
-                {({ upcoming: "Upcoming", past: "Past", pending: "Pending", accepted: "Accepted", all: "All" } as Record<string, string>)[filter] ?? filter}
+                {(
+                  {
+                    upcoming: "Upcoming",
+                    past: "Past",
+                    pending: "Pending",
+                    accepted: "Accepted",
+                    all: "All",
+                  } as Record<string, string>
+                )[filter] ?? filter}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -317,7 +325,13 @@ export default function MeetingsPage() {
           >
             <SelectTrigger className="h-9 w-36">
               <SelectValue>
-                {({ all: "All scopes", project: "Project", general: "General" } as Record<string, string>)[scopeFilter] ?? scopeFilter}
+                {(
+                  {
+                    all: "All scopes",
+                    project: "Project",
+                    general: "General",
+                  } as Record<string, string>
+                )[scopeFilter] ?? scopeFilter}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -623,18 +637,22 @@ function MeetingFormDialog({
       return;
     }
     setLoadingMembers(true);
-    projectsApi.get(projectId)
+    projectsApi
+      .get(projectId)
       .then(({ project }) => {
         const assignees = project.assignees ?? [];
         // Merge with full users list to get role_type and other fields
-        const enriched = assignees.map(a => users.find(u => u.id === a.id) ?? a);
+        const enriched = assignees.map(
+          (a) => users.find((u) => u.id === a.id) ?? a,
+        );
         setProjectMembers(enriched);
       })
       .catch(() => setProjectMembers([]))
       .finally(() => setLoadingMembers(false));
   }, [scope, projectId, users]);
 
-  const attendeePool = scope === "project" && projectId ? projectMembers : users;
+  const attendeePool =
+    scope === "project" && projectId ? projectMembers : users;
 
   const toggleAttendee = (id: string) => {
     setAttendeeIds((prev) =>
@@ -646,7 +664,8 @@ function MeetingFormDialog({
     const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Title is required";
     if (!scheduledAt) errs.scheduledAt = "Date and time is required";
-    if (scope === "project" && !projectId) errs.project = "Select a project or switch to General";
+    if (scope === "project" && !projectId)
+      errs.project = "Select a project or switch to General";
     if (!location.trim()) errs.location = "Location / link is required";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -705,15 +724,22 @@ function MeetingFormDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="m-title">Title <span className="text-red-500">*</span></Label>
+            <Label htmlFor="m-title">
+              Title <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="m-title"
               value={title}
-              onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(p => ({ ...p, title: "" })); }}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (errors.title) setErrors((p) => ({ ...p, title: "" }));
+              }}
               placeholder="e.g., Q3 Engineering Sync"
               className={errors.title ? "border-red-400" : ""}
             />
-            {errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
+            {errors.title && (
+              <p className="text-xs text-red-500">{errors.title}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -725,7 +751,12 @@ function MeetingFormDialog({
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {({ general: "General", project: "Project" } as Record<string, string>)[scope] ?? scope}
+                    {(
+                      { general: "General", project: "Project" } as Record<
+                        string,
+                        string
+                      >
+                    )[scope] ?? scope}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -735,17 +766,30 @@ function MeetingFormDialog({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Project {scope === "project" && <span className="text-red-500">*</span>}</Label>
+              <Label>
+                Project{" "}
+                {scope === "project" && <span className="text-red-500">*</span>}
+              </Label>
               <Select
                 value={projectId}
-                onValueChange={(v) => { setProjectId(v ?? ""); if (errors.project) setErrors(p => ({ ...p, project: "" })); }}
+                onValueChange={(v) => {
+                  setProjectId(v ?? "");
+                  if (errors.project) setErrors((p) => ({ ...p, project: "" }));
+                }}
                 disabled={scope === "general"}
               >
-                <SelectTrigger className={errors.project ? "border-red-400" : ""}>
-                  <SelectValue placeholder={scope === "general" ? "—" : "Select project"}>
+                <SelectTrigger
+                  className={errors.project ? "border-red-400" : ""}
+                >
+                  <SelectValue
+                    placeholder={scope === "general" ? "—" : "Select project"}
+                  >
                     {projectId
-                      ? (projects.find((p) => p.id === projectId)?.title ?? "Select project")
-                      : (scope === "general" ? "—" : "Select project")}
+                      ? (projects.find((p) => p.id === projectId)?.title ??
+                        "Select project")
+                      : scope === "general"
+                        ? "—"
+                        : "Select project"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -756,22 +800,34 @@ function MeetingFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {errors.project && <p className="text-xs text-red-500">{errors.project}</p>}
+              {errors.project && (
+                <p className="text-xs text-red-500">{errors.project}</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="m-when">Date &amp; time <span className="text-red-500">*</span></Label>
+              <Label htmlFor="m-when">
+                Date &amp; time <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="m-when"
                 type="datetime-local"
                 className={`cursor-pointer${errors.scheduledAt ? " border-red-400" : ""}`}
                 value={scheduledAt}
-                onChange={(e) => { setScheduledAt(e.target.value); if (errors.scheduledAt) setErrors(p => ({ ...p, scheduledAt: "" })); }}
-                onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                onChange={(e) => {
+                  setScheduledAt(e.target.value);
+                  if (errors.scheduledAt)
+                    setErrors((p) => ({ ...p, scheduledAt: "" }));
+                }}
+                onClick={(e) =>
+                  (e.currentTarget as HTMLInputElement).showPicker?.()
+                }
               />
-              {errors.scheduledAt && <p className="text-xs text-red-500">{errors.scheduledAt}</p>}
+              {errors.scheduledAt && (
+                <p className="text-xs text-red-500">{errors.scheduledAt}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Duration</Label>
@@ -781,7 +837,16 @@ function MeetingFormDialog({
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {({ "15": "15 min", "30": "30 min", "45": "45 min", "60": "1 hour", "90": "1.5 hours", "120": "2 hours" } as Record<string, string>)[String(duration)] ?? `${duration} min`}
+                    {(
+                      {
+                        "15": "15 min",
+                        "30": "30 min",
+                        "45": "45 min",
+                        "60": "1 hour",
+                        "90": "1.5 hours",
+                        "120": "2 hours",
+                      } as Record<string, string>
+                    )[String(duration)] ?? `${duration} min`}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -797,15 +862,22 @@ function MeetingFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="m-location">Location / link <span className="text-red-500">*</span></Label>
+            <Label htmlFor="m-location">
+              Location / link <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="m-location"
               value={location}
-              onChange={(e) => { setLocation(e.target.value); if (errors.location) setErrors(p => ({ ...p, location: "" })); }}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                if (errors.location) setErrors((p) => ({ ...p, location: "" }));
+              }}
               placeholder="Conference Room A, or https://meet.google.com/…"
               className={errors.location ? "border-red-400" : ""}
             />
-            {errors.location && <p className="text-xs text-red-500">{errors.location}</p>}
+            {errors.location && (
+              <p className="text-xs text-red-500">{errors.location}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -823,14 +895,25 @@ function MeetingFormDialog({
             <Label>
               Attendees ({attendeeIds.length})
               {scope === "project" && projectId && (
-                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">— project members only</span>
+                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                  — project members only
+                </span>
               )}
             </Label>
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="m21 21-4.35-4.35"/></svg>
+              <svg
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path strokeLinecap="round" d="m21 21-4.35-4.35" />
+              </svg>
               <Input
                 value={attendeeSearch}
-                onChange={e => setAttendeeSearch(e.target.value)}
+                onChange={(e) => setAttendeeSearch(e.target.value)}
                 placeholder="Search attendees…"
                 className="pl-8 h-8 text-sm"
               />
@@ -838,42 +921,68 @@ function MeetingFormDialog({
             <div className="max-h-44 overflow-y-auto border rounded-lg p-2 space-y-1">
               {loadingMembers ? (
                 <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
-                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  <svg
+                    className="h-3.5 w-3.5 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8z"
+                    />
+                  </svg>
                   Loading members…
                 </div>
-              ) : (() => {
-                const q = attendeeSearch.toLowerCase();
-                const visible = attendeePool.filter(u =>
-                  u.name.toLowerCase().includes(q) ||
-                  (u.role_type ?? "").toLowerCase().includes(q)
-                );
-                if (visible.length === 0) return (
-                  <p className="text-xs text-center text-muted-foreground py-4">
-                    {attendeeSearch ? `No results for "${attendeeSearch}"` : "No users available."}
-                  </p>
-                );
-                return visible.map((u) => (
-                  <label
-                    key={u.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={attendeeIds.includes(u.id)}
-                      onCheckedChange={() => toggleAttendee(u.id)}
-                    />
-                    <div
-                      className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: u.avatar_color }}
+              ) : (
+                (() => {
+                  const q = attendeeSearch.toLowerCase();
+                  const visible = attendeePool.filter(
+                    (u) =>
+                      u.name.toLowerCase().includes(q) ||
+                      (u.role_type ?? "").toLowerCase().includes(q),
+                  );
+                  if (visible.length === 0)
+                    return (
+                      <p className="text-xs text-center text-muted-foreground py-4">
+                        {attendeeSearch
+                          ? `No results for "${attendeeSearch}"`
+                          : "No users available."}
+                      </p>
+                    );
+                  return visible.map((u) => (
+                    <label
+                      key={u.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer"
                     >
-                      {u.name[0]}
-                    </div>
-                    <span className="text-sm">{u.name}</span>
-                    {u.role_type && (
-                      <span className="text-xs text-muted-foreground">— {u.role_type}</span>
-                    )}
-                  </label>
-                ));
-              })()}
+                      <Checkbox
+                        checked={attendeeIds.includes(u.id)}
+                        onCheckedChange={() => toggleAttendee(u.id)}
+                      />
+                      <div
+                        className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: u.avatar_color }}
+                      >
+                        {u.name[0]}
+                      </div>
+                      <span className="text-sm">{u.name}</span>
+                      {u.role_type && (
+                        <span className="text-xs text-muted-foreground">
+                          — {u.role_type}
+                        </span>
+                      )}
+                    </label>
+                  ));
+                })()
+              )}
             </div>
           </div>
         </div>
@@ -892,7 +1001,7 @@ function MeetingFormDialog({
             ) : (
               <Send className="h-4 w-4" />
             )}
-            {editing ? "Save changes" : "Raise to CEO"}
+            {editing ? "Save changes" : "Raise"}
           </Button>
         </DialogFooter>
       </DialogContent>

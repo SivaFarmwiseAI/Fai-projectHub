@@ -31,6 +31,7 @@ import {
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { refreshScheduleRequests } from "@/lib/scheduling-requests";
+import { REVIEW_TYPE_LABELS } from "@/lib/labels";
 
 export type ScheduleTab = "leave" | "review" | "discussion";
 
@@ -335,7 +336,7 @@ function ReviewForm({
           <Select value={type} onValueChange={v => v && setType(v)}>
             <SelectTrigger className="h-9 text-sm mt-1">
               <SelectValue>
-                {({ document: "Document", code: "Code", architecture: "Architecture", design: "Design", notebook: "Notebook", demo: "Demo" } as Record<string, string>)[type] ?? type}
+                {REVIEW_TYPE_LABELS[type] ?? type}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
