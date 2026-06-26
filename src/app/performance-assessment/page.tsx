@@ -1,10 +1,26 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Award, BarChart3, ClipboardList, Inbox, Users2, CalendarRange, Network, Search, Check } from "lucide-react";
+import {
+  Award,
+  BarChart3,
+  ClipboardList,
+  Inbox,
+  Users2,
+  CalendarRange,
+  Network,
+  Search,
+  Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-import { performanceAssessments, users as usersApi, type ReviewCycle, type User, type PerformanceAssessmentRow } from "@/lib/api-client";
+import {
+  performanceAssessments,
+  users as usersApi,
+  type ReviewCycle,
+  type User,
+  type PerformanceAssessmentRow,
+} from "@/lib/api-client";
 import { PerformanceAnalysis } from "@/components/performance-analysis";
 import { PerformanceReviews } from "@/components/performance-reviews";
 import { PerformanceTeam } from "@/components/performance-team";
@@ -77,12 +93,30 @@ const LN = ["Exceptional", "Exceeds", "Meets", "Below", "Unsatisfactory"];
 const NUM = [5, 4, 3, 2, 1];
 
 const FACETS: Record<string, { label: string; hint: string }> = {
-  eng: { label: "Engineering / Development", hint: "Production-ready delivery, reduced delivery time, fewer defects, reusable components adopted by other projects, or a new technical capability." },
-  ds: { label: "Data Science / AI", hint: "Improved accuracy/speed, reduced processing cost, a novel or reusable model, or a new AI capability used in production." },
-  sales: { label: "Sales / Business Development", hint: "Revenue won, strategic clients converted, a new state/department opened, or a repeat-revenue stream." },
-  ba: { label: "Product / Business Analysis", hint: "Reduced rework, a feature that became a differentiator, improved customer outcomes, or a process/feature that was adopted." },
-  delivery: { label: "Delivery / Project Management", hint: "On-time, high-quality delivery, fewer delays/escalations, better delivery predictability, or stronger client confidence." },
-  client: { label: "Client Engagement / Management", hint: "Stronger relationships, new opportunities created, higher satisfaction, or expansion enabled." },
+  eng: {
+    label: "Engineering / Development",
+    hint: "Production-ready delivery, reduced delivery time, fewer defects, reusable components adopted by other projects, or a new technical capability.",
+  },
+  ds: {
+    label: "Data Science / AI",
+    hint: "Improved accuracy/speed, reduced processing cost, a novel or reusable model, or a new AI capability used in production.",
+  },
+  sales: {
+    label: "Sales / Business Development",
+    hint: "Revenue won, strategic clients converted, a new state/department opened, or a repeat-revenue stream.",
+  },
+  ba: {
+    label: "Product / Business Analysis",
+    hint: "Reduced rework, a feature that became a differentiator, improved customer outcomes, or a process/feature that was adopted.",
+  },
+  delivery: {
+    label: "Delivery / Project Management",
+    hint: "On-time, high-quality delivery, fewer delays/escalations, better delivery predictability, or stronger client confidence.",
+  },
+  client: {
+    label: "Client Engagement / Management",
+    hint: "Stronger relationships, new opportunities created, higher satisfaction, or expansion enabled.",
+  },
 };
 
 const RATE_DESC = [
@@ -110,7 +144,15 @@ const IMPACTS: [string, string][] = [
 
 const HIGH_BY_LEVEL: Record<string, string[]> = {
   junior: ["reusable", "time", "quality", "smarter", "capability", "adoption"],
-  mid: ["reusable", "time", "cost", "capability", "adoption", "revenue", "strategic"],
+  mid: [
+    "reusable",
+    "time",
+    "cost",
+    "capability",
+    "adoption",
+    "revenue",
+    "strategic",
+  ],
   senior: ["revenue", "capability", "strategic"],
 };
 
@@ -130,9 +172,11 @@ const IMPACT_EG: Record<string, string> = {
 };
 
 const LEVEL_HINT: Record<string, string> = {
-  junior: "You're assessed on value <b>within your scope</b> — a reusable component, a smarter approach, time/effort saved, fewer errors, or something learned and applied. You do <b>not</b> need company-wide revenue to score well.",
+  junior:
+    "You're assessed on value <b>within your scope</b> — a reusable component, a smarter approach, time/effort saved, fewer errors, or something learned and applied. You do <b>not</b> need company-wide revenue to score well.",
   mid: "Show outcomes beyond just delivery — improvements, reusable assets, efficiency gains, and work adopted by other projects or teams, ideally with numbers.",
-  senior: "Show broader impact — revenue, new capability, strategic moves (new geography / department / market), and org-wide adoption, backed by measurable proof.",
+  senior:
+    "Show broader impact — revenue, new capability, strategic moves (new geography / department / market), and org-wide adoption, backed by measurable proof.",
 };
 
 const CULT_ITEMS: [string, string][] = [
@@ -145,11 +189,28 @@ const CULT_ITEMS: [string, string][] = [
   ["hours", "Manages workload within working hours"],
 ];
 
-const SCALE5 = ["5 — Outstanding", "4 — Strong", "3 — Good / as expected", "2 — Inconsistent", "1 — Poor"];
-const GATE_FLAGS = ["Shared confidential info", "Internal politics", "Gossip / rumours", "Misrepresentation of work", "Repeated attendance issues", "Lack of accountability", "Disrespectful behaviour", "Harmed team morale", "Policy violation"];
+const SCALE5 = [
+  "5 — Outstanding",
+  "4 — Strong",
+  "3 — Good / as expected",
+  "2 — Inconsistent",
+  "1 — Poor",
+];
+const GATE_FLAGS = [
+  "Shared confidential info",
+  "Internal politics",
+  "Gossip / rumours",
+  "Misrepresentation of work",
+  "Repeated attendance issues",
+  "Lack of accountability",
+  "Disrespectful behaviour",
+  "Harmed team morale",
+  "Policy violation",
+];
 const W = { ind: 60, team: 20, org: 10, culture: 10 };
 const DRAFT_KEY = "fw_assessment_draft_v2";
-const INJECT = /(ignore (all |the )?(previous|above|prior)|disregard|as an ai|you (must|should|need to|have to) (rate|give|score|mark|assign)|please (rate|give|score|mark)|rate (this|me|it)|give (me |it |this )?(a |an )?(5|4|five|four|exceptional|exceeds)|exceptional rating|highest (rating|score)|override|system\s*:|assistant\s*:|prompt|instruction)/i;
+const INJECT =
+  /(ignore (all |the )?(previous|above|prior)|disregard|as an ai|you (must|should|need to|have to) (rate|give|score|mark|assign)|please (rate|give|score|mark)|rate (this|me|it)|give (me |it |this )?(a |an )?(5|4|five|four|exceptional|exceeds)|exceptional rating|highest (rating|score)|override|system\s*:|assistant\s*:|prompt|instruction)/i;
 
 function catIndexOf(v: number) {
   for (let i = 0; i < CATS.length; i++) if (v >= CATS[i].min) return i;
@@ -300,7 +361,8 @@ const PA_CSS = `
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function PerformanceAssessmentPage() {
-  const { user, hasFullPerformanceAccess, isLead, isCEO, isHR, isAdmin } = useAuth();
+  const { user, hasFullPerformanceAccess, isLead, isCEO, isHR, isAdmin } =
+    useAuth();
   const canManageCycles = isCEO || isHR || isAdmin;
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -315,7 +377,8 @@ export default function PerformanceAssessmentPage() {
   const [reviewerSearch, setReviewerSearch] = useState("");
   const [activeCycle, setActiveCycle] = useState<ReviewCycle | null>(null);
   const [pendingReviews, setPendingReviews] = useState(0);
-  const [existingSelf, setExistingSelf] = useState<PerformanceAssessmentRow | null>(null);
+  const [existingSelf, setExistingSelf] =
+    useState<PerformanceAssessmentRow | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
   const [mode, setModeState] = useState<"self" | "rev">("self");
@@ -327,6 +390,7 @@ export default function PerformanceAssessmentPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [pendingStep, setPendingStep] = useState<number | null>(null);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [hasSubmitAttempt, setHasSubmitAttempt] = useState(false);
 
   // Form fields
@@ -356,7 +420,10 @@ export default function PerformanceAssessmentPage() {
 
   // ── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (typeof localStorage !== "undefined" && localStorage.getItem(DRAFT_KEY)) {
+    if (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(DRAFT_KEY)
+    ) {
       setDraftFound(true);
     }
   }, []);
@@ -381,13 +448,31 @@ export default function PerformanceAssessmentPage() {
   // the pending-review count (My Reviews badge) and any already-submitted
   // self-assessment so we can show/fetch it instead of a blank form.
   useEffect(() => {
-    usersApi.list().then((r) => setOrgUsers(r.users || [])).catch(() => {});
-    performanceAssessments.activeCycle().then((r) => setActiveCycle(r.cycle)).catch(() => {});
-    performanceAssessments.myReviews("pending").then((r) => setPendingReviews((r.reviews || []).length)).catch(() => {});
-    performanceAssessments.myAssessments().then((r) => {
-      const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
-      if (self) { setExistingSelf(self); setSubmitted(true); }
-    }).catch(() => {});
+    usersApi
+      .list()
+      .then((r) => setOrgUsers(r.users || []))
+      .catch(() => {});
+    performanceAssessments
+      .activeCycle()
+      .then((r) => setActiveCycle(r.cycle))
+      .catch(() => {});
+    performanceAssessments
+      .myReviews("pending")
+      .then((r) => setPendingReviews((r.reviews || []).length))
+      .catch(() => {});
+    performanceAssessments
+      .myAssessments()
+      .then((r) => {
+        const self =
+          (r.assessments || []).find((a) => a.status === "submitted") ||
+          (r.assessments || [])[0] ||
+          null;
+        if (self) {
+          setExistingSelf(self);
+          setSubmitted(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const toggleReviewer = useCallback((id: string) => {
@@ -411,11 +496,16 @@ export default function PerformanceAssessmentPage() {
   }, []);
 
   const clearErr = useCallback((key: string) => {
-    setErrors((p) => { const n = { ...p }; delete n[key]; return n; });
+    setErrors((p) => {
+      const n = { ...p };
+      delete n[key];
+      return n;
+    });
   }, []);
 
-  const errCls = (key: string) => errors[key] ? "req-error" : "";
-  const Err = ({ k }: { k: string }) => errors[k] ? <span className="err-msg">{errors[k]}</span> : null;
+  const errCls = (key: string) => (errors[key] ? "req-error" : "");
+  const Err = ({ k }: { k: string }) =>
+    errors[k] ? <span className="err-msg">{errors[k]}</span> : null;
 
   // ── Navigation ───────────────────────────────────────────────────────────
   const goto = useCallback((i: number) => {
@@ -430,23 +520,49 @@ export default function PerformanceAssessmentPage() {
   }, []);
 
   // ── Facets ───────────────────────────────────────────────────────────────
-  const toggleFacet = useCallback((k: string) => {
-    setFacets((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-    clearErr("facets");
-    setIsDirty(true);
-  }, [clearErr]);
+  const toggleFacet = useCallback(
+    (k: string) => {
+      setFacets((p) => {
+        const n = new Set(p);
+        if (n.has(k)) n.delete(k);
+        else n.add(k);
+        return n;
+      });
+      clearErr("facets");
+      setIsDirty(true);
+    },
+    [clearErr],
+  );
 
   // ── Contributions ────────────────────────────────────────────────────────
   const addContrib = useCallback(() => {
     const id = cCounter + 1;
     setCCounter(id);
     setIsDirty(true);
-    setContributions((p) => [...p, {
-      id, self: null, reviewer: null, impacts: [], impactWhy: {},
-      title: "", area: "", context: "", problem: "", create: "",
-      adopt: "", changed: "", value: "", sustain: "", evidence: "",
-      proofref: "", prooffilename: "", rjust: "", custom: [],
-    }]);
+    setContributions((p) => [
+      ...p,
+      {
+        id,
+        self: null,
+        reviewer: null,
+        impacts: [],
+        impactWhy: {},
+        title: "",
+        area: "",
+        context: "",
+        problem: "",
+        create: "",
+        adopt: "",
+        changed: "",
+        value: "",
+        sustain: "",
+        evidence: "",
+        proofref: "",
+        prooffilename: "",
+        rjust: "",
+        custom: [],
+      },
+    ]);
   }, [cCounter]);
 
   const removeContrib = useCallback((id: number) => {
@@ -454,62 +570,97 @@ export default function PerformanceAssessmentPage() {
     setIsDirty(true);
   }, []);
 
-  const updContrib = useCallback(<K extends keyof Contribution>(id: number, field: K, value: Contribution[K]) => {
-    setContributions((p) => p.map((c) => c.id === id ? { ...c, [field]: value } : c));
-    clearErr("c" + id + "_" + String(field));
-    setIsDirty(true);
-  }, [clearErr]);
+  const updContrib = useCallback(
+    <K extends keyof Contribution>(
+      id: number,
+      field: K,
+      value: Contribution[K],
+    ) => {
+      setContributions((p) =>
+        p.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+      );
+      clearErr("c" + id + "_" + String(field));
+      setIsDirty(true);
+    },
+    [clearErr],
+  );
 
-  const pickSelf = useCallback((id: number, n: number) => {
-    setContributions((p) => p.map((c) => c.id === id ? { ...c, self: n } : c));
-    clearErr("c" + id + "_self");
-    setIsDirty(true);
-  }, [clearErr]);
+  const pickSelf = useCallback(
+    (id: number, n: number) => {
+      setContributions((p) =>
+        p.map((c) => (c.id === id ? { ...c, self: n } : c)),
+      );
+      clearErr("c" + id + "_self");
+      setIsDirty(true);
+    },
+    [clearErr],
+  );
 
   const pickReviewer = useCallback((id: number, n: number) => {
-    setContributions((p) => p.map((c) => c.id === id ? { ...c, reviewer: n } : c));
+    setContributions((p) =>
+      p.map((c) => (c.id === id ? { ...c, reviewer: n } : c)),
+    );
     setIsDirty(true);
   }, []);
 
   const toggleImpact = useCallback((id: number, k: string) => {
-    setContributions((p) => p.map((c) => {
-      if (c.id !== id) return c;
-      const impacts = [...c.impacts];
-      const i = impacts.indexOf(k);
-      if (i < 0) impacts.push(k); else impacts.splice(i, 1);
-      return { ...c, impacts };
-    }));
+    setContributions((p) =>
+      p.map((c) => {
+        if (c.id !== id) return c;
+        const impacts = [...c.impacts];
+        const i = impacts.indexOf(k);
+        if (i < 0) impacts.push(k);
+        else impacts.splice(i, 1);
+        return { ...c, impacts };
+      }),
+    );
     setIsDirty(true);
   }, []);
 
   const saveImpactWhy = useCallback((id: number, k: string, v: string) => {
-    setContributions((p) => p.map((c) => c.id === id ? { ...c, impactWhy: { ...c.impactWhy, [k]: v } } : c));
+    setContributions((p) =>
+      p.map((c) =>
+        c.id === id ? { ...c, impactWhy: { ...c.impactWhy, [k]: v } } : c,
+      ),
+    );
     setIsDirty(true);
   }, []);
 
   const addCustomField = useCallback((id: number) => {
-    setContributions((p) => p.map((c) => c.id === id ? { ...c, custom: [...c.custom, { q: "", a: "" }] } : c));
+    setContributions((p) =>
+      p.map((c) =>
+        c.id === id ? { ...c, custom: [...c.custom, { q: "", a: "" }] } : c,
+      ),
+    );
     setIsDirty(true);
   }, []);
 
-  const updCustom = useCallback((id: number, ci: number, field: "q" | "a", val: string) => {
-    setContributions((p) => p.map((c) => {
-      if (c.id !== id) return c;
-      const custom = [...c.custom];
-      custom[ci] = { ...custom[ci], [field]: val };
-      return { ...c, custom };
-    }));
-    setIsDirty(true);
-  }, []);
+  const updCustom = useCallback(
+    (id: number, ci: number, field: "q" | "a", val: string) => {
+      setContributions((p) =>
+        p.map((c) => {
+          if (c.id !== id) return c;
+          const custom = [...c.custom];
+          custom[ci] = { ...custom[ci], [field]: val };
+          return { ...c, custom };
+        }),
+      );
+      setIsDirty(true);
+    },
+    [],
+  );
 
   // ── Entries ───────────────────────────────────────────────────────────────
-  const addEntry = useCallback((section: "team" | "org") => {
-    const id = eCounter + 1;
-    setECounter(id);
-    const setter = section === "team" ? setTeamEntries : setOrgEntries;
-    setter((p) => [...p, { id, rating: null, text: "", remark: "" }]);
-    setIsDirty(true);
-  }, [eCounter]);
+  const addEntry = useCallback(
+    (section: "team" | "org") => {
+      const id = eCounter + 1;
+      setECounter(id);
+      const setter = section === "team" ? setTeamEntries : setOrgEntries;
+      setter((p) => [...p, { id, rating: null, text: "", remark: "" }]);
+      setIsDirty(true);
+    },
+    [eCounter],
+  );
 
   const removeEntry = useCallback((section: "team" | "org", eid: number) => {
     const setter = section === "team" ? setTeamEntries : setOrgEntries;
@@ -517,75 +668,142 @@ export default function PerformanceAssessmentPage() {
     setIsDirty(true);
   }, []);
 
-  const updEntry = useCallback((section: "team" | "org", eid: number, field: string, value: unknown) => {
-    const setter = section === "team" ? setTeamEntries : setOrgEntries;
-    setter((p) => p.map((e) => e.id === eid ? { ...e, [field]: value } : e));
-    clearErr("e_" + section + "_" + eid + "_" + field);
-    setIsDirty(true);
-  }, [clearErr]);
+  const updEntry = useCallback(
+    (section: "team" | "org", eid: number, field: string, value: unknown) => {
+      const setter = section === "team" ? setTeamEntries : setOrgEntries;
+      setter((p) =>
+        p.map((e) => (e.id === eid ? { ...e, [field]: value } : e)),
+      );
+      clearErr("e_" + section + "_" + eid + "_" + field);
+      setIsDirty(true);
+    },
+    [clearErr],
+  );
 
-  const pickEntry = useCallback((section: "team" | "org", eid: number, n: number) => {
-    const setter = section === "team" ? setTeamEntries : setOrgEntries;
-    setter((p) => p.map((e) => e.id === eid ? { ...e, rating: n } : e));
-    clearErr("e_" + section + "_" + eid + "_rate");
-    setIsDirty(true);
-  }, [clearErr]);
+  const pickEntry = useCallback(
+    (section: "team" | "org", eid: number, n: number) => {
+      const setter = section === "team" ? setTeamEntries : setOrgEntries;
+      setter((p) => p.map((e) => (e.id === eid ? { ...e, rating: n } : e)));
+      clearErr("e_" + section + "_" + eid + "_rate");
+      setIsDirty(true);
+    },
+    [clearErr],
+  );
 
   // ── Gate flags ────────────────────────────────────────────────────────────
   const toggleGate = useCallback((flag: string) => {
-    setGateFlags((p) => { const n = new Set(p); if (n.has(flag)) n.delete(flag); else n.add(flag); return n; });
+    setGateFlags((p) => {
+      const n = new Set(p);
+      if (n.has(flag)) n.delete(flag);
+      else n.add(flag);
+      return n;
+    });
     setIsDirty(true);
   }, []);
 
   // ── Suggest (computed per render) ─────────────────────────────────────────
-  const computeSuggested = useCallback((c: Contribution) => {
-    const create = c.create;
-    if (!create) return { suggested: null, why: [], flagged: false };
+  const computeSuggested = useCallback(
+    (c: Contribution) => {
+      const create = c.create;
+      if (!create) return { suggested: null, why: [], flagged: false };
 
-    const flagged = [c.context, c.problem, c.create, c.adopt, c.changed, c.value, c.sustain, c.evidence, c.proofref]
-      .some((s) => INJECT.test(s || ""));
+      const flagged = [
+        c.context,
+        c.problem,
+        c.create,
+        c.adopt,
+        c.changed,
+        c.value,
+        c.sustain,
+        c.evidence,
+        c.proofref,
+      ].some((s) => INJECT.test(s || ""));
 
-    const text = (c.adopt + " " + c.changed + " " + c.value).toLowerCase();
-    const hasNums = /[0-9]/.test(c.changed + " " + c.value);
-    const strongAdopt = /(production|deployed|live|used by|adopted|projects|customers|standard|since|rolled out|in use)/.test(text);
-    const noAdopt = /(not adopted|prototype|concept only|not used|unused|\bpoc\b|yet to|will be|planned)/.test(text);
-    const capText = /(first|novel|new capability|usp|differentiator|won|revenue|crore|\bcr\b|lakh|₹)/.test((c.create + " " + c.value).toLowerCase());
-    const hs = HIGH_BY_LEVEL[level] || HIGH_BY_LEVEL.mid;
-    const cap = capText || c.impacts.some((x) => hs.includes(x));
+      const text = (c.adopt + " " + c.changed + " " + c.value).toLowerCase();
+      const hasNums = /[0-9]/.test(c.changed + " " + c.value);
+      const strongAdopt =
+        /(production|deployed|live|used by|adopted|projects|customers|standard|since|rolled out|in use)/.test(
+          text,
+        );
+      const noAdopt =
+        /(not adopted|prototype|concept only|not used|unused|\bpoc\b|yet to|will be|planned)/.test(
+          text,
+        );
+      const capText =
+        /(first|novel|new capability|usp|differentiator|won|revenue|crore|\bcr\b|lakh|₹)/.test(
+          (c.create + " " + c.value).toLowerCase(),
+        );
+      const hs = HIGH_BY_LEVEL[level] || HIGH_BY_LEVEL.mid;
+      const cap = capText || c.impacts.some((x) => hs.includes(x));
 
-    const complete = !!(c.create && c.adopt && c.changed && c.value);
-    const allStory = ["problem", "create", "adopt", "changed", "value", "sustain"].every((k) => !!(c as unknown as Record<string, string>)[k]);
-    const proof = allStory && !!c.proofref;
-    const attached = !!c.proofref || !!c.prooffilename;
+      const complete = !!(c.create && c.adopt && c.changed && c.value);
+      const allStory = [
+        "problem",
+        "create",
+        "adopt",
+        "changed",
+        "value",
+        "sustain",
+      ].every((k) => !!(c as unknown as Record<string, string>)[k]);
+      const proof = allStory && !!c.proofref;
+      const attached = !!c.proofref || !!c.prooffilename;
 
-    let n = 3;
-    const why: string[] = [];
-    if (!complete) { n = 2; why.push("story incomplete"); }
-    else if (noAdopt) { n = 2; why.push("not adopted / not in use"); }
-    else {
-      why.push("described and adopted");
-      if (strongAdopt && hasNums) { n = 4; why.push("clear adoption + measurable numbers"); }
-      if (strongAdopt && hasNums && cap && proof) { n = 5; why.push("high-impact for your level + attached proof"); }
-    }
-    if (n >= 4 && !attached) { if (n === 5) n = 4; why.push("attach a proof link/file to confirm"); }
-    if (n === 5 && !proof) { n = 4; why.push("Exceptional proof incomplete → Exceeds"); }
+      let n = 3;
+      const why: string[] = [];
+      if (!complete) {
+        n = 2;
+        why.push("story incomplete");
+      } else if (noAdopt) {
+        n = 2;
+        why.push("not adopted / not in use");
+      } else {
+        why.push("described and adopted");
+        if (strongAdopt && hasNums) {
+          n = 4;
+          why.push("clear adoption + measurable numbers");
+        }
+        if (strongAdopt && hasNums && cap && proof) {
+          n = 5;
+          why.push("high-impact for your level + attached proof");
+        }
+      }
+      if (n >= 4 && !attached) {
+        if (n === 5) n = 4;
+        why.push("attach a proof link/file to confirm");
+      }
+      if (n === 5 && !proof) {
+        n = 4;
+        why.push("Exceptional proof incomplete → Exceeds");
+      }
 
-    return { suggested: n, why, flagged };
-  }, [level]);
+      return { suggested: n, why, flagged };
+    },
+    [level],
+  );
 
   // ── Score ─────────────────────────────────────────────────────────────────
-  const govRating = useCallback((c: Contribution) => mode === "rev" ? (c.reviewer ?? c.self) : c.self, [mode]);
+  const govRating = useCallback(
+    (c: Contribution) => (mode === "rev" ? (c.reviewer ?? c.self) : c.self),
+    [mode],
+  );
 
-  const proofOK = useCallback((c: Contribution) =>
-    ["problem", "create", "adopt", "changed", "value", "sustain"].every((k) => !!(c as unknown as Record<string, string>)[k]) && !!(c.proofref),
-  []);
+  const proofOK = useCallback(
+    (c: Contribution) =>
+      ["problem", "create", "adopt", "changed", "value", "sustain"].every(
+        (k) => !!(c as unknown as Record<string, string>)[k],
+      ) && !!c.proofref,
+    [],
+  );
 
-  const contribEff = useCallback((c: Contribution) => {
-    const r = govRating(c);
-    if (r == null) return { eff: null, down: false };
-    if (r === 5 && !proofOK(c)) return { eff: 4, down: true };
-    return { eff: r, down: false };
-  }, [govRating, proofOK]);
+  const contribEff = useCallback(
+    (c: Contribution) => {
+      const r = govRating(c);
+      if (r == null) return { eff: null, down: false };
+      if (r === 5 && !proofOK(c)) return { eff: 4, down: true };
+      return { eff: r, down: false };
+    },
+    [govRating, proofOK],
+  );
 
   const indScore = useCallback(() => {
     let best: number | null = null;
@@ -600,7 +818,9 @@ export default function PerformanceAssessmentPage() {
   }, [contributions, contribEff]);
 
   const avgOf = (arr: Entry[]) => {
-    const v = arr.filter((e) => e.rating != null).map((e) => e.rating as number);
+    const v = arr
+      .filter((e) => e.rating != null)
+      .map((e) => e.rating as number);
     if (!v.length) return null;
     return v.reduce((a, b) => a + b, 0) / v.length;
   };
@@ -616,70 +836,126 @@ export default function PerformanceAssessmentPage() {
   const cAvg = cultAvg();
   const ind = indScore();
 
-  const totalScore = ind.best != null && tAvg != null && oAvg != null && cAvg != null
-    ? (ind.best * W.ind + tAvg * W.team + oAvg * W.org + cAvg * W.culture) / 100
-    : null;
+  const totalScore =
+    ind.best != null && tAvg != null && oAvg != null && cAvg != null
+      ? (ind.best * W.ind + tAvg * W.team + oAvg * W.org + cAvg * W.culture) /
+        100
+      : null;
 
   let displayIdx = totalScore != null ? catIndexOf(totalScore) : -1;
   let capped = false;
-  if (sev === "serious" && displayIdx >= 0 && displayIdx < 3) { displayIdx++; capped = true; }
+  if (sev === "serious" && displayIdx >= 0 && displayIdx < 3) {
+    displayIdx++;
+    capped = true;
+  }
 
   // ── Warnings ──────────────────────────────────────────────────────────────
   const warnings: string[] = [];
-  if (ind.anyDown) warnings.push("💡 An Exceptional (5) contribution is missing full proof, so it counts as Exceeds (4) for now.");
+  if (ind.anyDown)
+    warnings.push(
+      "💡 An Exceptional (5) contribution is missing full proof, so it counts as Exceeds (4) for now.",
+    );
   contributions.forEach((c, i) => {
     const r = govRating(c);
     if (r != null && r >= 4 && !c.proofref && !c.prooffilename)
-      warnings.push(`💡 Contribution #${i + 1} is rated 4–5 — attaching a proof link or file will help confirm it.`);
+      warnings.push(
+        `💡 Contribution #${i + 1} is rated 4–5 — attaching a proof link or file will help confirm it.`,
+      );
     if (computeSuggested(c).flagged)
-      warnings.push(`🛡 Contribution #${i + 1}: instruction-like text found and ignored.`);
+      warnings.push(
+        `🛡 Contribution #${i + 1}: instruction-like text found and ignored.`,
+      );
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
-  const validate = useCallback((s: number): boolean => {
-    const errs: Record<string, string> = {};
-    let te = "";
+  const validate = useCallback(
+    (s: number): boolean => {
+      const errs: Record<string, string> = {};
+      let te = "";
 
-    if (s === 1) {
-      if (!emp.trim()) errs["emp"] = "Please enter the employee name";
-      if (!rev.trim()) errs["rev"] = mode === "self" ? "Please enter your name" : "Please enter the reviewer name";
-      if (!desig.trim()) errs["desig"] = "Please enter the designation";
-      if (!facets.size) errs["facets"] = "Please select at least one role area";
-    } else if (s === 2) {
-      if (!contributions.length) te = "Please add at least one contribution using the button below";
-      contributions.forEach((c) => {
-        if (!c.title.trim()) errs["c" + c.id + "_title"] = "Please enter the task / project title";
-        if (!c.area) errs["c" + c.id + "_area"] = "Please select a role area";
-        if (c.self == null) errs["c" + c.id + "_self"] = "Please select your self-rating (1–5)";
-        if (!c.context.trim()) errs["c" + c.id + "_context"] = "Please describe what you were asked to do";
-        if (!c.problem.trim()) errs["c" + c.id + "_problem"] = "Please describe the problem this work addressed";
-        if (!c.create.trim()) errs["c" + c.id + "_create"] = "Please describe what you created";
-        if (!c.adopt.trim()) errs["c" + c.id + "_adopt"] = "Please describe the adoption and who is using it";
-        if (!c.changed.trim()) errs["c" + c.id + "_changed"] = "Please describe what changed because of it";
-        if (!c.value.trim()) errs["c" + c.id + "_value"] = "Please describe how FarmwiseAI is better because of it";
-      });
-    } else if (s === 3) {
-      if (!teamEntries.length) te = "Please add at least one team contribution using the button below";
-      teamEntries.forEach((e) => {
-        if (!e.text.trim()) errs["e_team_" + e.id + "_text"] = "Please describe the team contribution";
-        if (e.rating == null) errs["e_team_" + e.id + "_rate"] = "Please select a rating (1–5)";
-      });
-    } else if (s === 4) {
-      if (!orgEntries.length) te = "Please add at least one organisation contribution using the button below";
-      orgEntries.forEach((e) => {
-        if (!e.text.trim()) errs["e_org_" + e.id + "_text"] = "Please describe the organisation contribution";
-        if (e.rating == null) errs["e_org_" + e.id + "_rate"] = "Please select a rating (1–5)";
-      });
-    } else if (s === 5) {
-      CULT_ITEMS.forEach(([k, label]) => {
-        if (cultRatings[k] == null) errs["b_culture_" + k] = `Please select a rating for "${label}"`;
-      });
-    }
+      if (s === 1) {
+        if (!emp.trim()) errs["emp"] = "Please enter the employee name";
+        if (!rev.trim())
+          errs["rev"] =
+            mode === "self"
+              ? "Please enter your name"
+              : "Please enter the reviewer name";
+        if (!desig.trim()) errs["desig"] = "Please enter the designation";
+        if (!facets.size)
+          errs["facets"] = "Please select at least one role area";
+      } else if (s === 2) {
+        if (!contributions.length)
+          te = "Please add at least one contribution using the button below";
+        contributions.forEach((c) => {
+          if (!c.title.trim())
+            errs["c" + c.id + "_title"] =
+              "Please enter the task / project title";
+          if (!c.area) errs["c" + c.id + "_area"] = "Please select a role area";
+          if (c.self == null)
+            errs["c" + c.id + "_self"] = "Please select your self-rating (1–5)";
+          if (!c.context.trim())
+            errs["c" + c.id + "_context"] =
+              "Please describe what you were asked to do";
+          if (!c.problem.trim())
+            errs["c" + c.id + "_problem"] =
+              "Please describe the problem this work addressed";
+          if (!c.create.trim())
+            errs["c" + c.id + "_create"] = "Please describe what you created";
+          if (!c.adopt.trim())
+            errs["c" + c.id + "_adopt"] =
+              "Please describe the adoption and who is using it";
+          if (!c.changed.trim())
+            errs["c" + c.id + "_changed"] =
+              "Please describe what changed because of it";
+          if (!c.value.trim())
+            errs["c" + c.id + "_value"] =
+              "Please describe how FarmwiseAI is better because of it";
+        });
+      } else if (s === 3) {
+        if (!teamEntries.length)
+          te =
+            "Please add at least one team contribution using the button below";
+        teamEntries.forEach((e) => {
+          if (!e.text.trim())
+            errs["e_team_" + e.id + "_text"] =
+              "Please describe the team contribution";
+          if (e.rating == null)
+            errs["e_team_" + e.id + "_rate"] = "Please select a rating (1–5)";
+        });
+      } else if (s === 4) {
+        if (!orgEntries.length)
+          te =
+            "Please add at least one organisation contribution using the button below";
+        orgEntries.forEach((e) => {
+          if (!e.text.trim())
+            errs["e_org_" + e.id + "_text"] =
+              "Please describe the organisation contribution";
+          if (e.rating == null)
+            errs["e_org_" + e.id + "_rate"] = "Please select a rating (1–5)";
+        });
+      } else if (s === 5) {
+        CULT_ITEMS.forEach(([k, label]) => {
+          if (cultRatings[k] == null)
+            errs["b_culture_" + k] = `Please select a rating for "${label}"`;
+        });
+      }
 
-    setErrors(errs);
-    if (te) showTopErr(te);
-    return !Object.keys(errs).length && !te;
-  }, [emp, rev, desig, facets, contributions, teamEntries, orgEntries, cultRatings, showTopErr]);
+      setErrors(errs);
+      if (te) showTopErr(te);
+      return !Object.keys(errs).length && !te;
+    },
+    [
+      emp,
+      rev,
+      desig,
+      facets,
+      contributions,
+      teamEntries,
+      orgEntries,
+      cultRatings,
+      showTopErr,
+    ],
+  );
 
   const validateAll = useCallback((): SubmitStepError[] => {
     const result: SubmitStepError[] = [];
@@ -689,130 +965,332 @@ export default function PerformanceAssessmentPage() {
     {
       const errs: Record<string, string> = {};
       const fields: F[] = [];
-      const add = (k: string, msg: string, sl: string) => { errs[k] = msg; fields.push({ key: k, label: msg, shortLabel: sl }); };
-      if (!emp.trim()) add("emp", "Please enter the employee name", "Employee Name");
-      if (!rev.trim()) add("rev", mode === "self" ? "Please enter your name" : "Please enter the reviewer name", mode === "self" ? "Your Name" : "Reviewer Name");
-      if (!desig.trim()) add("desig", "Please enter the designation", "Designation");
-      if (!facets.size) add("facets", "Please select at least one role area", "Role Areas");
-      if (fields.length) result.push({ step: 1, stepLabel: "About You & Role", topMsg: "", topShortLabel: "", fields, errs });
+      const add = (k: string, msg: string, sl: string) => {
+        errs[k] = msg;
+        fields.push({ key: k, label: msg, shortLabel: sl });
+      };
+      if (!emp.trim())
+        add("emp", "Please enter the employee name", "Employee Name");
+      if (!rev.trim())
+        add(
+          "rev",
+          mode === "self"
+            ? "Please enter your name"
+            : "Please enter the reviewer name",
+          mode === "self" ? "Your Name" : "Reviewer Name",
+        );
+      if (!desig.trim())
+        add("desig", "Please enter the designation", "Designation");
+      if (!facets.size)
+        add("facets", "Please select at least one role area", "Role Areas");
+      if (fields.length)
+        result.push({
+          step: 1,
+          stepLabel: "About You & Role",
+          topMsg: "",
+          topShortLabel: "",
+          fields,
+          errs,
+        });
     }
 
     // Step 2
     {
       const errs: Record<string, string> = {};
       const fields: F[] = [];
-      const add = (k: string, msg: string, sl: string) => { errs[k] = msg; fields.push({ key: k, label: msg, shortLabel: sl }); };
-      let topMsg = ""; let topShortLabel = "";
-      if (!contributions.length) { topMsg = "Please add at least one contribution"; topShortLabel = "Add a Contribution"; }
+      const add = (k: string, msg: string, sl: string) => {
+        errs[k] = msg;
+        fields.push({ key: k, label: msg, shortLabel: sl });
+      };
+      let topMsg = "";
+      let topShortLabel = "";
+      if (!contributions.length) {
+        topMsg = "Please add at least one contribution";
+        topShortLabel = "Add a Contribution";
+      }
       contributions.forEach((c, idx) => {
-        const p = `c${c.id}`; const n = `#${idx + 1}`;
-        if (!c.title.trim()) add(`${p}_title`, "Please enter the task / project title", `Title (Contribution ${n})`);
-        if (!c.area) add(`${p}_area`, "Please select a role area", `Role Area (Contribution ${n})`);
-        if (c.self == null) add(`${p}_self`, "Please select your self-rating (1–5)", `Self-Rating (Contribution ${n})`);
-        if (!c.context.trim()) add(`${p}_context`, "Please describe what you were asked to do", `Task Context (Contribution ${n})`);
-        if (!c.problem.trim()) add(`${p}_problem`, "Please describe the problem this work addressed", `Problem Statement (Contribution ${n})`);
-        if (!c.create.trim()) add(`${p}_create`, "Please describe what you created", `What You Created (Contribution ${n})`);
-        if (!c.adopt.trim()) add(`${p}_adopt`, "Please describe the adoption", `Adoption Details (Contribution ${n})`);
-        if (!c.changed.trim()) add(`${p}_changed`, "Please describe what changed", `What Changed (Contribution ${n})`);
-        if (!c.value.trim()) add(`${p}_value`, "Please describe the value to FarmwiseAI", `Value Delivered (Contribution ${n})`);
+        const p = `c${c.id}`;
+        const n = `#${idx + 1}`;
+        if (!c.title.trim())
+          add(
+            `${p}_title`,
+            "Please enter the task / project title",
+            `Title (Contribution ${n})`,
+          );
+        if (!c.area)
+          add(
+            `${p}_area`,
+            "Please select a role area",
+            `Role Area (Contribution ${n})`,
+          );
+        if (c.self == null)
+          add(
+            `${p}_self`,
+            "Please select your self-rating (1–5)",
+            `Self-Rating (Contribution ${n})`,
+          );
+        if (!c.context.trim())
+          add(
+            `${p}_context`,
+            "Please describe what you were asked to do",
+            `Task Context (Contribution ${n})`,
+          );
+        if (!c.problem.trim())
+          add(
+            `${p}_problem`,
+            "Please describe the problem this work addressed",
+            `Problem Statement (Contribution ${n})`,
+          );
+        if (!c.create.trim())
+          add(
+            `${p}_create`,
+            "Please describe what you created",
+            `What You Created (Contribution ${n})`,
+          );
+        if (!c.adopt.trim())
+          add(
+            `${p}_adopt`,
+            "Please describe the adoption",
+            `Adoption Details (Contribution ${n})`,
+          );
+        if (!c.changed.trim())
+          add(
+            `${p}_changed`,
+            "Please describe what changed",
+            `What Changed (Contribution ${n})`,
+          );
+        if (!c.value.trim())
+          add(
+            `${p}_value`,
+            "Please describe the value to FarmwiseAI",
+            `Value Delivered (Contribution ${n})`,
+          );
       });
-      if (fields.length || topMsg) result.push({ step: 2, stepLabel: "Individual Contributions", topMsg, topShortLabel, fields, errs });
+      if (fields.length || topMsg)
+        result.push({
+          step: 2,
+          stepLabel: "Individual Contributions",
+          topMsg,
+          topShortLabel,
+          fields,
+          errs,
+        });
     }
 
     // Step 3
     {
       const errs: Record<string, string> = {};
       const fields: F[] = [];
-      const add = (k: string, msg: string, sl: string) => { errs[k] = msg; fields.push({ key: k, label: msg, shortLabel: sl }); };
-      let topMsg = ""; let topShortLabel = "";
-      if (!teamEntries.length) { topMsg = "Please add at least one team contribution"; topShortLabel = "Add a Team Entry"; }
+      const add = (k: string, msg: string, sl: string) => {
+        errs[k] = msg;
+        fields.push({ key: k, label: msg, shortLabel: sl });
+      };
+      let topMsg = "";
+      let topShortLabel = "";
+      if (!teamEntries.length) {
+        topMsg = "Please add at least one team contribution";
+        topShortLabel = "Add a Team Entry";
+      }
       teamEntries.forEach((e, idx) => {
-        const p = `e_team_${e.id}`; const n = `#${idx + 1}`;
-        if (!e.text.trim()) add(`${p}_text`, "Please describe the team contribution", `Description (Team Entry ${n})`);
-        if (e.rating == null) add(`${p}_rate`, "Please select a rating (1–5)", `Rating (Team Entry ${n})`);
+        const p = `e_team_${e.id}`;
+        const n = `#${idx + 1}`;
+        if (!e.text.trim())
+          add(
+            `${p}_text`,
+            "Please describe the team contribution",
+            `Description (Team Entry ${n})`,
+          );
+        if (e.rating == null)
+          add(
+            `${p}_rate`,
+            "Please select a rating (1–5)",
+            `Rating (Team Entry ${n})`,
+          );
       });
-      if (fields.length || topMsg) result.push({ step: 3, stepLabel: "Team Contribution", topMsg, topShortLabel, fields, errs });
+      if (fields.length || topMsg)
+        result.push({
+          step: 3,
+          stepLabel: "Team Contribution",
+          topMsg,
+          topShortLabel,
+          fields,
+          errs,
+        });
     }
 
     // Step 4
     {
       const errs: Record<string, string> = {};
       const fields: F[] = [];
-      const add = (k: string, msg: string, sl: string) => { errs[k] = msg; fields.push({ key: k, label: msg, shortLabel: sl }); };
-      let topMsg = ""; let topShortLabel = "";
-      if (!orgEntries.length) { topMsg = "Please add at least one organisation contribution"; topShortLabel = "Add an Organisation Entry"; }
+      const add = (k: string, msg: string, sl: string) => {
+        errs[k] = msg;
+        fields.push({ key: k, label: msg, shortLabel: sl });
+      };
+      let topMsg = "";
+      let topShortLabel = "";
+      if (!orgEntries.length) {
+        topMsg = "Please add at least one organisation contribution";
+        topShortLabel = "Add an Organisation Entry";
+      }
       orgEntries.forEach((e, idx) => {
-        const p = `e_org_${e.id}`; const n = `#${idx + 1}`;
-        if (!e.text.trim()) add(`${p}_text`, "Please describe the organisation contribution", `Description (Org Entry ${n})`);
-        if (e.rating == null) add(`${p}_rate`, "Please select a rating (1–5)", `Rating (Org Entry ${n})`);
+        const p = `e_org_${e.id}`;
+        const n = `#${idx + 1}`;
+        if (!e.text.trim())
+          add(
+            `${p}_text`,
+            "Please describe the organisation contribution",
+            `Description (Org Entry ${n})`,
+          );
+        if (e.rating == null)
+          add(
+            `${p}_rate`,
+            "Please select a rating (1–5)",
+            `Rating (Org Entry ${n})`,
+          );
       });
-      if (fields.length || topMsg) result.push({ step: 4, stepLabel: "Organisation Contribution", topMsg, topShortLabel, fields, errs });
+      if (fields.length || topMsg)
+        result.push({
+          step: 4,
+          stepLabel: "Organisation Contribution",
+          topMsg,
+          topShortLabel,
+          fields,
+          errs,
+        });
     }
 
     // Step 5
     {
       const errs: Record<string, string> = {};
       const fields: F[] = [];
-      const add = (k: string, msg: string, sl: string) => { errs[k] = msg; fields.push({ key: k, label: msg, shortLabel: sl }); };
+      const add = (k: string, msg: string, sl: string) => {
+        errs[k] = msg;
+        fields.push({ key: k, label: msg, shortLabel: sl });
+      };
       CULT_ITEMS.forEach(([k, label]) => {
-        if (cultRatings[k] == null) add(`b_culture_${k}`, `Please select a rating for "${label}"`, label);
+        if (cultRatings[k] == null)
+          add(`b_culture_${k}`, `Please select a rating for "${label}"`, label);
       });
-      if (fields.length) result.push({ step: 5, stepLabel: "Culture & Discipline", topMsg: "", topShortLabel: "", fields, errs });
+      if (fields.length)
+        result.push({
+          step: 5,
+          stepLabel: "Culture & Discipline",
+          topMsg: "",
+          topShortLabel: "",
+          fields,
+          errs,
+        });
     }
 
     return result;
-  }, [emp, rev, desig, facets, contributions, teamEntries, orgEntries, cultRatings, mode]);
+  }, [
+    emp,
+    rev,
+    desig,
+    facets,
+    contributions,
+    teamEntries,
+    orgEntries,
+    cultRatings,
+    mode,
+  ]);
 
   const submitErrors = useMemo(
     () => (hasSubmitAttempt ? validateAll() : []),
-    [hasSubmitAttempt, validateAll]
+    [hasSubmitAttempt, validateAll],
   );
 
-  const gotoValidated = useCallback((from: number, to: number) => {
-    if (!validate(from)) {
-      setTimeout(() => {
-        const el = document.querySelector(".req-error, .rate-err");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
-      return;
-    }
-    saveDraft();
-    showFlash("✅ Progress saved");
-    goto(to);
-  }, [validate, goto, showFlash]); // eslint-disable-line
+  const gotoValidated = useCallback(
+    (from: number, to: number) => {
+      if (!validate(from)) {
+        setTimeout(() => {
+          const el = document.querySelector(".req-error, .rate-err");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 80);
+        return;
+      }
+      saveDraft();
+      showFlash("✅ Progress saved");
+      goto(to);
+    },
+    [validate, goto, showFlash],
+  ); // eslint-disable-line
 
   // ── Draft ─────────────────────────────────────────────────────────────────
-  const gather = useCallback(() => ({
-    mode, sev, level, facets: [...facets],
-    emp, rev, desig, period,
-    contributions, teamEntries, orgEntries,
-    cultRatings, cultComment,
-    gateFlags: [...gateFlags],
-  }), [mode, sev, level, facets, emp, rev, desig, period, contributions, teamEntries, orgEntries, cultRatings, cultComment, gateFlags]);
+  const gather = useCallback(
+    () => ({
+      mode,
+      sev,
+      level,
+      facets: [...facets],
+      emp,
+      rev,
+      desig,
+      period,
+      contributions,
+      teamEntries,
+      orgEntries,
+      cultRatings,
+      cultComment,
+      gateFlags: [...gateFlags],
+    }),
+    [
+      mode,
+      sev,
+      level,
+      facets,
+      emp,
+      rev,
+      desig,
+      period,
+      contributions,
+      teamEntries,
+      orgEntries,
+      cultRatings,
+      cultComment,
+      gateFlags,
+    ],
+  );
 
   const saveDraft = useCallback(() => {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(gather())); setIsDirty(false); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(gather()));
+      setIsDirty(false);
+    } catch {
+      /* ignore */
+    }
   }, [gather]);
 
   // Apply a saved/submitted snapshot (same shape as gather()) into the form.
-  const applyState = useCallback((d: Record<string, unknown>) => {
-    const dd = d as Record<string, never>;
-    setModeState((dd.mode as "self" | "rev") || "self");
-    setSevState((dd.sev as "none" | "concern" | "serious") || "none");
-    setLevelState((dd.level as "junior" | "mid" | "senior") || "mid");
-    setFacets(new Set((dd.facets as string[]) || []));
-    setEmp(dd.emp || ""); setRev(dd.rev || ""); setDesig(dd.desig || ""); setPeriod(dd.period || "");
-    const contribs = (dd.contributions as Contribution[]) || [];
-    setContributions(contribs);
-    setCCounter(Math.max(0, ...contribs.map((c) => c.id)));
-    const team = (dd.teamEntries as Entry[]) || [];
-    const org = (dd.orgEntries as Entry[]) || [];
-    setTeamEntries(team); setOrgEntries(org);
-    setECounter(Math.max(0, ...team.map((e) => e.id), ...org.map((e) => e.id)));
-    setCultRatings((dd.cultRatings as Record<string, number>) || {}); setCultComment(dd.cultComment || "");
-    setGateFlags(new Set((dd.gateFlags as string[]) || []));
-    onAck(true); setIsDirty(false);
-  }, [onAck]);
+  const applyState = useCallback(
+    (d: Record<string, unknown>) => {
+      const dd = d as Record<string, never>;
+      setModeState((dd.mode as "self" | "rev") || "self");
+      setSevState((dd.sev as "none" | "concern" | "serious") || "none");
+      setLevelState((dd.level as "junior" | "mid" | "senior") || "mid");
+      setFacets(new Set((dd.facets as string[]) || []));
+      setEmp(dd.emp || "");
+      setRev(dd.rev || "");
+      setDesig(dd.desig || "");
+      setPeriod(dd.period || "");
+      const contribs = (dd.contributions as Contribution[]) || [];
+      setContributions(contribs);
+      setCCounter(Math.max(0, ...contribs.map((c) => c.id)));
+      const team = (dd.teamEntries as Entry[]) || [];
+      const org = (dd.orgEntries as Entry[]) || [];
+      setTeamEntries(team);
+      setOrgEntries(org);
+      setECounter(
+        Math.max(0, ...team.map((e) => e.id), ...org.map((e) => e.id)),
+      );
+      setCultRatings((dd.cultRatings as Record<string, number>) || {});
+      setCultComment(dd.cultComment || "");
+      setGateFlags(new Set((dd.gateFlags as string[]) || []));
+      onAck(true);
+      setIsDirty(false);
+    },
+    [onAck],
+  );
 
   const loadDraft = useCallback(() => {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -821,44 +1299,61 @@ export default function PerformanceAssessmentPage() {
       applyState(JSON.parse(raw));
       setDraftFound(false);
       goto(1);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [applyState, goto]);
 
   // Pull the user's already-submitted self-assessment back into the form to
   // view/edit (re-saving updates the same record).
-  const loadSubmitted = useCallback(async (id: string) => {
-    try {
-      const r = await performanceAssessments.get(id);
-      applyState((r.assessment.data as Record<string, unknown>) || {});
-      setSubmitted(true);
-      goto(7);
-    } catch {
-      showFlash("⚠️ Couldn't load your submitted assessment.");
-    }
-  }, [applyState, goto, showFlash]);
+  const loadSubmitted = useCallback(
+    async (id: string) => {
+      try {
+        const r = await performanceAssessments.get(id);
+        applyState((r.assessment.data as Record<string, unknown>) || {});
+        setSubmitted(true);
+        goto(7);
+      } catch {
+        showFlash("⚠️ Couldn't load your submitted assessment.");
+      }
+    },
+    [applyState, goto, showFlash],
+  );
 
-  const discardDraft = useCallback(() => { localStorage.removeItem(DRAFT_KEY); setDraftFound(false); }, []);
+  const discardDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_KEY);
+    setDraftFound(false);
+  }, []);
 
-  const navigateToError = useCallback((se: SubmitStepError) => {
-    setErrors(se.errs);
-    if (se.topMsg) showTopErr(se.topMsg);
-    goto(se.step);
-    setTimeout(() => {
-      const el = document.querySelector(".req-error, .rate-err, .top-err");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 120);
-  }, [goto, showTopErr]);
+  const navigateToError = useCallback(
+    (se: SubmitStepError) => {
+      setErrors(se.errs);
+      if (se.topMsg) showTopErr(se.topMsg);
+      goto(se.step);
+      setTimeout(() => {
+        const el = document.querySelector(".req-error, .rate-err, .top-err");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 120);
+    },
+    [goto, showTopErr],
+  );
 
-  const submitAssessment = async () => {
+  const handleSubmitClick = () => {
     const allErrors = validateAll();
     if (allErrors.length) {
       setHasSubmitAttempt(true);
       return;
     }
     setHasSubmitAttempt(false);
+    setShowSubmitConfirm(true);
+  };
+
+  const submitAssessment = async () => {
+    setShowSubmitConfirm(false);
     saveDraft();
 
-    const band = totalScore != null && displayIdx >= 0 ? CATS[displayIdx].name : null;
+    const band =
+      totalScore != null && displayIdx >= 0 ? CATS[displayIdx].name : null;
     const payload = {
       employee_name: emp.trim(),
       employee_user_id: mode === "self" ? (user?.id ?? null) : null,
@@ -889,10 +1384,16 @@ export default function PerformanceAssessmentPage() {
       await performanceAssessments.create(payload);
       setSubmitted(true);
       // Re-fetch so the saved submission persists across reloads / tab switches.
-      performanceAssessments.myAssessments().then((r) => {
-        const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
-        if (self) setExistingSelf(self);
-      }).catch(() => {});
+      performanceAssessments
+        .myAssessments()
+        .then((r) => {
+          const self =
+            (r.assessments || []).find((a) => a.status === "submitted") ||
+            (r.assessments || [])[0] ||
+            null;
+          if (self) setExistingSelf(self);
+        })
+        .catch(() => {});
       showFlash(
         reviewerIds.length
           ? `✅ Assessment saved. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.`
@@ -900,42 +1401,94 @@ export default function PerformanceAssessmentPage() {
       );
     } catch (e) {
       console.error("performance assessment submit failed", e);
-      showFlash("⚠️ Couldn't reach the server — saved on this device. Try Submit again, or use Print / PDF.");
+      showFlash(
+        "⚠️ Couldn't reach the server — saved on this device. Try Submit again, or use Print / PDF.",
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   // ── Reusable sub-components ───────────────────────────────────────────────
-  const RatingRow = ({ n, i, selected, onClick }: { n: number; i: number; selected: boolean; onClick: () => void }) => (
+  const RatingRow = ({
+    n,
+    i,
+    selected,
+    onClick,
+  }: {
+    n: number;
+    i: number;
+    selected: boolean;
+    onClick: () => void;
+  }) => (
     <div className={`rb ${selected ? "sel" : ""}`} onClick={onClick}>
-      <b>{n}</b>{LN[i]}
+      <b>{n}</b>
+      {LN[i]}
     </div>
   );
 
-  const EntryBlock = ({ section, e, idx }: { section: "team" | "org"; e: Entry; idx: number }) => {
+  const EntryBlock = ({
+    section,
+    e,
+    idx,
+  }: {
+    section: "team" | "org";
+    e: Entry;
+    idx: number;
+  }) => {
     const tkey = "e_" + section + "_" + e.id;
     return (
       <div className="block">
         <div className="ch" style={{ marginBottom: 8 }}>
-          <h4 style={{ margin: 0, fontSize: 13, color: "var(--leaf)" }}>Contribution #{idx + 1}</h4>
-          <button className="rm" onClick={() => removeEntry(section, e.id)}>Remove</button>
+          <h4 style={{ margin: 0, fontSize: 13, color: "var(--leaf)" }}>
+            Contribution #{idx + 1}
+          </h4>
+          <button className="rm" onClick={() => removeEntry(section, e.id)}>
+            Remove
+          </button>
         </div>
         <div className="field">
-          <label>What was the contribution? <span className="req-star">*</span></label>
-          <textarea className={errCls(tkey + "_text")} value={e.text}
+          <label>
+            What was the contribution? <span className="req-star">*</span>
+          </label>
+          <textarea
+            className={errCls(tkey + "_text")}
+            value={e.text}
             onChange={(ev) => updEntry(section, e.id, "text", ev.target.value)}
-            placeholder={section === "team" ? "e.g. Mentored two new engineers; built the onboarding guide the team now uses." : "e.g. Built a deployment script now used by 4 project teams."} />
+            placeholder={
+              section === "team"
+                ? "e.g. Mentored two new engineers; built the onboarding guide the team now uses."
+                : "e.g. Built a deployment script now used by 4 project teams."
+            }
+          />
           <Err k={tkey + "_text"} />
         </div>
-        <label className="fld">Rating <span className="req-star">*</span></label>
+        <label className="fld">
+          Rating <span className="req-star">*</span>
+        </label>
         <div className={`rate ${errors[tkey + "_rate"] ? "rate-err" : ""}`}>
-          {NUM.map((n, i) => <RatingRow key={n} n={n} i={i} selected={e.rating === n} onClick={() => pickEntry(section, e.id, n)} />)}
+          {NUM.map((n, i) => (
+            <RatingRow
+              key={n}
+              n={n}
+              i={i}
+              selected={e.rating === n}
+              onClick={() => pickEntry(section, e.id, n)}
+            />
+          ))}
         </div>
         <Err k={tkey + "_rate"} />
         <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
-          <label>Remarks <span className="breakdown">(optional)</span></label>
-          <textarea value={e.remark} onChange={(ev) => updEntry(section, e.id, "remark", ev.target.value)} placeholder="Who benefited, adoption, evidence…" />
+          <label>
+            Remarks <span className="breakdown">(optional)</span>
+          </label>
+          <textarea
+            value={e.remark}
+            onChange={(ev) =>
+              updEntry(section, e.id, "remark", ev.target.value)
+            }
+            placeholder="Who benefited, adoption, evidence…"
+          />
         </div>
       </div>
     );
@@ -945,11 +1498,27 @@ export default function PerformanceAssessmentPage() {
     <div className="miss-card" onClick={() => navigateToError(se)}>
       <div className="miss-card-top">
         <div className="miss-card-hd">Missing required fields</div>
-        <button className="miss-go-btn" onClick={(ev) => { ev.stopPropagation(); navigateToError(se); }}>Go to this tab →</button>
+        <button
+          className="miss-go-btn"
+          onClick={(ev) => {
+            ev.stopPropagation();
+            navigateToError(se);
+          }}
+        >
+          Go to this tab →
+        </button>
       </div>
-      {se.topMsg && <div className="miss-field"><span className="miss-dot" />{se.topShortLabel}</div>}
+      {se.topMsg && (
+        <div className="miss-field">
+          <span className="miss-dot" />
+          {se.topShortLabel}
+        </div>
+      )}
       {se.fields.map((f) => (
-        <div key={f.key} className="miss-field"><span className="miss-dot" />{f.shortLabel}</div>
+        <div key={f.key} className="miss-field">
+          <span className="miss-dot" />
+          {f.shortLabel}
+        </div>
       ))}
     </div>
   );
@@ -958,12 +1527,18 @@ export default function PerformanceAssessmentPage() {
   const tabs: { key: PerfView; label: string; Icon: typeof Award }[] = [
     { key: "self", label: "My Assessment", Icon: ClipboardList },
     { key: "reviews", label: "My Reviews", Icon: Inbox },
-    ...(isLead || hasFullPerformanceAccess ? [{ key: "team" as const, label: "My Team", Icon: Users2 }] : []),
-    ...(hasFullPerformanceAccess ? [{ key: "analysis" as const, label: "Analysis", Icon: BarChart3 }] : []),
-    ...(canManageCycles ? [
-      { key: "cycles" as const, label: "Cycles", Icon: CalendarRange },
-      { key: "org" as const, label: "Org Tree", Icon: Network },
-    ] : []),
+    ...(isLead || hasFullPerformanceAccess
+      ? [{ key: "team" as const, label: "My Team", Icon: Users2 }]
+      : []),
+    ...(hasFullPerformanceAccess
+      ? [{ key: "analysis" as const, label: "Analysis", Icon: BarChart3 }]
+      : []),
+    ...(canManageCycles
+      ? [
+          { key: "cycles" as const, label: "Cycles", Icon: CalendarRange },
+          { key: "org" as const, label: "Org Tree", Icon: Network },
+        ]
+      : []),
   ];
 
   const VIEW_SUBTITLE: Record<PerfView, string> = {
@@ -985,17 +1560,32 @@ export default function PerformanceAssessmentPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <div className="h-5 w-5 rounded-md flex items-center justify-center" style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+              <div
+                className="h-5 w-5 rounded-md flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg,#3b82f6,#6366f1)",
+                }}
+              >
                 <Award className="h-3 w-3 text-white" />
               </div>
-              <span className="text-label-upper text-blue-500">Performance</span>
+              <span className="text-label-upper text-blue-500">
+                Performance
+              </span>
             </div>
-            <h1 className="text-display text-slate-900">Performance Assessment</h1>
-            <p className="text-sm text-slate-500 mt-1.5 font-medium">{VIEW_SUBTITLE[view]}</p>
+            <h1 className="text-display text-slate-900">
+              Performance Assessment
+            </h1>
+            <p className="text-sm text-slate-500 mt-1.5 font-medium">
+              {VIEW_SUBTITLE[view]}
+            </p>
           </div>
 
           {/* Role-gated segmented control */}
-          <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 flex-wrap" role="tablist" aria-label="Performance views">
+          <div
+            className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 flex-wrap"
+            role="tablist"
+            aria-label="Performance views"
+          >
             {tabs.map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -1004,12 +1594,16 @@ export default function PerformanceAssessmentPage() {
                 onClick={() => setView(key)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-all",
-                  view === key ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                  view === key
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" /> {label}
                 {key === "reviews" && pendingReviews > 0 && (
-                  <span className="flex items-center justify-center h-4 min-w-[16px] rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">{pendingReviews}</span>
+                  <span className="flex items-center justify-center h-4 min-w-[16px] rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">
+                    {pendingReviews}
+                  </span>
                 )}
               </button>
             ))}
@@ -1018,742 +1612,1816 @@ export default function PerformanceAssessmentPage() {
       </div>
 
       {/* ── Non-wizard views (fully app-styled, outside .pa) ──────────────── */}
-      {view === "reviews" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceReviews /></div>}
-      {view === "team" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceTeam /></div>}
-      {view === "analysis" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceAnalysis /></div>}
-      {view === "cycles" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceCycles /></div>}
-      {view === "org" && <div className="max-w-[980px] mx-auto w-full mt-5"><OrgTreeEditor /></div>}
+      {view === "reviews" && (
+        <div className="max-w-[980px] mx-auto w-full mt-5">
+          <PerformanceReviews />
+        </div>
+      )}
+      {view === "team" && (
+        <div className="max-w-[980px] mx-auto w-full mt-5">
+          <PerformanceTeam />
+        </div>
+      )}
+      {view === "analysis" && (
+        <div className="max-w-[980px] mx-auto w-full mt-5">
+          <PerformanceAnalysis />
+        </div>
+      )}
+      {view === "cycles" && (
+        <div className="max-w-[980px] mx-auto w-full mt-5">
+          <PerformanceCycles />
+        </div>
+      )}
+      {view === "org" && (
+        <div className="max-w-[980px] mx-auto w-full mt-5">
+          <OrgTreeEditor />
+        </div>
+      )}
 
       {/* ── Self-assessment wizard ───────────────────────────────────────── */}
       {view === "self" && (
-      <div className="pa mt-5" style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
-
-        {/* ── Step nav ──────────────────────────────────────────────────── */}
-        <div className="stepnav">
-          <div className="stepnav-inner">
-            {STEPS.map((s, i) => (
-              <div key={i}
-                className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${i > 0 && !unlocked ? "locked" : ""}`}
-                onClick={() => {
-                  if (i === step) return;
-                  if (i > 0 && !unlocked) return;
-                  if (isDirty) { setPendingStep(i); setShowDraftDialog(true); }
-                  else goto(i);
-                }}>
-                <span className="snum">{i + 1}</span>
-                <span>{s}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="wrap">
-          {/* Already-submitted banner — fetched from the server on load */}
-          {existingSelf && (
-            <div className="draftbar" style={{ background: "#eef2ff", borderColor: "#c7d2fe" }}>
-              <span style={{ color: "#3730a3" }}>
-                ✓ You submitted your self-assessment{existingSelf.review_period ? <> for <b>{existingSelf.review_period}</b></> : null}
-                {existingSelf.rating_band ? <> — <b>{existingSelf.rating_band}</b></> : null}
-                {existingSelf.total_score != null ? <> ({Number(existingSelf.total_score).toFixed(2)} / 5)</> : null}.
-              </span>
-              <span style={{ display: "flex", gap: 8 }}>
-                <button className="primary" onClick={() => loadSubmitted(existingSelf.id)}>View / edit</button>
-              </span>
-            </div>
-          )}
-          {/* Draft / flash banners */}
-          {draftFound && (
-            <div className="draftbar">
-              <span>A saved draft was found on this device.</span>
-              <span style={{ display: "flex", gap: 8 }}>
-                <button className="primary" onClick={loadDraft}>Restore</button>
-                <button className="ghost" onClick={discardDraft}>Discard</button>
-              </span>
-            </div>
-          )}
-          {flash && (
-            <div className="draftbar" style={{ background: "#f0fdf4", borderColor: "#86efac" }}>
-              <span style={{ color: "#16a34a", fontWeight: 600 }}>{flash}</span>
-              <span />
-            </div>
-          )}
-
-          {/* ── Unsaved-changes dialog ──────────────────────────────────── */}
-          {showDraftDialog && (
-            <div className="pa-overlay">
-              <div className="pa-dialog">
-                <h3>Unsaved changes</h3>
-                <p>You have unsaved changes on this section. Save them to draft before moving on, or cancel to stay here.</p>
-                <div className="da">
-                  <button className="ghost" onClick={() => { setShowDraftDialog(false); setPendingStep(null); }}>Cancel</button>
-                  <button className="primary" onClick={() => {
-                    saveDraft();
-                    setShowDraftDialog(false);
-                    if (pendingStep != null) { goto(pendingStep); setPendingStep(null); }
-                  }}>Save Draft &amp; Continue</button>
+        <div
+          className="pa mt-5"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100%",
+          }}
+        >
+          {/* ── Step nav ──────────────────────────────────────────────────── */}
+          <div className="stepnav">
+            <div className="stepnav-inner">
+              {STEPS.map((s, i) => (
+                <div
+                  key={i}
+                  className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${i > 0 && !unlocked ? "locked" : ""}`}
+                  onClick={() => {
+                    if (i === step) return;
+                    if (i > 0 && !unlocked) return;
+                    if (isDirty) {
+                      setPendingStep(i);
+                      setShowDraftDialog(true);
+                    } else goto(i);
+                  }}
+                >
+                  <span className="snum">{i + 1}</span>
+                  <span>{s}</span>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 0: PHILOSOPHY ──────────────────────────────────────── */}
-          {step === 0 && (
-            <div className="card">
-              <h2>Performance Assessment Philosophy</h2>
-              <p className="lead"><b>A quick read before you begin — it makes filling your assessment much easier.</b></p>
-              <div className="opening">
-                <p className="big">Objective of this assessment</p>
-                <p>The objective is to establish a <b>fair, objective, and evidence-based</b> performance assessment framework for FarmwiseAI — moving away from activity-based assessment and replacing it with <b>outcome-based, impact-based, and adoption-based</b> evaluation.</p>
-                <p>Performance will <b>not</b> be measured by how many meetings were attended, emails sent, reports prepared, modules written, or experiments conducted. It will be measured by the <b>value created</b>.</p>
-                <p style={{ marginBottom: 0 }}>In simple terms: <b>we'd love to hear not just what you worked on, but the difference it made.</b></p>
-              </div>
-
-              <h3 className="sec">What This Assessment Asks</h3>
-              <p>Every contribution should answer:</p>
-              <ul>
-                <li>What did you create?</li>
-                <li>Was it adopted or used?</li>
-                <li>Who is using it today?</li>
-                <li>What changed because of your contribution?</li>
-                <li>Did it save time, reduce cost, improve quality, increase revenue, strengthen customer confidence, or create a new company capability?</li>
-                <li>How is FarmwiseAI better because of your work?</li>
-              </ul>
-              <ul className="pill-list">
-                {["Impact", "Adoption", "Ownership", "Innovation", "Revenue", "Cost Reduction", "Time Reduction", "Customer Success", "Team Success", "Organizational Growth", "Professional Conduct"].map((t) => <li key={t}>{t}</li>)}
-              </ul>
-
-              <h3 className="sec">Activities vs Outcomes</h3>
-              <div className="gb">
-                <div className="ex bad"><span className="tag">Less helpful</span>"I attended 20 meetings." · "I wrote 10 reports." · "I developed 5 modules." · "I participated in 15 tenders."</div>
-                <div className="ex good"><span className="tag">More helpful</span>Revenue created or influenced · time saved · cost saved · technology adopted · capability created · customer, team &amp; organizational impact.</div>
-              </div>
-
-              <h3 className="sec">The Most Important Formula</h3>
-              <div className="formula">
-                Impact = Adoption × Benefit
-                <small>If Adoption = 0, Impact = 0. A brilliant idea nobody uses creates almost no value. A simple idea everyone uses may create enormous value.</small>
-              </div>
-
-              <h3 className="sec">Hierarchy of Evidence</h3>
-              <p className="hint">Impact is not only revenue or cost. Many roles create value indirectly. Use the strongest evidence you have.</p>
-              {[
-                { lv: "Level 1 · Strongest", h: "Direct Business Impact", q: "Revenue generated/influenced, cost saved, time saved, headcount avoided, client/project won.", ex: "e.g. Helped secure a ₹5 Cr project · Reduced cloud cost by ₹10L/yr · Cut delivery from 6 months to 20 days." },
-                { lv: "Level 2", h: "Adoption Impact", q: "Did the organization actually use what you built?", ex: "Tool adopted by 5 projects · used by 20 engineers · workflow became SOP · model in production." },
-                { lv: "Level 3", h: "Capability Impact", q: "Did this create a capability the company did not previously possess?", ex: "First OCR engine · first satellite monitoring workflow · first drone volume computation system." },
-                { lv: "Level 4", h: "Strategic Impact", q: "Did it strengthen the company's position?", ex: "Enabled entry into Telangana / Mines Dept · demo used in 10 presentations · new product offering." },
-                { lv: "Level 5", h: "Customer Impact", q: "Did the customer benefit?", ex: "Fewer complaints · higher satisfaction · fewer delays · better uptime · improved accuracy." },
-                { lv: "Level 6 · Often ignored", h: "Team Multiplication Impact", q: "Did your work make other people more productive?", ex: "Automation used by 15 employees · reusable library · docs that cut onboarding time · mentoring." },
-              ].map(({ lv, h, q, ex }) => (
-                <div key={h} className="hier"><span className="lv">{lv}</span><h4>{h}</h4><div className="q">{q}</div>{ex}</div>
               ))}
-
-              <h3 className="sec">Impact Evidence Matrix</h3>
-              <table className="matrix">
-                <tbody>
-                  <tr><th>Question</th><th>Required</th></tr>
-                  {[["What did you create?", "Mandatory"], ["Was it adopted?", "Mandatory"], ["Who used it?", "Mandatory"], ["What changed because of it?", "Mandatory"], ["How is the company better now?", "Mandatory"], ["Is this one-time or currently in use?", "Mandatory"], ["How many people / projects / customers are using it?", "Mandatory"], ["Since when has it been used?", "Preferred"], ["What would happen if this contribution did not exist?", "Preferred"], ["Can the impact be measured?", "Preferred"]].map(([q, r]) => (
-                    <tr key={q}><td>{q}</td><td className={r === "Mandatory" ? "m" : "p"}>{r}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <h3 className="sec">Exceptional Rating Template</h3>
-              <p>For an Exceptional (5), sharing all six paints the full picture.</p>
-              <div className="tmpl">
-                {[["Problem", "What problem existed?"], ["Solution", "What did you create?"], ["Adoption", "Who is using it?"], ["Impact", "What changed (numbers)?"], ["Evidence", "Metrics, usage, feedback…"], ["Sustainability", "Will the benefit continue?"]].map(([t, d]) => (
-                  <div key={t}><b>{t}</b><br />{d}</div>
-                ))}
-              </div>
-
-              <h3 className="sec">Culture &amp; Integrity Gate</h3>
-              <p>Where there are serious concerns around confidentiality, internal politics, gossip, misrepresentation of work, repeated attendance issues, accountability, respect, or policy, the rating is gently capped one band: Exceptional → Exceeds · Exceeds → Meets · Meets → Below.</p>
-
-              <div className="ack">
-                <label>
-                  <input type="checkbox" checked={ackChecked} onChange={(e) => onAck(e.target.checked)} />
-                  I've read the FarmwiseAI Performance Assessment Philosophy, and I'll describe my contributions through the difference they made — their adoption and measurable impact — rather than activity alone.
-                </label>
-                <button className="primary" disabled={!ackChecked} onClick={() => goto(1)}>I Agree — Continue to Assessment →</button>
-              </div>
             </div>
-          )}
+          </div>
 
-          {/* ── STEP 1: ABOUT YOU ───────────────────────────────────────── */}
-          {step === 1 && (
-            <>
-              <div className="card">
-                <h2>About You &amp; Your Role</h2>
-                <div className="note" style={{ marginTop: 0 }}>
-                  This is your <b>self-assessment</b>{activeCycle ? <> for <b>{activeCycle.name}</b></> : null}. Your name, designation and review period are filled in for you — edit them if needed. Peer reviews of <i>others</i> are completed from the <b>My Reviews</b> tab.
-                </div>
+          <div className="wrap">
+            {/* Already-submitted banner — fetched from the server on load */}
+            {existingSelf && (
+              <div
+                className="draftbar"
+                style={{ background: "#eef2ff", borderColor: "#c7d2fe" }}
+              >
+                <span style={{ color: "#3730a3" }}>
+                  ✓ You submitted your self-assessment
+                  {existingSelf.review_period ? (
+                    <>
+                      {" "}
+                      for <b>{existingSelf.review_period}</b>
+                    </>
+                  ) : null}
+                  {existingSelf.rating_band ? (
+                    <>
+                      {" "}
+                      — <b>{existingSelf.rating_band}</b>
+                    </>
+                  ) : null}
+                  {existingSelf.total_score != null ? (
+                    <> ({Number(existingSelf.total_score).toFixed(2)} / 5)</>
+                  ) : null}
+                  .
+                </span>
+                <span style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="primary"
+                    onClick={() => loadSubmitted(existingSelf.id)}
+                  >
+                    View
+                  </button>
+                </span>
+              </div>
+            )}
+            {/* Draft / flash banners */}
+            {draftFound && (
+              <div className="draftbar">
+                <span>A saved draft was found on this device.</span>
+                <span style={{ display: "flex", gap: 8 }}>
+                  <button className="primary" onClick={loadDraft}>
+                    Restore
+                  </button>
+                  <button className="ghost" onClick={discardDraft}>
+                    Discard
+                  </button>
+                </span>
+              </div>
+            )}
+            {flash && (
+              <div
+                className="draftbar"
+                style={{ background: "#f0fdf4", borderColor: "#86efac" }}
+              >
+                <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                  {flash}
+                </span>
+                <span />
+              </div>
+            )}
 
-                <div className="grid2" style={{ marginBottom: 12, marginTop: 12 }}>
-                  <div>
-                    <label className="fld">Your name <span className="req-star">*</span></label>
-                    <input className={errCls("emp")} value={emp} onChange={(e) => { setEmp(e.target.value); setRev(e.target.value); clearErr("emp"); setIsDirty(true); }} placeholder="Full name" />
-                    <Err k="emp" />
-                  </div>
-                  <div>
-                    <label className="fld">Designation <span className="req-star">*</span></label>
-                    <input className={errCls("desig")} value={desig} onChange={(e) => { setDesig(e.target.value); clearErr("desig"); setIsDirty(true); }} placeholder="e.g. Senior Engineer" />
-                    <Err k="desig" />
-                  </div>
-                </div>
-                <div className="grid2" style={{ marginBottom: 16 }}>
-                  <div>
-                    <label className="fld">Review period</label>
-                    <input value={period} onChange={(e) => { setPeriod(e.target.value); setIsDirty(true); }} placeholder="e.g. H1 2026" />
-                  </div>
-                  <div />
-                </div>
-
-                <label className="fld">Career level</label>
-                <p className="hint">This tailors the questions and how impact is judged — juniors are assessed on value <i>within their scope</i>, not company-wide revenue.</p>
-                <div className="toggle" style={{ marginBottom: 16 }}>
-                  {(["junior", "mid", "senior"] as const).map((l) => (
-                    <button key={l} className={level === l ? "on" : ""} onClick={() => { setLevelState(l); setIsDirty(true); }}>
-                      {l === "junior" ? "Fresher / Junior" : l === "mid" ? "Mid-level" : "Senior / Lead"}
+            {/* ── Unsaved-changes dialog ──────────────────────────────────── */}
+            {showDraftDialog && (
+              <div className="pa-overlay">
+                <div className="pa-dialog">
+                  <h3>Unsaved changes</h3>
+                  <p>
+                    You have unsaved changes on this section. Save them to draft
+                    before moving on, or cancel to stay here.
+                  </p>
+                  <div className="da">
+                    <button
+                      className="ghost"
+                      onClick={() => {
+                        setShowDraftDialog(false);
+                        setPendingStep(null);
+                      }}
+                    >
+                      Cancel
                     </button>
-                  ))}
-                </div>
-
-                <label className="fld">Your role areas — select all that apply <span className="req-star">*</span></label>
-                <p className="hint">Pick every area you actually work in. Your contribution questions adapt to these.</p>
-                <div className={`facets ${errCls("facets")}`}>
-                  {Object.entries(FACETS).map(([k, f]) => (
-                    <div key={k} className={`facet ${facets.has(k) ? "on" : ""}`} onClick={() => toggleFacet(k)}>
-                      <b>{f.label}</b><span>{f.hint}</span>
-                    </div>
-                  ))}
-                </div>
-                <Err k="facets" />
-
-                {facets.size > 0 && (
-                  <div className="note" style={{ marginTop: 10 }}>
-                    <b>What counts for your role(s):</b><br />
-                    {[...facets].map((k) => <span key={k}>• <b>{FACETS[k].label}:</b> {FACETS[k].hint}<br /></span>)}
+                    <button
+                      className="primary"
+                      onClick={() => {
+                        saveDraft();
+                        setShowDraftDialog(false);
+                        if (pendingStep != null) {
+                          goto(pendingStep);
+                          setPendingStep(null);
+                        }
+                      }}
+                    >
+                      Save Draft &amp; Continue
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(0)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => gotoValidated(1, 2)}>Next: Contributions →</button>
-                  </span>
                 </div>
               </div>
-            </>
-          )}
+            )}
 
-          {/* ── STEP 2: INDIVIDUAL CONTRIBUTIONS ────────────────────────── */}
-          {step === 2 && (
-            <>
-              <div className="card">
-                <h2>Individual Contributions <span className="breakdown" style={{ fontWeight: 400 }}>(60%)</span></h2>
-                <p className="hint">Add each meaningful contribution separately and rate it on its own. You may have several — e.g. two Exceptional and one Exceeds.</p>
-                <div className="note" dangerouslySetInnerHTML={{ __html: LEVEL_HINT[level] || "" }} />
-
-                {topErr && <div className="top-err">{topErr}</div>}
-
-                {contributions.map((c, idx) => {
-                  const { suggested, why, flagged } = computeSuggested(c);
-                  const suggCat = suggested != null ? CATS[catIndexOf(suggested)] : null;
-
-                  return (
-                    <div key={c.id} className="contrib">
-                      <div className="ch">
-                        <h4>Contribution #{idx + 1}</h4>
-                        <button className="rm" onClick={() => removeContrib(c.id)}>Remove</button>
-                      </div>
-
-                      <div className="grid2" style={{ marginBottom: 14 }}>
-                        <div>
-                          <label className="fld">Task / Project title <span className="req-star">*</span></label>
-                          <input className={errCls("c" + c.id + "_title")} value={c.title} onChange={(e) => updContrib(c.id, "title", e.target.value)} placeholder="e.g. SIPCOT spatial DB redesign" />
-                          <Err k={"c" + c.id + "_title"} />
-                        </div>
-                        <div>
-                          <label className="fld">Role area <span className="req-star">*</span></label>
-                          <select className={errCls("c" + c.id + "_area")} value={c.area} onChange={(e) => updContrib(c.id, "area", e.target.value)}>
-                            <option value="">{facets.size ? "— select —" : "(select role on previous page)"}</option>
-                            {[...facets].map((k) => <option key={k} value={k}>{FACETS[k].label}</option>)}
-                          </select>
-                          <Err k={"c" + c.id + "_area"} />
-                        </div>
-                      </div>
-
-                      {/* Block 1: Self rating */}
-                      <div className="block">
-                        <div className="blockh"><span className="stepn">1</span>Your self-rating <span className="req-star" style={{ marginLeft: 4 }}>*</span></div>
-                        <div className={`rate ${errors["c" + c.id + "_self"] ? "rate-err" : ""}`}>
-                          {NUM.map((n, i) => <RatingRow key={n} n={n} i={i} selected={c.self === n} onClick={() => pickSelf(c.id, n)} />)}
-                        </div>
-                        <Err k={"c" + c.id + "_self"} />
-                        {c.self != null && <div className="hint" style={{ marginBottom: 0, marginTop: 6 }}>{RATE_DESC[NUM.indexOf(c.self)]}</div>}
-                      </div>
-
-                      {/* Block 2: The work */}
-                      <div className="block">
-                        <div className="blockh"><span className="stepn">2</span>The work</div>
-                        {[
-                          { k: "context", label: "What were you asked to do? (context / scope)", ph: "The brief, the goal, and what was expected of you." },
-                          { k: "problem", label: "What problem did it address?", ph: "The problem or need this work responded to." },
-                          { k: "create", label: "What did you create? (the solution)", ph: "The product, model, workflow, framework, relationship…" },
-                        ].map(({ k, label, ph }) => (
-                          <div key={k} className="field">
-                            <label>{label} <span className="req-star">*</span></label>
-                            <textarea className={errCls("c" + c.id + "_" + k)} value={(c as unknown as Record<string, string>)[k] || ""}
-                              onChange={(e) => updContrib(c.id, k as keyof Contribution, e.target.value as never)}
-                              placeholder={ph} />
-                            <Err k={"c" + c.id + "_" + k} />
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Block 3: Impact & adoption */}
-                      <div className="block">
-                        <div className="blockh"><span className="stepn">3</span>Impact &amp; adoption</div>
-                        {[
-                          { k: "adopt", label: "Was it adopted? Who is using it today, and since when?", ph: "e.g. In production; used by AgriStack, WRD, SIPCOT since Mar 2026." },
-                          { k: "changed", label: "What changed because of it? (use numbers)", ph: "e.g. Query time 15 min → 30 sec; ~70% less manual effort." },
-                          { k: "value", label: "How is FarmwiseAI better because of it?", ph: "Revenue, cost, time, capability, customer confidence, strategic position…" },
-                        ].map(({ k, label, ph }) => (
-                          <div key={k} className="field">
-                            <label>{label} <span className="req-star">*</span></label>
-                            <textarea className={errCls("c" + c.id + "_" + k)} value={(c as unknown as Record<string, string>)[k] || ""}
-                              onChange={(e) => updContrib(c.id, k as keyof Contribution, e.target.value as never)}
-                              placeholder={ph} />
-                            <Err k={"c" + c.id + "_" + k} />
-                          </div>
-                        ))}
-                        <div className="field" style={{ marginBottom: 0 }}>
-                          <label>What kind of impact did it create? (select all that apply)</label>
-                          <div className="tags">
-                            {IMPACTS.map(([k, l]) => (
-                              <span key={k} className={`tag2 ${c.impacts.includes(k) ? "on" : ""}`} onClick={() => toggleImpact(c.id, k)}>{l}</span>
-                            ))}
-                          </div>
-                          {c.impacts.length > 0 && (
-                            <div className="impwhy" style={{ marginTop: 8 }}>
-                              <div className="hint" style={{ margin: "4px 0" }}>Briefly, why does each apply? (optional but recommended)</div>
-                              {c.impacts.map((k) => {
-                                const lbl = (IMPACTS.find((x) => x[0] === k) || [k, k])[1];
-                                return (
-                                  <div key={k} className="row">
-                                    <span className="lbl">{lbl}</span>
-                                    <input value={c.impactWhy[k] || ""} onChange={(e) => saveImpactWhy(c.id, k, e.target.value)} placeholder={IMPACT_EG[k] || "Briefly, why does this apply?"} />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Block 4: Evidence */}
-                      <div className="block">
-                        <div className="blockh"><span className="stepn">4</span>Evidence &amp; proof</div>
-                        <div className="field">
-                          <label>Will the benefit continue? (sustainability)</label>
-                          <textarea value={c.sustain} onChange={(e) => updContrib(c.id, "sustain", e.target.value)} placeholder="Is it durable, maintained, and likely to keep delivering?" />
-                        </div>
-                        <div className="field">
-                          <label>Evidence — metrics, usage, feedback</label>
-                          <textarea value={c.evidence} onChange={(e) => updContrib(c.id, "evidence", e.target.value)} placeholder="The specifics that back up the above." />
-                        </div>
-                        <div className="grid2" style={{ marginBottom: 0 }}>
-                          <div className="field" style={{ marginBottom: 0 }}>
-                            <label>Attach proof — link / reference</label>
-                            <input value={c.proofref} onChange={(e) => updContrib(c.id, "proofref", e.target.value)} placeholder="Link to a doc, dashboard, commit, screenshot…" />
-                          </div>
-                          <div className="field" style={{ marginBottom: 0 }}>
-                            <label>…or choose a file</label>
-                            <input type="file" onChange={(e) => updContrib(c.id, "prooffilename", e.target.files?.[0]?.name || "")} />
-                          </div>
-                        </div>
-                        {c.custom.map((cp, ci) => (
-                          <div key={ci} className="field" style={{ marginTop: 10 }}>
-                            <input value={cp.q} onChange={(e) => updCustom(c.id, ci, "q", e.target.value)} placeholder="Your own aspect / question" style={{ marginBottom: 6 }} />
-                            <textarea value={cp.a} onChange={(e) => updCustom(c.id, ci, "a", e.target.value)} placeholder="Your answer / detail" />
-                          </div>
-                        ))}
-                        <button className="ghost" style={{ fontSize: 12.5, padding: "7px 12px", marginTop: 8 }} onClick={() => addCustomField(c.id)}>+ Add your own point</button>
-                      </div>
-
-                      {/* Block 5: Rating check */}
-                      <div className="block alt">
-                        <div className="blockh"><span className="stepn">5</span>Rating check</div>
-                        <div className="field" style={{ marginBottom: mode === "rev" ? 10 : 0 }}>
-                          <label className="fld">System-suggested rating <span className="breakdown">(from the evidence you entered)</span></label>
-                          {suggested != null && suggCat ? (
-                            <div className="sugg">
-                              <span className="suggn" style={{ background: suggCat.color }}>{suggested} · {LN[NUM.indexOf(suggested)]}</span>
-                              <span style={{ color: "var(--muted)", fontSize: 12.5 }}>{why.join("; ")}</span>
-                              {flagged && <div className="note" style={{ marginTop: 6 }}>🛡 Instruction-like text was detected and ignored. This rating is based only on verifiable evidence.</div>}
-                            </div>
-                          ) : (
-                            <div className="sugg" style={{ color: "var(--muted)" }}>Fill the fields above to see a suggestion.</div>
-                          )}
-                        </div>
-                        {mode === "rev" && (
-                          <div>
-                            <label className="fld">Reviewer rating</label>
-                            <div className="rate">
-                              {NUM.map((n, i) => <RatingRow key={n} n={n} i={i} selected={c.reviewer === n} onClick={() => pickReviewer(c.id, n)} />)}
-                            </div>
-                            <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
-                              <label>Reviewer justification
-                                {c.reviewer != null && suggested != null && c.reviewer !== suggested &&
-                                  <span style={{ color: "var(--red)", fontSize: 12, marginLeft: 6 }}>(a note helps — this differs from the suggested rating)</span>}
-                              </label>
-                              <textarea value={c.rjust} onChange={(e) => updContrib(c.id, "rjust", e.target.value)} placeholder="A quick note on why your score is higher or lower." />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <button className="addbtn" onClick={addContrib}>+ Add a contribution</button>
-              </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(1)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => gotoValidated(2, 3)}>Next: Team →</button>
-                  </span>
+            {showSubmitConfirm && (
+              <div className="pa-overlay">
+                <div className="pa-dialog">
+                  <h3>Submit Assessment?</h3>
+                  <p style={{ marginBottom: 8 }}>
+                    Once submitted, <strong>you cannot edit or make any changes</strong> to this assessment.
+                  </p>
+                  <p style={{ fontSize: 13, color: "#64748b" }}>
+                    Are you sure you want to submit?
+                  </p>
+                  <div className="da" style={{ marginTop: 20 }}>
+                    <button
+                      className="ghost"
+                      onClick={() => setShowSubmitConfirm(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="primary"
+                      onClick={submitAssessment}
+                    >
+                      Yes, Submit
+                    </button>
+                  </div>
                 </div>
               </div>
-            </>
-          )}
+            )}
 
-          {/* ── STEP 3: TEAM ─────────────────────────────────────────────── */}
-          {step === 3 && (
-            <>
+            {/* ── STEP 0: PHILOSOPHY ──────────────────────────────────────── */}
+            {step === 0 && (
               <div className="card">
-                <h2>Team Contribution <span className="breakdown" style={{ fontWeight: 400 }}>(20%)</span></h2>
-                <p className="hint">Add each team contribution separately — mentoring, helping or unblocking others, knowledge sharing, setting standards. The section score is the average of your entries.</p>
-                {topErr && <div className="top-err">{topErr}</div>}
-                {teamEntries.map((e, idx) => <EntryBlock key={e.id} section="team" e={e} idx={idx} />)}
-                <button className="addbtn" onClick={() => addEntry("team")}>+ Add a team contribution</button>
-                <div className="hint" style={{ marginTop: 10 }}>Section average: {tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}</div>
-              </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(2)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => gotoValidated(3, 4)}>Next: Organization →</button>
-                  </span>
+                <h2>Performance Assessment Philosophy</h2>
+                <p className="lead">
+                  <b>
+                    A quick read before you begin — it makes filling your
+                    assessment much easier.
+                  </b>
+                </p>
+                <div className="opening">
+                  <p className="big">Objective of this assessment</p>
+                  <p>
+                    The objective is to establish a{" "}
+                    <b>fair, objective, and evidence-based</b> performance
+                    assessment framework for FarmwiseAI — moving away from
+                    activity-based assessment and replacing it with{" "}
+                    <b>outcome-based, impact-based, and adoption-based</b>{" "}
+                    evaluation.
+                  </p>
+                  <p>
+                    Performance will <b>not</b> be measured by how many meetings
+                    were attended, emails sent, reports prepared, modules
+                    written, or experiments conducted. It will be measured by
+                    the <b>value created</b>.
+                  </p>
+                  <p style={{ marginBottom: 0 }}>
+                    In simple terms:{" "}
+                    <b>
+                      we'd love to hear not just what you worked on, but the
+                      difference it made.
+                    </b>
+                  </p>
                 </div>
-              </div>
-            </>
-          )}
 
-          {/* ── STEP 4: ORGANIZATION ─────────────────────────────────────── */}
-          {step === 4 && (
-            <>
-              <div className="card">
-                <h2>Organization Contribution <span className="breakdown" style={{ fontWeight: 400 }}>(10%)</span></h2>
-                <p className="hint">Add each organization-level contribution — a tool, automation, framework, process or initiative. It counts when it is in active use or proven working.</p>
-                <div className="note">Counts only if in active use OR proven working — not slideware.</div>
-                {topErr && <div className="top-err">{topErr}</div>}
-                {orgEntries.map((e, idx) => <EntryBlock key={e.id} section="org" e={e} idx={idx} />)}
-                <button className="addbtn" onClick={() => addEntry("org")}>+ Add an organization contribution</button>
-                <div className="hint" style={{ marginTop: 10 }}>Section average: {oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}</div>
-              </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(3)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => gotoValidated(4, 5)}>Next: Culture →</button>
-                  </span>
+                <h3 className="sec">What This Assessment Asks</h3>
+                <p>Every contribution should answer:</p>
+                <ul>
+                  <li>What did you create?</li>
+                  <li>Was it adopted or used?</li>
+                  <li>Who is using it today?</li>
+                  <li>What changed because of your contribution?</li>
+                  <li>
+                    Did it save time, reduce cost, improve quality, increase
+                    revenue, strengthen customer confidence, or create a new
+                    company capability?
+                  </li>
+                  <li>How is FarmwiseAI better because of your work?</li>
+                </ul>
+                <ul className="pill-list">
+                  {[
+                    "Impact",
+                    "Adoption",
+                    "Ownership",
+                    "Innovation",
+                    "Revenue",
+                    "Cost Reduction",
+                    "Time Reduction",
+                    "Customer Success",
+                    "Team Success",
+                    "Organizational Growth",
+                    "Professional Conduct",
+                  ].map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+
+                <h3 className="sec">Activities vs Outcomes</h3>
+                <div className="gb">
+                  <div className="ex bad">
+                    <span className="tag">Less helpful</span>"I attended 20
+                    meetings." · "I wrote 10 reports." · "I developed 5
+                    modules." · "I participated in 15 tenders."
+                  </div>
+                  <div className="ex good">
+                    <span className="tag">More helpful</span>Revenue created or
+                    influenced · time saved · cost saved · technology adopted ·
+                    capability created · customer, team &amp; organizational
+                    impact.
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
 
-          {/* ── STEP 5: CULTURE ──────────────────────────────────────────── */}
-          {step === 5 && (
-            <>
-              <div className="card">
-                <h2>Culture &amp; Discipline <span className="breakdown" style={{ fontWeight: 400 }}>(10%)</span></h2>
-                <p className="hint">Rate each item 1–5. <span className="req-star">*</span> All items are required. The section score is the average of your answers.</p>
+                <h3 className="sec">The Most Important Formula</h3>
+                <div className="formula">
+                  Impact = Adoption × Benefit
+                  <small>
+                    If Adoption = 0, Impact = 0. A brilliant idea nobody uses
+                    creates almost no value. A simple idea everyone uses may
+                    create enormous value.
+                  </small>
+                </div>
+
+                <h3 className="sec">Hierarchy of Evidence</h3>
+                <p className="hint">
+                  Impact is not only revenue or cost. Many roles create value
+                  indirectly. Use the strongest evidence you have.
+                </p>
+                {[
+                  {
+                    lv: "Level 1 · Strongest",
+                    h: "Direct Business Impact",
+                    q: "Revenue generated/influenced, cost saved, time saved, headcount avoided, client/project won.",
+                    ex: "e.g. Helped secure a ₹5 Cr project · Reduced cloud cost by ₹10L/yr · Cut delivery from 6 months to 20 days.",
+                  },
+                  {
+                    lv: "Level 2",
+                    h: "Adoption Impact",
+                    q: "Did the organization actually use what you built?",
+                    ex: "Tool adopted by 5 projects · used by 20 engineers · workflow became SOP · model in production.",
+                  },
+                  {
+                    lv: "Level 3",
+                    h: "Capability Impact",
+                    q: "Did this create a capability the company did not previously possess?",
+                    ex: "First OCR engine · first satellite monitoring workflow · first drone volume computation system.",
+                  },
+                  {
+                    lv: "Level 4",
+                    h: "Strategic Impact",
+                    q: "Did it strengthen the company's position?",
+                    ex: "Enabled entry into Telangana / Mines Dept · demo used in 10 presentations · new product offering.",
+                  },
+                  {
+                    lv: "Level 5",
+                    h: "Customer Impact",
+                    q: "Did the customer benefit?",
+                    ex: "Fewer complaints · higher satisfaction · fewer delays · better uptime · improved accuracy.",
+                  },
+                  {
+                    lv: "Level 6 · Often ignored",
+                    h: "Team Multiplication Impact",
+                    q: "Did your work make other people more productive?",
+                    ex: "Automation used by 15 employees · reusable library · docs that cut onboarding time · mentoring.",
+                  },
+                ].map(({ lv, h, q, ex }) => (
+                  <div key={h} className="hier">
+                    <span className="lv">{lv}</span>
+                    <h4>{h}</h4>
+                    <div className="q">{q}</div>
+                    {ex}
+                  </div>
+                ))}
+
+                <h3 className="sec">Impact Evidence Matrix</h3>
                 <table className="matrix">
                   <tbody>
-                    <tr><th>Item</th><th style={{ width: 180 }}>Rating</th></tr>
-                    {CULT_ITEMS.map(([k, label]) => (
-                      <tr key={k}>
-                        <td>{label}</td>
-                        <td>
-                          <select
-                            className={errCls("b_culture_" + k)}
-                            value={cultRatings[k] ?? ""}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                setCultRatings((p) => ({ ...p, [k]: +e.target.value }));
-                              } else {
-                                setCultRatings((p) => { const n = { ...p }; delete n[k]; return n; });
-                              }
-                              clearErr("b_culture_" + k);
-                              setIsDirty(true);
-                            }}>
-                            <option value="">—</option>
-                            {SCALE5.map((s, i) => <option key={i} value={NUM[i]}>{s}</option>)}
-                          </select>
-                          <Err k={"b_culture_" + k} />
-                        </td>
+                    <tr>
+                      <th>Question</th>
+                      <th>Required</th>
+                    </tr>
+                    {[
+                      ["What did you create?", "Mandatory"],
+                      ["Was it adopted?", "Mandatory"],
+                      ["Who used it?", "Mandatory"],
+                      ["What changed because of it?", "Mandatory"],
+                      ["How is the company better now?", "Mandatory"],
+                      ["Is this one-time or currently in use?", "Mandatory"],
+                      [
+                        "How many people / projects / customers are using it?",
+                        "Mandatory",
+                      ],
+                      ["Since when has it been used?", "Preferred"],
+                      [
+                        "What would happen if this contribution did not exist?",
+                        "Preferred",
+                      ],
+                      ["Can the impact be measured?", "Preferred"],
+                    ].map(([q, r]) => (
+                      <tr key={q}>
+                        <td>{q}</td>
+                        <td className={r === "Mandatory" ? "m" : "p"}>{r}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <div className="hint">Section average: {cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}</div>
-                <div className="field">
-                  <label>Comments / justification <span className="breakdown">(optional)</span></label>
-                  <textarea value={cultComment} onChange={(e) => { setCultComment(e.target.value); setIsDirty(true); }} placeholder="Anything to add or explain (optional)." />
-                </div>
-              </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(4)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => gotoValidated(5, 6)}>Next: Integrity Gate →</button>
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
 
-          {/* ── STEP 6: INTEGRITY GATE ───────────────────────────────────── */}
-          {step === 6 && (
-            <>
-              <div className="card">
-                <h2>Culture &amp; Integrity Gate <span className="breakdown" style={{ fontWeight: 400 }}>(reviewer)</span></h2>
-                <p className="hint">Completed by the reviewer. If a concern is marked <b>serious</b>, the final rating is gently capped one band lower — best raised openly and constructively in the conversation.</p>
-                <div className="gatebox">
-                  {GATE_FLAGS.map((flag) => (
-                    <span key={flag} className={`gv ${gateFlags.has(flag) ? "on" : ""}`} onClick={() => toggleGate(flag)}>{flag}</span>
+                <h3 className="sec">Exceptional Rating Template</h3>
+                <p>
+                  For an Exceptional (5), sharing all six paints the full
+                  picture.
+                </p>
+                <div className="tmpl">
+                  {[
+                    ["Problem", "What problem existed?"],
+                    ["Solution", "What did you create?"],
+                    ["Adoption", "Who is using it?"],
+                    ["Impact", "What changed (numbers)?"],
+                    ["Evidence", "Metrics, usage, feedback…"],
+                    ["Sustainability", "Will the benefit continue?"],
+                  ].map(([t, d]) => (
+                    <div key={t}>
+                      <b>{t}</b>
+                      <br />
+                      {d}
+                    </div>
                   ))}
                 </div>
-                <label className="fld" style={{ marginTop: 12 }}>Severity</label>
-                <div className="sev">
-                  {(["none", "concern", "serious"] as const).map((s) => (
-                    <button key={s} className={sev === s ? "on" : ""} onClick={() => { setSevState(s); setIsDirty(true); }}>
-                      {s === "none" ? "None" : s === "concern" ? "Concern noted" : "Serious (cap)"}
-                    </button>
-                  ))}
+
+                <h3 className="sec">Culture &amp; Integrity Gate</h3>
+                <p>
+                  Where there are serious concerns around confidentiality,
+                  internal politics, gossip, misrepresentation of work, repeated
+                  attendance issues, accountability, respect, or policy, the
+                  rating is gently capped one band: Exceptional → Exceeds ·
+                  Exceeds → Meets · Meets → Below.
+                </p>
+
+                <div className="ack">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={ackChecked}
+                      onChange={(e) => onAck(e.target.checked)}
+                    />
+                    I've read the FarmwiseAI Performance Assessment Philosophy,
+                    and I'll describe my contributions through the difference
+                    they made — their adoption and measurable impact — rather
+                    than activity alone.
+                  </label>
+                  <button
+                    className="primary"
+                    disabled={!ackChecked}
+                    onClick={() => goto(1)}
+                  >
+                    I Agree — Continue to Assessment →
+                  </button>
                 </div>
               </div>
-              <div className="card">
-                <div className="navbtns">
-                  <button className="ghost" onClick={() => goto(5)}>← Back</button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button className="pa-save-btn" onClick={() => { saveDraft(); showFlash("💾 Draft saved"); }}>💾 Save Draft</button>
-                    <button className="primary" onClick={() => goto(7)}>Review &amp; Submit →</button>
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
+            )}
 
-          {/* ── STEP 7: REVIEW & SUBMIT ──────────────────────────────────── */}
-          {step === 7 && (
-            <div className="card">
-              <h2>Review &amp; Submit</h2>
+            {/* ── STEP 1: ABOUT YOU ───────────────────────────────────────── */}
+            {step === 1 && (
+              <>
+                <div className="card">
+                  <h2>About You &amp; Your Role</h2>
+                  <div className="note" style={{ marginTop: 0 }}>
+                    This is your <b>self-assessment</b>
+                    {activeCycle ? (
+                      <>
+                        {" "}
+                        for <b>{activeCycle.name}</b>
+                      </>
+                    ) : null}
+                    . Your name, designation and review period are filled in for
+                    you — edit them if needed. Peer reviews of <i>others</i> are
+                    completed from the <b>My Reviews</b> tab.
+                  </div>
 
-              {/* Score card */}
-              <div className="card" style={{ margin: "0 0 16px", background: "#fafdfb" }}>
-                <div className="scorebar">
-                  <div>
-                    <div className="bignum">{totalScore != null ? totalScore.toFixed(2) : "–"}</div>
-                    <div className="breakdown">weighted / 5.0</div>
+                  <div
+                    className="grid2"
+                    style={{ marginBottom: 12, marginTop: 12 }}
+                  >
+                    <div>
+                      <label className="fld">
+                        Your name <span className="req-star">*</span>
+                      </label>
+                      <input
+                        className={errCls("emp")}
+                        value={emp}
+                        onChange={(e) => {
+                          setEmp(e.target.value);
+                          setRev(e.target.value);
+                          clearErr("emp");
+                          setIsDirty(true);
+                        }}
+                        placeholder="Full name"
+                      />
+                      <Err k="emp" />
+                    </div>
+                    <div>
+                      <label className="fld">
+                        Designation <span className="req-star">*</span>
+                      </label>
+                      <input
+                        className={errCls("desig")}
+                        value={desig}
+                        onChange={(e) => {
+                          setDesig(e.target.value);
+                          clearErr("desig");
+                          setIsDirty(true);
+                        }}
+                        placeholder="e.g. Senior Engineer"
+                      />
+                      <Err k="desig" />
+                    </div>
                   </div>
-                  <div className="cat" style={{ background: displayIdx >= 0 ? CATS[displayIdx].color : "#9ca3af" }}>
-                    {totalScore != null && displayIdx >= 0 ? CATS[displayIdx].name : "Complete the sections"}
+                  <div className="grid2" style={{ marginBottom: 16 }}>
+                    <div>
+                      <label className="fld">Review period</label>
+                      <input
+                        value={period}
+                        onChange={(e) => {
+                          setPeriod(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="e.g. H1 2026"
+                      />
+                    </div>
+                    <div />
                   </div>
-                  <div className="breakdown">
-                    Ind <b>{ind.best != null ? (ind.anyDown ? ind.best + "*" : ind.best) : "–"}</b>
-                    {" · "}Team <b>{tAvg != null ? tAvg.toFixed(1) : "–"}</b>
-                    {" · "}Org <b>{oAvg != null ? oAvg.toFixed(1) : "–"}</b>
-                    {" · "}Culture <b>{cAvg != null ? cAvg.toFixed(1) : "–"}</b>
-                  </div>
-                </div>
-                {warnings.length > 0 && (
-                  <div className="warn-box" style={{ marginTop: 12 }}>
-                    {warnings.map((w, i) => <div key={i}>{w}</div>)}
-                  </div>
-                )}
-                {capped && (
-                  <div className="cap-note">Integrity Gate: because a serious concern was flagged, the rating is gently capped one band lower (now <b>{displayIdx >= 0 ? CATS[displayIdx].name : ""}</b>). Worth discussing openly in the conversation.</div>
-                )}
-                {sev === "concern" && !capped && (
-                  <div className="cap-note">Note: a culture concern was flagged (no cap applied). Address it in the conversation.</div>
-                )}
-              </div>
 
-              {/* ── Nominate peer reviewers ──────────────────────────────── */}
-              {mode === "self" && (
-                <div className="card" style={{ margin: "0 0 16px" }}>
-                  <h3 className="sec" style={{ marginTop: 0 }}>Nominate your peer reviewers</h3>
+                  <label className="fld">Career level</label>
                   <p className="hint">
-                    Pick <b>two colleagues</b> from anywhere in the organisation. They will be asked to complete a short
-                    peer review of you{activeCycle ? <> for <b>{activeCycle.name}</b></> : null}. Your team lead and leadership see both your self-assessment and their reviews.
+                    This tailors the questions and how impact is judged —
+                    juniors are assessed on value <i>within their scope</i>, not
+                    company-wide revenue.
                   </p>
-                  {!activeCycle && (
-                    <div className="note">No review cycle is open right now — your submission is still saved, and reviews can be completed once HR opens a cycle.</div>
+                  <div className="toggle" style={{ marginBottom: 16 }}>
+                    {(["junior", "mid", "senior"] as const).map((l) => (
+                      <button
+                        key={l}
+                        className={level === l ? "on" : ""}
+                        onClick={() => {
+                          setLevelState(l);
+                          setIsDirty(true);
+                        }}
+                      >
+                        {l === "junior"
+                          ? "Fresher / Junior"
+                          : l === "mid"
+                            ? "Mid-level"
+                            : "Senior / Lead"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="fld">
+                    Your role areas — select all that apply{" "}
+                    <span className="req-star">*</span>
+                  </label>
+                  <p className="hint">
+                    Pick every area you actually work in. Your contribution
+                    questions adapt to these.
+                  </p>
+                  <div className={`facets ${errCls("facets")}`}>
+                    {Object.entries(FACETS).map(([k, f]) => (
+                      <div
+                        key={k}
+                        className={`facet ${facets.has(k) ? "on" : ""}`}
+                        onClick={() => toggleFacet(k)}
+                      >
+                        <b>{f.label}</b>
+                        <span>{f.hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Err k="facets" />
+
+                  {facets.size > 0 && (
+                    <div className="note" style={{ marginTop: 10 }}>
+                      <b>What counts for your role(s):</b>
+                      <br />
+                      {[...facets].map((k) => (
+                        <span key={k}>
+                          • <b>{FACETS[k].label}:</b> {FACETS[k].hint}
+                          <br />
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  <div style={{ position: "relative", marginBottom: 10 }}>
-                    <Search style={{ width: 15, height: 15, position: "absolute", left: 11, top: 11, color: "#94a3b8" }} />
-                    <input value={reviewerSearch} onChange={(e) => setReviewerSearch(e.target.value)}
-                      placeholder="Search colleagues by name…" style={{ paddingLeft: 32 }} />
-                  </div>
-                  <div className="hint" style={{ marginBottom: 8 }}>{reviewerIds.length} / 2 selected</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto" }}>
-                    {orgUsers
-                      .filter((u) => u.id !== user?.id && u.name.toLowerCase().includes(reviewerSearch.toLowerCase()))
-                      .map((u) => {
-                        const on = reviewerIds.includes(u.id);
-                        const disabled = !on && reviewerIds.length >= 2;
-                        return (
-                          <div key={u.id}
-                            onClick={() => !disabled && toggleReviewer(u.id)}
-                            className={`facet ${on ? "on" : ""}`}
-                            style={{ width: "auto", opacity: disabled ? 0.45 : 1, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ width: 30, height: 30, borderRadius: "50%", background: u.avatar_color || "#3b82f6", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "0 0 auto" }}>
-                              {u.name.charAt(0).toUpperCase()}
-                            </span>
-                            <span style={{ minWidth: 0 }}>
-                              <b style={{ display: "block", fontSize: 13, marginBottom: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</b>
-                              <span style={{ fontSize: 11 }}>{u.role || u.department || ""}</span>
-                            </span>
-                            {on && <Check style={{ width: 16, height: 16, color: "#4f46e5", marginLeft: "auto", flex: "0 0 auto" }} />}
-                          </div>
-                        );
-                      })}
-                    {orgUsers.length === 0 && <div className="hint">Loading colleagues…</div>}
-                  </div>
                 </div>
-              )}
-
-              <h3 className="sec">Summary</h3>
-
-              <div className="rev-block">
-                <h4>Employee</h4>
-                <div className="kv"><b>{emp || "—"}</b> · {desig || ""} · {period || ""}</div>
-                <div className="kv">Filled by: {mode === "self" ? "Self" : "Reviewer"} ({rev || "—"})</div>
-                <div className="kv">Role areas: {[...facets].map((k) => FACETS[k].label).join(", ") || "—"}</div>
-                {submitErrors.find((e) => e.step === 1) && <MissList se={submitErrors.find((e) => e.step === 1)!} />}
-              </div>
-
-              <div className="rev-block">
-                <h4>Individual Contributions</h4>
-                {contributions.length === 0 ? <div className="kv">No contributions added.</div> : contributions.map((c, i) => {
-                  const { down } = contribEff(c);
-                  const { suggested: sugg } = computeSuggested(c);
-                  const rl = (n: number | null) => n != null ? LN[NUM.indexOf(n)] + " (" + n + ")" : "—";
-                  const impLabel = (k: string) => (IMPACTS.find((x) => x[0] === k) || [k, k])[1];
-                  const imps = c.impacts.map((k) => impLabel(k) + (c.impactWhy[k] ? " — " + c.impactWhy[k] : "")).join("; ");
-                  return (
-                    <div key={c.id} className="kv">
-                      #{i + 1} <b>{c.title || "(untitled)"}</b><br />
-                      <span style={{ color: "var(--muted)" }}>
-                        Self: {rl(c.self)} · Suggested: {rl(sugg)} · Reviewer: {rl(c.reviewer)}
-                        {down ? " · Exceptional proof incomplete → counts as Exceeds" : ""}
-                      </span>
-                      {imps && <><br /><span style={{ color: "var(--muted)" }}>Impact: {imps}</span></>}
-                      {(c.proofref || c.prooffilename) && <><br /><span style={{ color: "var(--muted)" }}>Proof attached ✓</span></>}
-                    </div>
-                  );
-                })}
-                {submitErrors.find((e) => e.step === 2) && <MissList se={submitErrors.find((e) => e.step === 2)!} />}
-              </div>
-
-              <div className="rev-block">
-                <h4>Team Contribution</h4>
-                <div className="kv">Average: <b>{tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}</b></div>
-                {teamEntries.length === 0 ? <div className="kv" style={{ color: "var(--muted)" }}>No entries.</div>
-                  : teamEntries.map((e, i) => (
-                    <div key={e.id} className="kv">
-                      #{i + 1} {e.rating ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")" : "—"} —{" "}
-                      <span style={{ color: "var(--muted)" }}>{e.text || "(no description)"}</span>
-                      {e.remark ? " · " + e.remark : ""}
-                    </div>
-                  ))}
-                {submitErrors.find((e) => e.step === 3) && <MissList se={submitErrors.find((e) => e.step === 3)!} />}
-              </div>
-
-              <div className="rev-block">
-                <h4>Organization Contribution</h4>
-                <div className="kv">Average: <b>{oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}</b></div>
-                {orgEntries.length === 0 ? <div className="kv" style={{ color: "var(--muted)" }}>No entries.</div>
-                  : orgEntries.map((e, i) => (
-                    <div key={e.id} className="kv">
-                      #{i + 1} {e.rating ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")" : "—"} —{" "}
-                      <span style={{ color: "var(--muted)" }}>{e.text || "(no description)"}</span>
-                      {e.remark ? " · " + e.remark : ""}
-                    </div>
-                  ))}
-                {submitErrors.find((e) => e.step === 4) && <MissList se={submitErrors.find((e) => e.step === 4)!} />}
-              </div>
-
-              <div className="rev-block">
-                <h4>Culture &amp; Discipline</h4>
-                <div className="kv">
-                  Average: <b>{cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}</b><br />
-                  <span style={{ color: "var(--muted)" }}>
-                    {CULT_ITEMS.filter(([k]) => cultRatings[k] != null).map(([k, l]) => l + ": " + cultRatings[k]).join(" · ") || "not rated"}
-                  </span>
-                  {cultComment && <><br /><span style={{ color: "var(--muted)" }}>{cultComment}</span></>}
-                </div>
-                {submitErrors.find((e) => e.step === 5) && <MissList se={submitErrors.find((e) => e.step === 5)!} />}
-              </div>
-
-              <div className="rev-block">
-                <h4>Integrity Gate</h4>
-                <div className="kv">Severity: <b>{sev}</b>{gateFlags.size > 0 ? " · " + [...gateFlags].join(", ") : ""}</div>
-              </div>
-
-              <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                <div className="breakdown" style={{ marginBottom: 6 }}><b>How ratings map to Green / Orange / Red:</b></div>
-                <div className="map-row"><span className="dot" style={{ background: "#1f9d55" }} /> Exceptional, Exceeds &amp; Meets → <b>&nbsp;Green</b></div>
-                <div className="map-row"><span className="dot" style={{ background: "#e07b00" }} /> Below Expectation → <b>&nbsp;Orange</b></div>
-                <div className="map-row"><span className="dot" style={{ background: "#c0392b" }} /> Not Satisfactory → <b>&nbsp;Red</b></div>
-              </div>
-
-              <div className="navbtns" style={{ marginTop: 16 }}>
-                <button className="ghost" onClick={() => goto(6)}>← Back</button>
-                <span style={{ display: "flex", gap: 8 }}>
-                  <button className="ghost" onClick={() => { saveDraft(); showFlash("💾 Saved on this device."); }}>💾 Save &amp; finish later</button>
-                  <button className="primary" onClick={() => window.print()}>Print / PDF</button>
-                  {submitted ? (
-                    hasFullPerformanceAccess ? (
-                      <button className="accent-btn" onClick={() => setView("analysis")}>View in Analysis →</button>
-                    ) : (
-                      <button className="ghost" disabled style={{ opacity: 1, color: "#16a34a", borderColor: "#86efac", background: "#f0fdf4" }}>✓ Submitted</button>
-                    )
-                  ) : (
-                    <button className="accent-btn" onClick={submitAssessment} disabled={submitting}>
-                      {submitting ? "Submitting…" : "Submit"}
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(0)}>
+                      ← Back
                     </button>
-                  )}
-                </span>
-              </div>
-
-              {flash && (
-                <div className="warn-box" style={{ marginTop: 12, color: "#14532d", background: "#f0fdf4", border: "1px solid #86efac" }}>
-                  {flash}
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => gotoValidated(1, 2)}
+                      >
+                        Next: Contributions →
+                      </button>
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+              </>
+            )}
+
+            {/* ── STEP 2: INDIVIDUAL CONTRIBUTIONS ────────────────────────── */}
+            {step === 2 && (
+              <>
+                <div className="card">
+                  <h2>
+                    Individual Contributions{" "}
+                    <span className="breakdown" style={{ fontWeight: 400 }}>
+                      (60%)
+                    </span>
+                  </h2>
+                  <p className="hint">
+                    Add each meaningful contribution separately and rate it on
+                    its own. You may have several — e.g. two Exceptional and one
+                    Exceeds.
+                  </p>
+                  <div
+                    className="note"
+                    dangerouslySetInnerHTML={{
+                      __html: LEVEL_HINT[level] || "",
+                    }}
+                  />
+
+                  {topErr && <div className="top-err">{topErr}</div>}
+
+                  {contributions.map((c, idx) => {
+                    const { suggested, why, flagged } = computeSuggested(c);
+                    const suggCat =
+                      suggested != null ? CATS[catIndexOf(suggested)] : null;
+
+                    return (
+                      <div key={c.id} className="contrib">
+                        <div className="ch">
+                          <h4>Contribution #{idx + 1}</h4>
+                          <button
+                            className="rm"
+                            onClick={() => removeContrib(c.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div className="grid2" style={{ marginBottom: 14 }}>
+                          <div>
+                            <label className="fld">
+                              Task / Project title{" "}
+                              <span className="req-star">*</span>
+                            </label>
+                            <input
+                              className={errCls("c" + c.id + "_title")}
+                              value={c.title}
+                              onChange={(e) =>
+                                updContrib(c.id, "title", e.target.value)
+                              }
+                              placeholder="e.g. SIPCOT spatial DB redesign"
+                            />
+                            <Err k={"c" + c.id + "_title"} />
+                          </div>
+                          <div>
+                            <label className="fld">
+                              Role area <span className="req-star">*</span>
+                            </label>
+                            <select
+                              className={errCls("c" + c.id + "_area")}
+                              value={c.area}
+                              onChange={(e) =>
+                                updContrib(c.id, "area", e.target.value)
+                              }
+                            >
+                              <option value="">
+                                {facets.size
+                                  ? "— select —"
+                                  : "(select role on previous page)"}
+                              </option>
+                              {[...facets].map((k) => (
+                                <option key={k} value={k}>
+                                  {FACETS[k].label}
+                                </option>
+                              ))}
+                            </select>
+                            <Err k={"c" + c.id + "_area"} />
+                          </div>
+                        </div>
+
+                        {/* Block 1: Self rating */}
+                        <div className="block">
+                          <div className="blockh">
+                            <span className="stepn">1</span>Your self-rating{" "}
+                            <span
+                              className="req-star"
+                              style={{ marginLeft: 4 }}
+                            >
+                              *
+                            </span>
+                          </div>
+                          <div
+                            className={`rate ${errors["c" + c.id + "_self"] ? "rate-err" : ""}`}
+                          >
+                            {NUM.map((n, i) => (
+                              <RatingRow
+                                key={n}
+                                n={n}
+                                i={i}
+                                selected={c.self === n}
+                                onClick={() => pickSelf(c.id, n)}
+                              />
+                            ))}
+                          </div>
+                          <Err k={"c" + c.id + "_self"} />
+                          {c.self != null && (
+                            <div
+                              className="hint"
+                              style={{ marginBottom: 0, marginTop: 6 }}
+                            >
+                              {RATE_DESC[NUM.indexOf(c.self)]}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Block 2: The work */}
+                        <div className="block">
+                          <div className="blockh">
+                            <span className="stepn">2</span>The work
+                          </div>
+                          {[
+                            {
+                              k: "context",
+                              label:
+                                "What were you asked to do? (context / scope)",
+                              ph: "The brief, the goal, and what was expected of you.",
+                            },
+                            {
+                              k: "problem",
+                              label: "What problem did it address?",
+                              ph: "The problem or need this work responded to.",
+                            },
+                            {
+                              k: "create",
+                              label: "What did you create? (the solution)",
+                              ph: "The product, model, workflow, framework, relationship…",
+                            },
+                          ].map(({ k, label, ph }) => (
+                            <div key={k} className="field">
+                              <label>
+                                {label} <span className="req-star">*</span>
+                              </label>
+                              <textarea
+                                className={errCls("c" + c.id + "_" + k)}
+                                value={
+                                  (c as unknown as Record<string, string>)[k] ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updContrib(
+                                    c.id,
+                                    k as keyof Contribution,
+                                    e.target.value as never,
+                                  )
+                                }
+                                placeholder={ph}
+                              />
+                              <Err k={"c" + c.id + "_" + k} />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Block 3: Impact & adoption */}
+                        <div className="block">
+                          <div className="blockh">
+                            <span className="stepn">3</span>Impact &amp;
+                            adoption
+                          </div>
+                          {[
+                            {
+                              k: "adopt",
+                              label:
+                                "Was it adopted? Who is using it today, and since when?",
+                              ph: "e.g. In production; used by AgriStack, WRD, SIPCOT since Mar 2026.",
+                            },
+                            {
+                              k: "changed",
+                              label:
+                                "What changed because of it? (use numbers)",
+                              ph: "e.g. Query time 15 min → 30 sec; ~70% less manual effort.",
+                            },
+                            {
+                              k: "value",
+                              label: "How is FarmwiseAI better because of it?",
+                              ph: "Revenue, cost, time, capability, customer confidence, strategic position…",
+                            },
+                          ].map(({ k, label, ph }) => (
+                            <div key={k} className="field">
+                              <label>
+                                {label} <span className="req-star">*</span>
+                              </label>
+                              <textarea
+                                className={errCls("c" + c.id + "_" + k)}
+                                value={
+                                  (c as unknown as Record<string, string>)[k] ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updContrib(
+                                    c.id,
+                                    k as keyof Contribution,
+                                    e.target.value as never,
+                                  )
+                                }
+                                placeholder={ph}
+                              />
+                              <Err k={"c" + c.id + "_" + k} />
+                            </div>
+                          ))}
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>
+                              What kind of impact did it create? (select all
+                              that apply)
+                            </label>
+                            <div className="tags">
+                              {IMPACTS.map(([k, l]) => (
+                                <span
+                                  key={k}
+                                  className={`tag2 ${c.impacts.includes(k) ? "on" : ""}`}
+                                  onClick={() => toggleImpact(c.id, k)}
+                                >
+                                  {l}
+                                </span>
+                              ))}
+                            </div>
+                            {c.impacts.length > 0 && (
+                              <div className="impwhy" style={{ marginTop: 8 }}>
+                                <div
+                                  className="hint"
+                                  style={{ margin: "4px 0" }}
+                                >
+                                  Briefly, why does each apply? (optional but
+                                  recommended)
+                                </div>
+                                {c.impacts.map((k) => {
+                                  const lbl = (IMPACTS.find(
+                                    (x) => x[0] === k,
+                                  ) || [k, k])[1];
+                                  return (
+                                    <div key={k} className="row">
+                                      <span className="lbl">{lbl}</span>
+                                      <input
+                                        value={c.impactWhy[k] || ""}
+                                        onChange={(e) =>
+                                          saveImpactWhy(c.id, k, e.target.value)
+                                        }
+                                        placeholder={
+                                          IMPACT_EG[k] ||
+                                          "Briefly, why does this apply?"
+                                        }
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Block 4: Evidence */}
+                        <div className="block">
+                          <div className="blockh">
+                            <span className="stepn">4</span>Evidence &amp; proof
+                          </div>
+                          <div className="field">
+                            <label>
+                              Will the benefit continue? (sustainability)
+                            </label>
+                            <textarea
+                              value={c.sustain}
+                              onChange={(e) =>
+                                updContrib(c.id, "sustain", e.target.value)
+                              }
+                              placeholder="Is it durable, maintained, and likely to keep delivering?"
+                            />
+                          </div>
+                          <div className="field">
+                            <label>Evidence — metrics, usage, feedback</label>
+                            <textarea
+                              value={c.evidence}
+                              onChange={(e) =>
+                                updContrib(c.id, "evidence", e.target.value)
+                              }
+                              placeholder="The specifics that back up the above."
+                            />
+                          </div>
+                          <div className="grid2" style={{ marginBottom: 0 }}>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label>Attach proof — link / reference</label>
+                              <input
+                                value={c.proofref}
+                                onChange={(e) =>
+                                  updContrib(c.id, "proofref", e.target.value)
+                                }
+                                placeholder="Link to a doc, dashboard, commit, screenshot…"
+                              />
+                            </div>
+                            <div className="field" style={{ marginBottom: 0 }}>
+                              <label>…or choose a file</label>
+                              <input
+                                type="file"
+                                onChange={(e) =>
+                                  updContrib(
+                                    c.id,
+                                    "prooffilename",
+                                    e.target.files?.[0]?.name || "",
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                          {c.custom.map((cp, ci) => (
+                            <div
+                              key={ci}
+                              className="field"
+                              style={{ marginTop: 10 }}
+                            >
+                              <input
+                                value={cp.q}
+                                onChange={(e) =>
+                                  updCustom(c.id, ci, "q", e.target.value)
+                                }
+                                placeholder="Your own aspect / question"
+                                style={{ marginBottom: 6 }}
+                              />
+                              <textarea
+                                value={cp.a}
+                                onChange={(e) =>
+                                  updCustom(c.id, ci, "a", e.target.value)
+                                }
+                                placeholder="Your answer / detail"
+                              />
+                            </div>
+                          ))}
+                          <button
+                            className="ghost"
+                            style={{
+                              fontSize: 12.5,
+                              padding: "7px 12px",
+                              marginTop: 8,
+                            }}
+                            onClick={() => addCustomField(c.id)}
+                          >
+                            + Add your own point
+                          </button>
+                        </div>
+
+                        {/* Block 5: Rating check */}
+                        <div className="block alt">
+                          <div className="blockh">
+                            <span className="stepn">5</span>Rating check
+                          </div>
+                          <div
+                            className="field"
+                            style={{ marginBottom: mode === "rev" ? 10 : 0 }}
+                          >
+                            <label className="fld">
+                              System-suggested rating{" "}
+                              <span className="breakdown">
+                                (from the evidence you entered)
+                              </span>
+                            </label>
+                            {suggested != null && suggCat ? (
+                              <div className="sugg">
+                                <span
+                                  className="suggn"
+                                  style={{ background: suggCat.color }}
+                                >
+                                  {suggested} · {LN[NUM.indexOf(suggested)]}
+                                </span>
+                                <span
+                                  style={{
+                                    color: "var(--muted)",
+                                    fontSize: 12.5,
+                                  }}
+                                >
+                                  {why.join("; ")}
+                                </span>
+                                {flagged && (
+                                  <div
+                                    className="note"
+                                    style={{ marginTop: 6 }}
+                                  >
+                                    🛡 Instruction-like text was detected and
+                                    ignored. This rating is based only on
+                                    verifiable evidence.
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div
+                                className="sugg"
+                                style={{ color: "var(--muted)" }}
+                              >
+                                Fill the fields above to see a suggestion.
+                              </div>
+                            )}
+                          </div>
+                          {mode === "rev" && (
+                            <div>
+                              <label className="fld">Reviewer rating</label>
+                              <div className="rate">
+                                {NUM.map((n, i) => (
+                                  <RatingRow
+                                    key={n}
+                                    n={n}
+                                    i={i}
+                                    selected={c.reviewer === n}
+                                    onClick={() => pickReviewer(c.id, n)}
+                                  />
+                                ))}
+                              </div>
+                              <div
+                                className="field"
+                                style={{ marginTop: 8, marginBottom: 0 }}
+                              >
+                                <label>
+                                  Reviewer justification
+                                  {c.reviewer != null &&
+                                    suggested != null &&
+                                    c.reviewer !== suggested && (
+                                      <span
+                                        style={{
+                                          color: "var(--red)",
+                                          fontSize: 12,
+                                          marginLeft: 6,
+                                        }}
+                                      >
+                                        (a note helps — this differs from the
+                                        suggested rating)
+                                      </span>
+                                    )}
+                                </label>
+                                <textarea
+                                  value={c.rjust}
+                                  onChange={(e) =>
+                                    updContrib(c.id, "rjust", e.target.value)
+                                  }
+                                  placeholder="A quick note on why your score is higher or lower."
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button className="addbtn" onClick={addContrib}>
+                    + Add a contribution
+                  </button>
+                </div>
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(1)}>
+                      ← Back
+                    </button>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => gotoValidated(2, 3)}
+                      >
+                        Next: Team →
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 3: TEAM ─────────────────────────────────────────────── */}
+            {step === 3 && (
+              <>
+                <div className="card">
+                  <h2>
+                    Team Contribution{" "}
+                    <span className="breakdown" style={{ fontWeight: 400 }}>
+                      (20%)
+                    </span>
+                  </h2>
+                  <p className="hint">
+                    Add each team contribution separately — mentoring, helping
+                    or unblocking others, knowledge sharing, setting standards.
+                    The section score is the average of your entries.
+                  </p>
+                  {topErr && <div className="top-err">{topErr}</div>}
+                  {teamEntries.map((e, idx) => (
+                    <EntryBlock key={e.id} section="team" e={e} idx={idx} />
+                  ))}
+                  <button className="addbtn" onClick={() => addEntry("team")}>
+                    + Add a team contribution
+                  </button>
+                  <div className="hint" style={{ marginTop: 10 }}>
+                    Section average:{" "}
+                    {tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(2)}>
+                      ← Back
+                    </button>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => gotoValidated(3, 4)}
+                      >
+                        Next: Organization →
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 4: ORGANIZATION ─────────────────────────────────────── */}
+            {step === 4 && (
+              <>
+                <div className="card">
+                  <h2>
+                    Organization Contribution{" "}
+                    <span className="breakdown" style={{ fontWeight: 400 }}>
+                      (10%)
+                    </span>
+                  </h2>
+                  <p className="hint">
+                    Add each organization-level contribution — a tool,
+                    automation, framework, process or initiative. It counts when
+                    it is in active use or proven working.
+                  </p>
+                  <div className="note">
+                    Counts only if in active use OR proven working — not
+                    slideware.
+                  </div>
+                  {topErr && <div className="top-err">{topErr}</div>}
+                  {orgEntries.map((e, idx) => (
+                    <EntryBlock key={e.id} section="org" e={e} idx={idx} />
+                  ))}
+                  <button className="addbtn" onClick={() => addEntry("org")}>
+                    + Add an organization contribution
+                  </button>
+                  <div className="hint" style={{ marginTop: 10 }}>
+                    Section average:{" "}
+                    {oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(3)}>
+                      ← Back
+                    </button>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => gotoValidated(4, 5)}
+                      >
+                        Next: Culture →
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 5: CULTURE ──────────────────────────────────────────── */}
+            {step === 5 && (
+              <>
+                <div className="card">
+                  <h2>
+                    Culture &amp; Discipline{" "}
+                    <span className="breakdown" style={{ fontWeight: 400 }}>
+                      (10%)
+                    </span>
+                  </h2>
+                  <p className="hint">
+                    Rate each item 1–5. <span className="req-star">*</span> All
+                    items are required. The section score is the average of your
+                    answers.
+                  </p>
+                  <table className="matrix">
+                    <tbody>
+                      <tr>
+                        <th>Item</th>
+                        <th style={{ width: 180 }}>Rating</th>
+                      </tr>
+                      {CULT_ITEMS.map(([k, label]) => (
+                        <tr key={k}>
+                          <td>{label}</td>
+                          <td>
+                            <select
+                              className={errCls("b_culture_" + k)}
+                              value={cultRatings[k] ?? ""}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  setCultRatings((p) => ({
+                                    ...p,
+                                    [k]: +e.target.value,
+                                  }));
+                                } else {
+                                  setCultRatings((p) => {
+                                    const n = { ...p };
+                                    delete n[k];
+                                    return n;
+                                  });
+                                }
+                                clearErr("b_culture_" + k);
+                                setIsDirty(true);
+                              }}
+                            >
+                              <option value="">—</option>
+                              {SCALE5.map((s, i) => (
+                                <option key={i} value={NUM[i]}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                            <Err k={"b_culture_" + k} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="hint">
+                    Section average:{" "}
+                    {cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}
+                  </div>
+                  <div className="field">
+                    <label>
+                      Comments / justification{" "}
+                      <span className="breakdown">(optional)</span>
+                    </label>
+                    <textarea
+                      value={cultComment}
+                      onChange={(e) => {
+                        setCultComment(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      placeholder="Anything to add or explain (optional)."
+                    />
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(4)}>
+                      ← Back
+                    </button>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => gotoValidated(5, 6)}
+                      >
+                        Next: Integrity Gate →
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 6: INTEGRITY GATE ───────────────────────────────────── */}
+            {step === 6 && (
+              <>
+                <div className="card">
+                  <h2>
+                    Culture &amp; Integrity Gate{" "}
+                    <span className="breakdown" style={{ fontWeight: 400 }}>
+                      (reviewer)
+                    </span>
+                  </h2>
+                  <p className="hint">
+                    Completed by the reviewer. If a concern is marked{" "}
+                    <b>serious</b>, the final rating is gently capped one band
+                    lower — best raised openly and constructively in the
+                    conversation.
+                  </p>
+                  <div className="gatebox">
+                    {GATE_FLAGS.map((flag) => (
+                      <span
+                        key={flag}
+                        className={`gv ${gateFlags.has(flag) ? "on" : ""}`}
+                        onClick={() => toggleGate(flag)}
+                      >
+                        {flag}
+                      </span>
+                    ))}
+                  </div>
+                  <label className="fld" style={{ marginTop: 12 }}>
+                    Severity
+                  </label>
+                  <div className="sev">
+                    {(["none", "concern", "serious"] as const).map((s) => (
+                      <button
+                        key={s}
+                        className={sev === s ? "on" : ""}
+                        onClick={() => {
+                          setSevState(s);
+                          setIsDirty(true);
+                        }}
+                      >
+                        {s === "none"
+                          ? "None"
+                          : s === "concern"
+                            ? "Concern noted"
+                            : "Serious (cap)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="navbtns">
+                    <button className="ghost" onClick={() => goto(5)}>
+                      ← Back
+                    </button>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="pa-save-btn"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Draft saved");
+                        }}
+                      >
+                        💾 Save Draft
+                      </button>
+                      <button className="primary" onClick={() => goto(7)}>
+                        Review &amp; Submit →
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 7: REVIEW & SUBMIT ──────────────────────────────────── */}
+            {step === 7 && (
+              <div className="card">
+                <h2>Review &amp; Submit</h2>
+
+                {/* Score card */}
+                <div
+                  className="card"
+                  style={{ margin: "0 0 16px", background: "#fafdfb" }}
+                >
+                  <div className="scorebar">
+                    <div>
+                      <div className="bignum">
+                        {totalScore != null ? totalScore.toFixed(2) : "–"}
+                      </div>
+                      <div className="breakdown">weighted / 5.0</div>
+                    </div>
+                    <div
+                      className="cat"
+                      style={{
+                        background:
+                          displayIdx >= 0 ? CATS[displayIdx].color : "#9ca3af",
+                      }}
+                    >
+                      {totalScore != null && displayIdx >= 0
+                        ? CATS[displayIdx].name
+                        : "Complete the sections"}
+                    </div>
+                    <div className="breakdown">
+                      Ind{" "}
+                      <b>
+                        {ind.best != null
+                          ? ind.anyDown
+                            ? ind.best + "*"
+                            : ind.best
+                          : "–"}
+                      </b>
+                      {" · "}Team <b>{tAvg != null ? tAvg.toFixed(1) : "–"}</b>
+                      {" · "}Org <b>{oAvg != null ? oAvg.toFixed(1) : "–"}</b>
+                      {" · "}Culture{" "}
+                      <b>{cAvg != null ? cAvg.toFixed(1) : "–"}</b>
+                    </div>
+                  </div>
+                  {warnings.length > 0 && (
+                    <div className="warn-box" style={{ marginTop: 12 }}>
+                      {warnings.map((w, i) => (
+                        <div key={i}>{w}</div>
+                      ))}
+                    </div>
+                  )}
+                  {capped && (
+                    <div className="cap-note">
+                      Integrity Gate: because a serious concern was flagged, the
+                      rating is gently capped one band lower (now{" "}
+                      <b>{displayIdx >= 0 ? CATS[displayIdx].name : ""}</b>).
+                      Worth discussing openly in the conversation.
+                    </div>
+                  )}
+                  {sev === "concern" && !capped && (
+                    <div className="cap-note">
+                      Note: a culture concern was flagged (no cap applied).
+                      Address it in the conversation.
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Nominate peer reviewers ──────────────────────────────── */}
+                {mode === "self" && (
+                  <div className="card" style={{ margin: "0 0 16px" }}>
+                    <h3 className="sec" style={{ marginTop: 0 }}>
+                      Nominate your peer reviewers
+                    </h3>
+                    <p className="hint">
+                      Pick <b>two colleagues</b> from anywhere in the
+                      organisation. They will be asked to complete a short peer
+                      review of you
+                      {activeCycle ? (
+                        <>
+                          {" "}
+                          for <b>{activeCycle.name}</b>
+                        </>
+                      ) : null}
+                      . Your team lead and leadership see both your
+                      self-assessment and their reviews.
+                    </p>
+                    {!activeCycle && (
+                      <div className="note">
+                        No review cycle is open right now — your submission is
+                        still saved, and reviews can be completed once HR opens
+                        a cycle.
+                      </div>
+                    )}
+                    <div style={{ position: "relative", marginBottom: 10 }}>
+                      <Search
+                        style={{
+                          width: 15,
+                          height: 15,
+                          position: "absolute",
+                          left: 11,
+                          top: 11,
+                          color: "#94a3b8",
+                        }}
+                      />
+                      <input
+                        value={reviewerSearch}
+                        onChange={(e) => setReviewerSearch(e.target.value)}
+                        placeholder="Search colleagues by name…"
+                        style={{ paddingLeft: 32 }}
+                      />
+                    </div>
+                    <div className="hint" style={{ marginBottom: 8 }}>
+                      {reviewerIds.length} / 2 selected
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(220px, 1fr))",
+                        gap: 8,
+                        maxHeight: 260,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {orgUsers
+                        .filter(
+                          (u) =>
+                            u.id !== user?.id &&
+                            u.name
+                              .toLowerCase()
+                              .includes(reviewerSearch.toLowerCase()),
+                        )
+                        .map((u) => {
+                          const on = reviewerIds.includes(u.id);
+                          const disabled = !on && reviewerIds.length >= 2;
+                          return (
+                            <div
+                              key={u.id}
+                              onClick={() => !disabled && toggleReviewer(u.id)}
+                              className={`facet ${on ? "on" : ""}`}
+                              style={{
+                                width: "auto",
+                                opacity: disabled ? 0.45 : 1,
+                                cursor: disabled ? "not-allowed" : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 30,
+                                  height: 30,
+                                  borderRadius: "50%",
+                                  background: u.avatar_color || "#3b82f6",
+                                  color: "#fff",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  flex: "0 0 auto",
+                                }}
+                              >
+                                {u.name.charAt(0).toUpperCase()}
+                              </span>
+                              <span style={{ minWidth: 0 }}>
+                                <b
+                                  style={{
+                                    display: "block",
+                                    fontSize: 13,
+                                    marginBottom: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {u.name}
+                                </b>
+                                <span style={{ fontSize: 11 }}>
+                                  {u.role || u.department || ""}
+                                </span>
+                              </span>
+                              {on && (
+                                <Check
+                                  style={{
+                                    width: 16,
+                                    height: 16,
+                                    color: "#4f46e5",
+                                    marginLeft: "auto",
+                                    flex: "0 0 auto",
+                                  }}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      {orgUsers.length === 0 && (
+                        <div className="hint">Loading colleagues…</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <h3 className="sec">Summary</h3>
+
+                <div className="rev-block">
+                  <h4>Employee</h4>
+                  <div className="kv">
+                    <b>{emp || "—"}</b> · {desig || ""} · {period || ""}
+                  </div>
+                  <div className="kv">
+                    Filled by: {mode === "self" ? "Self" : "Reviewer"} (
+                    {rev || "—"})
+                  </div>
+                  <div className="kv">
+                    Role areas:{" "}
+                    {[...facets].map((k) => FACETS[k].label).join(", ") || "—"}
+                  </div>
+                  {submitErrors.find((e) => e.step === 1) && (
+                    <MissList se={submitErrors.find((e) => e.step === 1)!} />
+                  )}
+                </div>
+
+                <div className="rev-block">
+                  <h4>Individual Contributions</h4>
+                  {contributions.length === 0 ? (
+                    <div className="kv">No contributions added.</div>
+                  ) : (
+                    contributions.map((c, i) => {
+                      const { down } = contribEff(c);
+                      const { suggested: sugg } = computeSuggested(c);
+                      const rl = (n: number | null) =>
+                        n != null ? LN[NUM.indexOf(n)] + " (" + n + ")" : "—";
+                      const impLabel = (k: string) =>
+                        (IMPACTS.find((x) => x[0] === k) || [k, k])[1];
+                      const imps = c.impacts
+                        .map(
+                          (k) =>
+                            impLabel(k) +
+                            (c.impactWhy[k] ? " — " + c.impactWhy[k] : ""),
+                        )
+                        .join("; ");
+                      return (
+                        <div key={c.id} className="kv">
+                          #{i + 1} <b>{c.title || "(untitled)"}</b>
+                          <br />
+                          <span style={{ color: "var(--muted)" }}>
+                            Self: {rl(c.self)} · Suggested: {rl(sugg)} ·
+                            Reviewer: {rl(c.reviewer)}
+                            {down
+                              ? " · Exceptional proof incomplete → counts as Exceeds"
+                              : ""}
+                          </span>
+                          {imps && (
+                            <>
+                              <br />
+                              <span style={{ color: "var(--muted)" }}>
+                                Impact: {imps}
+                              </span>
+                            </>
+                          )}
+                          {(c.proofref || c.prooffilename) && (
+                            <>
+                              <br />
+                              <span style={{ color: "var(--muted)" }}>
+                                Proof attached ✓
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  {submitErrors.find((e) => e.step === 2) && (
+                    <MissList se={submitErrors.find((e) => e.step === 2)!} />
+                  )}
+                </div>
+
+                <div className="rev-block">
+                  <h4>Team Contribution</h4>
+                  <div className="kv">
+                    Average:{" "}
+                    <b>{tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}</b>
+                  </div>
+                  {teamEntries.length === 0 ? (
+                    <div className="kv" style={{ color: "var(--muted)" }}>
+                      No entries.
+                    </div>
+                  ) : (
+                    teamEntries.map((e, i) => (
+                      <div key={e.id} className="kv">
+                        #{i + 1}{" "}
+                        {e.rating
+                          ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")"
+                          : "—"}{" "}
+                        —{" "}
+                        <span style={{ color: "var(--muted)" }}>
+                          {e.text || "(no description)"}
+                        </span>
+                        {e.remark ? " · " + e.remark : ""}
+                      </div>
+                    ))
+                  )}
+                  {submitErrors.find((e) => e.step === 3) && (
+                    <MissList se={submitErrors.find((e) => e.step === 3)!} />
+                  )}
+                </div>
+
+                <div className="rev-block">
+                  <h4>Organization Contribution</h4>
+                  <div className="kv">
+                    Average:{" "}
+                    <b>{oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}</b>
+                  </div>
+                  {orgEntries.length === 0 ? (
+                    <div className="kv" style={{ color: "var(--muted)" }}>
+                      No entries.
+                    </div>
+                  ) : (
+                    orgEntries.map((e, i) => (
+                      <div key={e.id} className="kv">
+                        #{i + 1}{" "}
+                        {e.rating
+                          ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")"
+                          : "—"}{" "}
+                        —{" "}
+                        <span style={{ color: "var(--muted)" }}>
+                          {e.text || "(no description)"}
+                        </span>
+                        {e.remark ? " · " + e.remark : ""}
+                      </div>
+                    ))
+                  )}
+                  {submitErrors.find((e) => e.step === 4) && (
+                    <MissList se={submitErrors.find((e) => e.step === 4)!} />
+                  )}
+                </div>
+
+                <div className="rev-block">
+                  <h4>Culture &amp; Discipline</h4>
+                  <div className="kv">
+                    Average:{" "}
+                    <b>{cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}</b>
+                    <br />
+                    <span style={{ color: "var(--muted)" }}>
+                      {CULT_ITEMS.filter(([k]) => cultRatings[k] != null)
+                        .map(([k, l]) => l + ": " + cultRatings[k])
+                        .join(" · ") || "not rated"}
+                    </span>
+                    {cultComment && (
+                      <>
+                        <br />
+                        <span style={{ color: "var(--muted)" }}>
+                          {cultComment}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {submitErrors.find((e) => e.step === 5) && (
+                    <MissList se={submitErrors.find((e) => e.step === 5)!} />
+                  )}
+                </div>
+
+                <div className="rev-block">
+                  <h4>Integrity Gate</h4>
+                  <div className="kv">
+                    Severity: <b>{sev}</b>
+                    {gateFlags.size > 0
+                      ? " · " + [...gateFlags].join(", ")
+                      : ""}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 16,
+                    borderTop: "1px solid var(--line)",
+                    paddingTop: 14,
+                  }}
+                >
+                  <div className="breakdown" style={{ marginBottom: 6 }}>
+                    <b>How ratings map to Green / Orange / Red:</b>
+                  </div>
+                  <div className="map-row">
+                    <span className="dot" style={{ background: "#1f9d55" }} />{" "}
+                    Exceptional, Exceeds &amp; Meets → <b>&nbsp;Green</b>
+                  </div>
+                  <div className="map-row">
+                    <span className="dot" style={{ background: "#e07b00" }} />{" "}
+                    Below Expectation → <b>&nbsp;Orange</b>
+                  </div>
+                  <div className="map-row">
+                    <span className="dot" style={{ background: "#c0392b" }} />{" "}
+                    Not Satisfactory → <b>&nbsp;Red</b>
+                  </div>
+                </div>
+
+                <div className="navbtns" style={{ marginTop: 16 }}>
+                  <button className="ghost" onClick={() => goto(6)}>
+                    ← Back
+                  </button>
+                  <span style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="ghost"
+                      onClick={() => {
+                        saveDraft();
+                        showFlash("💾 Saved on this device.");
+                      }}
+                    >
+                      💾 Save &amp; finish later
+                    </button>
+                    <button className="primary" onClick={() => window.print()}>
+                      Print / PDF
+                    </button>
+                    {submitted ? (
+                      hasFullPerformanceAccess ? (
+                        <button
+                          className="accent-btn"
+                          onClick={() => setView("analysis")}
+                        >
+                          View in Analysis →
+                        </button>
+                      ) : (
+                        <button
+                          className="ghost"
+                          disabled
+                          style={{
+                            opacity: 1,
+                            color: "#16a34a",
+                            borderColor: "#86efac",
+                            background: "#f0fdf4",
+                          }}
+                        >
+                          ✓ Submitted
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        className="accent-btn"
+                        onClick={handleSubmitClick}
+                        disabled={submitting}
+                      >
+                        {submitting ? "Submitting…" : "Submit"}
+                      </button>
+                    )}
+                  </span>
+                </div>
+
+                {flash && (
+                  <div
+                    className="warn-box"
+                    style={{
+                      marginTop: 12,
+                      color: "#14532d",
+                      background: "#f0fdf4",
+                      border: "1px solid #86efac",
+                    }}
+                  >
+                    {flash}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       )}
     </>
   );
