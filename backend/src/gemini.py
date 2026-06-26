@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.error
 import urllib.request
 
 from .config import get_settings
@@ -61,8 +62,15 @@ def _generate(payload: dict, max_tokens: int, json_mode: bool = False,
     req = urllib.request.Request(
         url, data=data, headers={"Content-Type": "application/json"}, method="POST"
     )
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
-        body = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
+            body = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        # Google returns a detailed JSON error body (size limit, unknown field,
+        # bad model, etc.) that is lost if we only surface str(e). Read it so the
+        # caller's log line shows the real reason instead of "HTTP Error 400".
+        detail = e.read().decode("utf-8", "replace")[:1000]
+        raise RuntimeError(f"Gemini HTTP {e.code} for model {cfg.gemini_model}: {detail}") from e
     return _extract_text(body)
 
 

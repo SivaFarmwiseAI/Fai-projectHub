@@ -18,7 +18,7 @@ def _review_stats(event, origin):
     assignee_filter = ""
     params: list = []
     if current_user["role_type"] not in ("CEO", "Admin"):
-        assignee_filter = "WHERE assignee_id = %s"
+        assignee_filter = "WHERE %s = ANY(assignee_ids)"
         params.append(current_user["id"])
     stats = fetchone(f"""
         SELECT
@@ -42,18 +42,21 @@ def _list_reviews(event, origin):
         assignee_id = current_user["id"]
     conds = ["1=1"]
     params: list = []
-    if assignee_id:         conds.append("rt.assignee_id = %s"); params.append(assignee_id)
+    if assignee_id:         conds.append("%s = ANY(rt.assignee_ids)"); params.append(assignee_id)
     if p.get("status"):     conds.append("rt.status = %s");      params.append(p["status"])
     if p.get("priority"):   conds.append("rt.priority = %s");    params.append(p["priority"])
     if p.get("project_id"): conds.append("rt.project_id = %s"); params.append(p["project_id"])
     rows = fetchall(f"""
         SELECT
           rt.*,
-          a.name  AS assignee_name,  a.avatar_color AS assignee_color,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', u.id, 'name', u.name, 'avatar_color', u.avatar_color))
+            FROM users u WHERE u.id = ANY(rt.assignee_ids)
+          ), '[]'::json) AS assignees,
           rq.name AS requester_name,
           pr.title AS project_title
         FROM review_tasks rt
-        LEFT JOIN users a  ON a.id  = rt.assignee_id
         LEFT JOIN users rq ON rq.id = rt.requester_id
         LEFT JOIN projects pr ON pr.id = rt.project_id
         WHERE {" AND ".join(conds)}
@@ -69,12 +72,12 @@ def _create_review(event, origin):
     body = CreateReviewTaskRequest(**get_body(event))
     review = execute_returning("""
         INSERT INTO review_tasks
-          (title, description, type, assignee_id, requester_id,
+          (title, description, type, assignee_ids, requester_id,
            project_id, task_id, submission_id, priority, due_date)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+        VALUES (%s,%s,%s,%s::uuid[],%s,%s,%s,%s,%s,%s) RETURNING *
     """, (
         body.title, body.description, body.type,
-        str(body.assignee_id)   if body.assignee_id   else None,
+        [str(x) for x in body.assignee_ids],
         current_user["id"],
         str(body.project_id)    if body.project_id    else None,
         str(body.task_id)       if body.task_id       else None,
@@ -99,11 +102,14 @@ def _get_review(event, origin, review_id):
     get_current_user(event)
     review = fetchone("""
         SELECT rt.*,
-          a.name  AS assignee_name,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id', u.id, 'name', u.name, 'avatar_color', u.avatar_color))
+            FROM users u WHERE u.id = ANY(rt.assignee_ids)
+          ), '[]'::json) AS assignees,
           rq.name AS requester_name,
           pr.title AS project_title
         FROM review_tasks rt
-        LEFT JOIN users a  ON a.id  = rt.assignee_id
         LEFT JOIN users rq ON rq.id = rt.requester_id
         LEFT JOIN projects pr ON pr.id = rt.project_id
         WHERE rt.id = %s
@@ -119,10 +125,19 @@ def _update_review(event, origin, review_id):
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPError(400, "No fields to update")
-    if "assignee_id" in fields:
-        fields["assignee_id"] = str(fields["assignee_id"])
-    set_clause = ", ".join(f"{k} = %s" for k in fields)
-    params = list(fields.values()) + [review_id]
+    set_parts, params = [], []
+    for k, v in fields.items():
+        if k == "assignee_ids":
+            set_parts.append(f"{k} = %s::uuid[]")
+            params.append([str(x) for x in v])
+        elif k == "project_id":
+            set_parts.append(f"{k} = %s")
+            params.append(str(v))
+        else:
+            set_parts.append(f"{k} = %s")
+            params.append(v)
+    params.append(review_id)
+    set_clause = ", ".join(set_parts)
     updated = execute_returning(
         f"UPDATE review_tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params
     )

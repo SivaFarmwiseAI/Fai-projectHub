@@ -292,7 +292,7 @@ class CreateReviewTaskRequest(BaseModel):
     title: str
     description: str = ""
     type: str = "document"
-    assignee_id: Optional[UUID] = None
+    assignee_ids: List[UUID] = Field(default_factory=list)
     project_id: Optional[UUID] = None
     task_id: Optional[UUID] = None
     submission_id: Optional[UUID] = None
@@ -303,7 +303,8 @@ class CreateReviewTaskRequest(BaseModel):
 class UpdateReviewTaskRequest(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
-    assignee_id: Optional[UUID] = None
+    assignee_ids: Optional[List[UUID]] = None
+    project_id: Optional[UUID] = None
     due_date: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None

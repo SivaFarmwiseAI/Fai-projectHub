@@ -98,11 +98,11 @@ Resources:
       CompatibleArchitectures:
         - x86_64
       RetentionPolicy: Retain
-    Metadata:
-      # Built without Docker via layer/Makefile, which pulls Linux x86_64
-      # (manylinux) wheels so compiled deps (cryptography, bcrypt,
-      # pydantic-core) match the Lambda runtime. Requires GNU make on PATH.
-      BuildMethod: makefile
+    # Metadata:
+    #   # Built without Docker via layer/Makefile, which pulls Linux x86_64
+    #   # (manylinux) wheels so compiled deps (cryptography, bcrypt,
+    #   # pydantic-core) match the Lambda runtime. Requires GNU make on PATH.
+    #   BuildMethod: makefile
 
   # ── Document Storage – S3 + CloudFront ─────────────────────────────────────
   #
