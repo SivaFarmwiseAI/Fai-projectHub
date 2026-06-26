@@ -1,6 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { Award, BarChart3, ClipboardList, Inbox, Users2, CalendarRange, Network, Search, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
+import { performanceAssessments, users as usersApi, type ReviewCycle, type User, type PerformanceAssessmentRow } from "@/lib/api-client";
+import { PerformanceAnalysis } from "@/components/performance-analysis";
+import { PerformanceReviews } from "@/components/performance-reviews";
+import { PerformanceTeam } from "@/components/performance-team";
+import { PerformanceCycles } from "@/components/performance-cycles";
+import { OrgTreeEditor } from "@/components/org-tree-editor";
+
+type PerfView = "self" | "reviews" | "team" | "analysis" | "cycles" | "org";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Contribution {
@@ -55,11 +66,11 @@ const STEPS = [
 ];
 
 const CATS = [
-  { min: 4.5, name: "Exceptional", color: "#1f9d55" },
-  { min: 3.5, name: "Exceeds Expectation", color: "#5bb974" },
-  { min: 2.5, name: "Meets Expectation", color: "#e07b00" },
-  { min: 1.5, name: "Below Expectation", color: "#d98c3a" },
-  { min: 0, name: "Not Satisfactory", color: "#c0392b" },
+  { min: 4.5, name: "Exceptional", color: "#059669" },
+  { min: 3.5, name: "Exceeds Expectation", color: "#16a34a" },
+  { min: 2.5, name: "Meets Expectation", color: "#f59e0b" },
+  { min: 1.5, name: "Below Expectation", color: "#f97316" },
+  { min: 0, name: "Not Satisfactory", color: "#ef4444" },
 ];
 
 const LN = ["Exceptional", "Exceeds", "Meets", "Below", "Unsatisfactory"];
@@ -145,145 +156,166 @@ function catIndexOf(v: number) {
   return 4;
 }
 
-// ── Scoped CSS ───────────────────────────────────────────────────────────────
+// ── Scoped CSS — aligned to the ProjectHub design system ─────────────────────
+// Inherits Plus Jakarta Sans from the app; uses the slate + blue/indigo palette,
+// rounded-2xl cards, shadow-card elevation and the gradient/accent treatments
+// shared across the rest of the application.
 const PA_CSS = `
-.pa{--green:#1f9d55;--orange:#e07b00;--red:#c0392b;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f4f6f8;--card:#fff;--accent:#2c5fb3;--accent-soft:#eef3fb;--leaf:#1f7a4d;--leaf-soft:#e9f5ee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);line-height:1.55}
+.pa{--green:#16a34a;--orange:#f59e0b;--red:#ef4444;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff;--accent:#3b82f6;--accent-soft:#eff6ff;--leaf:#4f46e5;--leaf-soft:#eef2ff;color:var(--ink);line-height:1.55}
 .pa *{box-sizing:border-box}
-/* step nav */
-.pa .stepnav{background:linear-gradient(90deg,#13112e,#1a1740 55%,#1e1b4b);position:sticky;top:0;z-index:20;box-shadow:0 2px 16px rgba(0,0,0,.35)}
-.pa .stepnav-inner{display:flex;overflow-x:auto;padding:6px 12px 8px;gap:1px;scrollbar-width:none}
+/* step nav — white app-style bar, blue→indigo active pill */
+.pa .stepnav{background:rgba(255,255,255,.92);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);position:sticky;top:0;z-index:20;border:1px solid rgba(0,0,0,.06);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05);margin-bottom:16px}
+.pa .stepnav-inner{display:flex;overflow-x:auto;padding:8px;gap:4px;scrollbar-width:none}
 .pa .stepnav-inner::-webkit-scrollbar{display:none}
-.pa .sn{display:flex;align-items:center;gap:6px;padding:6px 10px;color:#94a3b8;font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;border-radius:8px;white-space:nowrap;flex-shrink:0;transition:background .15s,color .15s}
-.pa .sn:hover{background:rgba(255,255,255,.06);color:#cbd5e1}
-.pa .sn .snum{width:19px;height:19px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:0 0 auto}
-.pa .sn.active{background:rgba(59,130,246,.15);border-bottom-color:#3b82f6;color:#fff}
-.pa .sn.active .snum{background:rgba(59,130,246,.35);color:#93c5fd}
-.pa .sn.done .snum{background:#3b82f6;color:#fff}
-.pa .sn.locked{opacity:.35;cursor:not-allowed;pointer-events:none}
+.pa .sn{display:flex;align-items:center;gap:7px;padding:8px 12px;color:#64748b;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:10px;white-space:nowrap;flex-shrink:0;transition:all .18s cubic-bezier(.16,1,.3,1)}
+.pa .sn:hover{background:#f1f5f9;color:#334155}
+.pa .sn .snum{width:20px;height:20px;border-radius:50%;background:#e2e8f0;color:#64748b;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:0 0 auto;transition:all .18s}
+.pa .sn.active{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;box-shadow:0 2px 12px rgba(59,130,246,.4),inset 0 1px 0 rgba(255,255,255,.15)}
+.pa .sn.active .snum{background:rgba(255,255,255,.28);color:#fff}
+.pa .sn.done{color:#4f46e5}
+.pa .sn.done .snum{background:#4f46e5;color:#fff}
+.pa .sn.locked{opacity:.4;cursor:not-allowed;pointer-events:none}
 /* content */
-.pa .wrap{max-width:960px;margin:0 auto;padding:22px 24px}
-.pa .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.pa h2{font-size:18px;margin:0 0 12px;color:var(--ink)}
-.pa h3.sec{font-size:14px;margin:20px 0 8px;color:var(--leaf);border-bottom:2px solid var(--leaf-soft);padding-bottom:5px}
+.pa .wrap{max-width:980px;margin:0 auto;width:100%}
+.pa .card{background:var(--card);border:1px solid rgba(0,0,0,.06);border-radius:18px;padding:22px 24px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.03)}
+.pa h2{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px;color:var(--ink)}
+.pa h3.sec{font-size:13px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:22px 0 10px;color:var(--leaf);border-bottom:1px solid var(--leaf-soft);padding-bottom:6px}
 .pa p{margin:0 0 10px}
 .pa .lead{font-size:15px}
 .pa ul{margin:6px 0 14px;padding-left:22px}.pa li{margin:3px 0}
 .pa .pill-list{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}
-.pa .pill-list li{background:var(--leaf-soft);color:var(--leaf);font-weight:600;font-size:12.5px;padding:4px 11px;border-radius:20px;margin:0}
-.pa .opening{background:linear-gradient(135deg,#f0f8f3,#e9f5ee);border:1px solid #b7dec7;border-left:4px solid var(--leaf);border-radius:0 12px 12px 0;padding:16px 20px;margin:6px 0}
-.pa .opening .big{font-size:16px;font-weight:700;color:#14532d}
-.pa .formula{background:#14532d;color:#fff;border-radius:12px;padding:16px 20px;text-align:center;font-size:18px;font-weight:800;letter-spacing:.5px;margin:14px 0}
-.pa .formula small{display:block;font-weight:500;font-size:12.5px;opacity:.85;margin-top:6px;letter-spacing:0}
+.pa .pill-list li{background:var(--leaf-soft);color:var(--leaf);font-weight:600;font-size:12px;padding:4px 11px;border-radius:9999px;margin:0}
+.pa .opening{background:linear-gradient(135deg,#eff6ff,#eef2ff);border:1px solid #dbeafe;border-left:3px solid var(--accent);border-radius:0 14px 14px 0;padding:16px 20px;margin:6px 0}
+.pa .opening .big{font-size:16px;font-weight:800;letter-spacing:-.01em;color:#1e3a8a}
+.pa .formula{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border-radius:14px;padding:18px 20px;text-align:center;font-size:18px;font-weight:800;letter-spacing:.3px;margin:14px 0;box-shadow:0 4px 20px rgba(59,130,246,.18)}
+.pa .formula small{display:block;font-weight:500;font-size:12.5px;opacity:.9;margin-top:6px;letter-spacing:0}
 .pa .gb{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 16px}
-.pa .ex{border-radius:10px;padding:14px;font-size:13px}
-.pa .ex .tag{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;padding:2px 9px;border-radius:20px;margin-bottom:8px}
-.pa .bad{background:#fdecea;border:1px solid #f5c4bd}.pa .bad .tag{background:var(--red);color:#fff}
-.pa .good{background:var(--leaf-soft);border:1px solid #b7dec7}.pa .good .tag{background:var(--leaf);color:#fff}
-.pa .hier{border-left:4px solid var(--leaf);background:#fafdfb;border-radius:0 10px 10px 0;padding:12px 16px;margin:8px 0;font-size:13px}
-.pa .hier h4{margin:0 0 4px;font-size:13.5px}.pa .hier .q{font-style:italic;color:var(--muted);font-size:12.5px;margin:2px 0 6px}
-.pa .hier .lv{font-size:10.5px;font-weight:800;color:var(--leaf);letter-spacing:.5px;text-transform:uppercase}
+.pa .ex{border-radius:14px;padding:14px;font-size:13px}
+.pa .ex .tag{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:2px 9px;border-radius:9999px;margin-bottom:8px}
+.pa .bad{background:#fef2f2;border:1px solid #fecaca}.pa .bad .tag{background:var(--red);color:#fff}
+.pa .good{background:#f0fdf4;border:1px solid #bbf7d0}.pa .good .tag{background:var(--green);color:#fff}
+.pa .hier{border-left:3px solid var(--accent);background:#f8fafc;border-radius:0 12px 12px 0;padding:12px 16px;margin:8px 0;font-size:13px}
+.pa .hier h4{margin:0 0 4px;font-size:13.5px;font-weight:700}.pa .hier .q{font-style:italic;color:var(--muted);font-size:12.5px;margin:2px 0 6px}
+.pa .hier .lv{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
 .pa table.matrix{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:13px}
-.pa table.matrix th,.pa table.matrix td{border:1px solid var(--line);padding:8px 12px;text-align:left}
-.pa table.matrix th{background:var(--leaf-soft);color:var(--leaf)}
+.pa table.matrix th,.pa table.matrix td{border:1px solid var(--line);padding:9px 12px;text-align:left}
+.pa table.matrix th{background:var(--leaf-soft);color:var(--leaf);font-weight:700}
 .pa table.matrix td.m{color:var(--red);font-weight:700}.pa table.matrix td.p{color:var(--muted);font-weight:600}
 .pa .tmpl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0 14px}
-.pa .tmpl div{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px}.pa .tmpl b{color:var(--accent)}
-.pa .ack{background:var(--leaf-soft);border:1px dashed var(--leaf);border-radius:12px;padding:18px}
+.pa .tmpl div{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:13px}.pa .tmpl b{color:var(--accent)}
+.pa .ack{background:var(--leaf-soft);border:1px dashed #c7d2fe;border-radius:16px;padding:18px}
 .pa .ack label{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-bottom:12px;cursor:pointer}
-.pa .ack input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:0 0 auto;cursor:pointer}
+.pa .ack input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:0 0 auto;cursor:pointer;accent-color:#4f46e5}
 .pa .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pa .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.pa label.fld{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
-.pa input:not([type=checkbox]):not([type=file]),.pa select,.pa textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit}
+.pa label.fld{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+.pa input:not([type=checkbox]):not([type=file]),.pa select,.pa textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit;transition:box-shadow .2s ease,border-color .2s ease}
+.pa input:not([type=checkbox]):not([type=file]):focus,.pa select:focus,.pa textarea:focus{outline:none;border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
 .pa textarea{resize:vertical;min-height:54px}
 .pa input[type=file]{font-size:13px;padding:6px}
 .pa .hint{font-size:12.5px;color:var(--muted);margin:0 0 10px}
 .pa .facets{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
-.pa .facet{border:1px solid var(--line);border-radius:10px;padding:11px 14px;cursor:pointer;font-size:13px;width:calc(50% - 5px);transition:border-color .15s,background .15s}
-.pa .facet:hover{border-color:var(--leaf)}.pa .facet.on{border-color:var(--leaf);background:var(--leaf-soft)}
-.pa .facet b{display:block;margin-bottom:3px;font-size:13px}.pa .facet span{color:var(--muted);font-size:12px}
+.pa .facet{border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;font-size:13px;width:calc(50% - 5px);transition:all .18s cubic-bezier(.16,1,.3,1)}
+.pa .facet:hover{border-color:#c7d2fe;background:#fafbff}.pa .facet.on{border-color:var(--leaf);background:var(--leaf-soft);box-shadow:0 0 0 1px var(--leaf)}
+.pa .facet b{display:block;margin-bottom:3px;font-size:13px;font-weight:700}.pa .facet span{color:var(--muted);font-size:12px}
 .pa .rate{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:8px 0}
-.pa .rb{border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;font-size:11.5px;transition:border-color .1s,background .1s}
-.pa .rb:hover{border-color:var(--accent)}.pa .rb.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
-.pa .rb b{display:block;font-size:14px;margin-bottom:2px}
-.pa .contrib{border:1px solid #dfe6e2;border-radius:12px;padding:16px;margin-bottom:16px;background:#eef2f0}
-.pa .contrib .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.pa .contrib .ch h4{margin:0;font-size:14px;color:var(--leaf)}
-.pa .rm{background:#fdecea;color:var(--red);border:1px solid #f5c4bd;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.pa .rb{border:1px solid var(--line);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);transition:all .14s cubic-bezier(.16,1,.3,1)}
+.pa .rb:hover{border-color:#bfdbfe;background:#f8fafc}.pa .rb.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pa .rb b{display:block;font-size:15px;font-weight:800;margin-bottom:2px;color:inherit}
+.pa .contrib{border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:18px;margin-bottom:16px;background:#f8fafc}
+.pa .contrib .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.pa .contrib .ch h4{margin:0;font-size:14px;font-weight:700;color:var(--leaf)}
+.pa .rm{background:#fef2f2;color:var(--red);border:1px solid #fecaca;border-radius:9px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;transition:background .15s}
+.pa .rm:hover{background:#fee2e2}
 .pa .field{margin-bottom:10px}
-.pa .field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;color:var(--ink)}
-.pa .block{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 12px}
-.pa .block.alt{background:#fafdfb;border-color:#cfe6da}
+.pa .field label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;color:#334155}
+.pa .block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin:0 0 12px}
+.pa .block.alt{background:#fafbff;border-color:#e0e7ff}
 .pa .block:last-child{margin-bottom:0}
-.pa .blockh{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--leaf);margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
-.pa .blockh .stepn{width:21px;height:21px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
-.pa .addbtn{background:var(--leaf-soft);color:var(--leaf);border:1px dashed var(--leaf);border-radius:10px;padding:12px;width:100%;font-size:14px;cursor:pointer;font-weight:600;margin-top:4px}
-.pa .addbtn:hover{background:#d4edda}
+.pa .blockh{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--leaf);margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+.pa .blockh .stepn{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.pa .addbtn{background:var(--leaf-soft);color:var(--leaf);border:1px dashed #c7d2fe;border-radius:14px;padding:13px;width:100%;font-size:14px;cursor:pointer;font-weight:700;margin-top:4px;transition:all .18s}
+.pa .addbtn:hover{background:#e0e7ff;border-color:var(--leaf)}
 .pa .gatebox{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
-.pa .gv{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;cursor:pointer;user-select:none;transition:background .1s,border-color .1s}.pa .gv.on{background:#fdecea;border-color:var(--red);color:var(--red);font-weight:600}
-.pa .sev{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:4px}
-.pa .sev button{border-radius:0;background:#fff;color:var(--muted);padding:7px 14px;font-size:13px;cursor:pointer;border:none;font-weight:500}
+.pa .gv{border:1px solid var(--line);border-radius:9999px;padding:7px 13px;font-size:12.5px;cursor:pointer;user-select:none;transition:all .14s}.pa .gv.on{background:#fef2f2;border-color:var(--red);color:var(--red);font-weight:600}
+.pa .sev{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:4px}
+.pa .sev button{border-radius:0;background:#fff;color:var(--muted);padding:8px 15px;font-size:13px;cursor:pointer;border:none;font-weight:600}
 .pa .sev button.on{background:var(--red);color:#fff}
-.pa .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.pa .toggle button{border-radius:0;background:#fff;color:var(--muted);padding:8px 16px;font-size:13.5px;cursor:pointer;border:none;font-weight:500}
-.pa .toggle button.on{background:var(--accent);color:#fff}
-.pa button{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.pa .toggle{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f1f5f9;padding:3px;gap:3px}
+.pa .toggle button{border-radius:7px;background:transparent;color:var(--muted);padding:7px 15px;font-size:13.5px;cursor:pointer;border:none;font-weight:600;transition:all .15s}
+.pa .toggle button.on{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.pa button{border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s cubic-bezier(.16,1,.3,1)}
 .pa button:disabled{opacity:.4;cursor:not-allowed}
-.pa .primary{background:var(--leaf);color:#fff}
-.pa .primary:hover:not(:disabled){opacity:.9}
-.pa .accent-btn{background:var(--accent);color:#fff}
-.pa .ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
-.pa .ghost:hover{background:#f9fafb}
-.pa .navbtns{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.pa .primary{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;box-shadow:0 0 0 1px rgba(59,130,246,.12),0 4px 20px rgba(59,130,246,.18)}
+.pa .primary:hover:not(:disabled){background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 4px 20px rgba(59,130,246,.45);transform:translateY(-1px)}
+.pa .accent-btn{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;box-shadow:0 0 0 1px rgba(59,130,246,.12),0 4px 20px rgba(59,130,246,.18)}
+.pa .accent-btn:hover:not(:disabled){transform:translateY(-1px)}
+.pa .ghost{background:#fff;border:1px solid var(--line);color:#334155}
+.pa .ghost:hover{background:#f8fafc;border-color:#cbd5e1}
+.pa .navbtns{display:flex;justify-content:space-between;align-items:center;margin-top:4px;gap:10px;flex-wrap:wrap}
 .pa .sugg{font-size:13px}
-.pa .suggn{display:inline-block;color:#fff;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;margin-right:6px}
+.pa .suggn{display:inline-block;color:#fff;font-weight:700;font-size:12px;padding:3px 11px;border-radius:9999px;margin-right:6px}
 .pa .tags{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
-.pa .tag2{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:12.5px;cursor:pointer;user-select:none;background:#fff;transition:border-color .1s,background .1s}
-.pa .tag2:hover{border-color:var(--accent)}.pa .tag2.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pa .tag2{display:inline-block;border:1px solid var(--line);border-radius:9999px;padding:5px 13px;font-size:12.5px;cursor:pointer;user-select:none;background:#fff;transition:all .14s}
+.pa .tag2:hover{border-color:#bfdbfe}.pa .tag2.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .pa .impwhy .row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
 .pa .impwhy .lbl{flex:0 0 180px;font-size:12.5px;font-weight:600;color:var(--accent)}
 .pa .impwhy .row input{flex:1}
 .pa .scorebar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.pa .bignum{font-size:40px;font-weight:800;line-height:1}
-.pa .cat{font-size:18px;font-weight:800;padding:6px 16px;border-radius:30px;color:#fff}
+.pa .bignum{font-size:42px;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.pa .cat{font-size:17px;font-weight:800;padding:7px 18px;border-radius:9999px;color:#fff}
 .pa .breakdown{font-size:13px;color:var(--muted)}.pa .breakdown b{color:var(--ink)}
 .pa .map-row{display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0}.pa .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
-.pa .draftbar{background:#fff7e6;border:1px solid #f3d27a;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
-.pa .rev-block{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
-.pa .rev-block h4{margin:0 0 6px;font-size:14px;color:var(--leaf)}
+.pa .draftbar{background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
+.pa .rev-block{border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:12px}
+.pa .rev-block h4{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--leaf)}
 .pa .rev-block .kv{font-size:13px;margin:3px 0}
-.pa .note{font-size:12.5px;color:var(--muted);background:#fffbe9;border:1px solid #f3e2a9;border-radius:8px;padding:10px 12px;margin:8px 0}
-.pa .warn-box{font-size:13px;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;margin-top:12px}
-.pa .cap-note{font-size:13px;color:#7f1d1d;background:#fdecea;border:1px solid #f5c4bd;border-radius:8px;padding:9px 12px;margin-top:10px}
+.pa .note{font-size:12.5px;color:#3730a3;background:var(--leaf-soft);border:1px solid #e0e7ff;border-radius:12px;padding:10px 13px;margin:8px 0}
+.pa .warn-box{font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px 13px;margin-top:12px}
+.pa .cap-note{font-size:13px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:10px 13px;margin-top:10px}
 /* validation */
-.pa .req-error{border-color:#ef4444!important;background:#fff8f8!important;box-shadow:0 0 0 2px rgba(239,68,68,.2)!important}
-.pa .rate-err{outline:2px solid #ef4444;outline-offset:3px;border-radius:10px}
+.pa .req-error{border-color:#ef4444!important;background:#fff8f8!important;box-shadow:0 0 0 3px rgba(239,68,68,.16)!important}
+.pa .rate-err{outline:2px solid #ef4444;outline-offset:3px;border-radius:12px}
 .pa .req-star{color:#ef4444;font-size:11px;vertical-align:super;line-height:0;margin-left:1px}
 .pa .err-msg{font-size:11.5px;color:#dc2626;margin-top:3px;display:block;line-height:1.4}
-.pa .top-err{font-size:12.5px;padding:8px 12px;background:#fff5f5;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:6px;margin-bottom:12px}
+.pa .top-err{font-size:12.5px;padding:9px 13px;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:10px;margin-bottom:12px}
 @media (max-width:760px){.pa .gb,.pa .grid2,.pa .tmpl,.pa .rate{grid-template-columns:1fr}.pa .facet{width:100%}}
 @media print{.pa .stepnav,.pa .navbtns,.pa .addbtn,.pa .rm,.pa .ghost{display:none!important}}
-.pa-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
-.pa-dialog{background:#fff;border-radius:14px;padding:28px 28px 22px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22)}
-.pa-dialog h3{margin:0 0 8px;font-size:17px;color:#1f2937;font-family:inherit}
-.pa-dialog p{margin:0 0 22px;font-size:14px;color:#6b7280;line-height:1.6}
+.pa-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.pa-dialog{background:#fff;border-radius:18px;padding:28px 28px 22px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22)}
+.pa-dialog h3{margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.02em;color:#0f172a;font-family:inherit}
+.pa-dialog p{margin:0 0 22px;font-size:14px;color:#64748b;line-height:1.6}
 .pa-dialog .da{display:flex;gap:10px;justify-content:flex-end}
-.pa-save-btn{background:var(--leaf-soft);color:var(--leaf);border:1px solid var(--leaf);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.pa-save-btn:hover{background:#d4edda}
-.pa .miss-card{margin-top:10px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;padding:10px 14px 8px;cursor:pointer;transition:background .15s,border-color .15s}
+.pa-save-btn{background:var(--leaf-soft);color:var(--leaf);border:1px solid #c7d2fe;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s}
+.pa-save-btn:hover{background:#e0e7ff}
+.pa .miss-card{margin-top:10px;border:1px solid #fde68a;border-radius:12px;background:#fffbeb;padding:11px 14px 9px;cursor:pointer;transition:all .15s}
 .pa .miss-card:hover{background:#fef3c7;border-color:#f59e0b}
 .pa .miss-card-hd{font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
 .pa .miss-field{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#78350f;padding:2px 0;line-height:1.4}
 .pa .miss-dot{width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0}
 .pa .miss-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.pa .miss-go-btn{background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.pa .miss-go-btn{background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .pa .miss-go-btn:hover{background:#d97706}
 `;
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function PerformanceAssessmentPage() {
+  const { user, hasFullPerformanceAccess, isLead, isCEO, isHR, isAdmin } = useAuth();
+  const canManageCycles = isCEO || isHR || isAdmin;
+
   // ── State ────────────────────────────────────────────────────────────────
+  const [view, setView] = useState<PerfView>("self");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [step, setStep] = useState(0);
+
+  // 360 flow — reviewer nomination + active cycle
+  const [orgUsers, setOrgUsers] = useState<User[]>([]);
+  const [reviewerIds, setReviewerIds] = useState<string[]>([]);
+  const [reviewerSearch, setReviewerSearch] = useState("");
+  const [activeCycle, setActiveCycle] = useState<ReviewCycle | null>(null);
+  const [pendingReviews, setPendingReviews] = useState(0);
+  const [existingSelf, setExistingSelf] = useState<PerformanceAssessmentRow | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
   const [mode, setModeState] = useState<"self" | "rev">("self");
@@ -327,6 +359,43 @@ export default function PerformanceAssessmentPage() {
     if (typeof localStorage !== "undefined" && localStorage.getItem(DRAFT_KEY)) {
       setDraftFound(true);
     }
+  }, []);
+
+  // Prefill the self-assessment identity fields from the signed-in user.
+  useEffect(() => {
+    if (!user) return;
+    if (user.name) {
+      setEmp((prev) => prev || user.name);
+      setRev((prev) => prev || user.name);
+    }
+    if (user.role) setDesig((prev) => prev || user.role);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.name, user?.role]);
+
+  // Default the review period to the open cycle's name once it loads.
+  useEffect(() => {
+    if (activeCycle?.name) setPeriod((prev) => prev || activeCycle.name);
+  }, [activeCycle?.name]);
+
+  // Load the org directory (for reviewer nomination), the active review cycle,
+  // the pending-review count (My Reviews badge) and any already-submitted
+  // self-assessment so we can show/fetch it instead of a blank form.
+  useEffect(() => {
+    usersApi.list().then((r) => setOrgUsers(r.users || [])).catch(() => {});
+    performanceAssessments.activeCycle().then((r) => setActiveCycle(r.cycle)).catch(() => {});
+    performanceAssessments.myReviews("pending").then((r) => setPendingReviews((r.reviews || []).length)).catch(() => {});
+    performanceAssessments.myAssessments().then((r) => {
+      const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
+      if (self) { setExistingSelf(self); setSubmitted(true); }
+    }).catch(() => {});
+  }, []);
+
+  const toggleReviewer = useCallback((id: string) => {
+    setReviewerIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 2) return prev; // cap at 2 peer reviewers
+      return [...prev, id];
+    });
   }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -725,25 +794,48 @@ export default function PerformanceAssessmentPage() {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(gather())); setIsDirty(false); } catch { /* ignore */ }
   }, [gather]);
 
+  // Apply a saved/submitted snapshot (same shape as gather()) into the form.
+  const applyState = useCallback((d: Record<string, unknown>) => {
+    const dd = d as Record<string, never>;
+    setModeState((dd.mode as "self" | "rev") || "self");
+    setSevState((dd.sev as "none" | "concern" | "serious") || "none");
+    setLevelState((dd.level as "junior" | "mid" | "senior") || "mid");
+    setFacets(new Set((dd.facets as string[]) || []));
+    setEmp(dd.emp || ""); setRev(dd.rev || ""); setDesig(dd.desig || ""); setPeriod(dd.period || "");
+    const contribs = (dd.contributions as Contribution[]) || [];
+    setContributions(contribs);
+    setCCounter(Math.max(0, ...contribs.map((c) => c.id)));
+    const team = (dd.teamEntries as Entry[]) || [];
+    const org = (dd.orgEntries as Entry[]) || [];
+    setTeamEntries(team); setOrgEntries(org);
+    setECounter(Math.max(0, ...team.map((e) => e.id), ...org.map((e) => e.id)));
+    setCultRatings((dd.cultRatings as Record<string, number>) || {}); setCultComment(dd.cultComment || "");
+    setGateFlags(new Set((dd.gateFlags as string[]) || []));
+    onAck(true); setIsDirty(false);
+  }, [onAck]);
+
   const loadDraft = useCallback(() => {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
-      const d = JSON.parse(raw);
-      setModeState(d.mode || "self");
-      setSevState(d.sev || "none");
-      setLevelState(d.level || "mid");
-      setFacets(new Set(d.facets || []));
-      setEmp(d.emp || ""); setRev(d.rev || ""); setDesig(d.desig || ""); setPeriod(d.period || "");
-      setContributions(d.contributions || []);
-      setCCounter(Math.max(0, ...(d.contributions || []).map((c: Contribution) => c.id)));
-      setTeamEntries(d.teamEntries || []); setOrgEntries(d.orgEntries || []);
-      setECounter(Math.max(0, ...(d.teamEntries || []).map((e: Entry) => e.id), ...(d.orgEntries || []).map((e: Entry) => e.id)));
-      setCultRatings(d.cultRatings || {}); setCultComment(d.cultComment || "");
-      setGateFlags(new Set(d.gateFlags || []));
-      onAck(true); setDraftFound(false); setIsDirty(false); goto(1);
+      applyState(JSON.parse(raw));
+      setDraftFound(false);
+      goto(1);
     } catch { /* ignore */ }
-  }, [onAck, goto]);
+  }, [applyState, goto]);
+
+  // Pull the user's already-submitted self-assessment back into the form to
+  // view/edit (re-saving updates the same record).
+  const loadSubmitted = useCallback(async (id: string) => {
+    try {
+      const r = await performanceAssessments.get(id);
+      applyState((r.assessment.data as Record<string, unknown>) || {});
+      setSubmitted(true);
+      goto(7);
+    } catch {
+      showFlash("⚠️ Couldn't load your submitted assessment.");
+    }
+  }, [applyState, goto, showFlash]);
 
   const discardDraft = useCallback(() => { localStorage.removeItem(DRAFT_KEY); setDraftFound(false); }, []);
 
@@ -757,7 +849,7 @@ export default function PerformanceAssessmentPage() {
     }, 120);
   }, [goto, showTopErr]);
 
-  const submitAssessment = useCallback(() => {
+  const submitAssessment = async () => {
     const allErrors = validateAll();
     if (allErrors.length) {
       setHasSubmitAttempt(true);
@@ -765,8 +857,54 @@ export default function PerformanceAssessmentPage() {
     }
     setHasSubmitAttempt(false);
     saveDraft();
-    showFlash("✅ Assessment submitted and saved on this device. Use Print / PDF to share with your reviewer.");
-  }, [validateAll, saveDraft, showFlash]);
+
+    const band = totalScore != null && displayIdx >= 0 ? CATS[displayIdx].name : null;
+    const payload = {
+      employee_name: emp.trim(),
+      employee_user_id: mode === "self" ? (user?.id ?? null) : null,
+      subject_user_id: user?.id ?? null,
+      designation: desig.trim(),
+      review_period: period.trim() || activeCycle?.name || null,
+      career_level: level,
+      filled_by: mode,
+      kind: "self",
+      cycle_id: activeCycle?.id ?? null,
+      reviewer_ids: reviewerIds,
+      reviewer_name: rev.trim() || null,
+      reviewer_user_id: user?.id ?? null,
+      role_areas: [...facets],
+      individual_score: ind.best,
+      team_score: tAvg,
+      org_score: oAvg,
+      culture_score: cAvg,
+      total_score: totalScore,
+      rating_band: band,
+      severity: sev,
+      capped,
+      data: gather(),
+    };
+
+    setSubmitting(true);
+    try {
+      await performanceAssessments.create(payload);
+      setSubmitted(true);
+      // Re-fetch so the saved submission persists across reloads / tab switches.
+      performanceAssessments.myAssessments().then((r) => {
+        const self = (r.assessments || []).find((a) => a.status === "submitted") || (r.assessments || [])[0] || null;
+        if (self) setExistingSelf(self);
+      }).catch(() => {});
+      showFlash(
+        reviewerIds.length
+          ? `✅ Assessment saved. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.`
+          : "✅ Assessment saved and shared with your reporting line and leadership.",
+      );
+    } catch (e) {
+      console.error("performance assessment submit failed", e);
+      showFlash("⚠️ Couldn't reach the server — saved on this device. Try Submit again, or use Print / PDF.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ── Reusable sub-components ───────────────────────────────────────────────
   const RatingRow = ({ n, i, selected, onClick }: { n: number; i: number; selected: boolean; onClick: () => void }) => (
@@ -816,11 +954,79 @@ export default function PerformanceAssessmentPage() {
     </div>
   );
 
+  // Role-gated tabs for the module.
+  const tabs: { key: PerfView; label: string; Icon: typeof Award }[] = [
+    { key: "self", label: "My Assessment", Icon: ClipboardList },
+    { key: "reviews", label: "My Reviews", Icon: Inbox },
+    ...(isLead || hasFullPerformanceAccess ? [{ key: "team" as const, label: "My Team", Icon: Users2 }] : []),
+    ...(hasFullPerformanceAccess ? [{ key: "analysis" as const, label: "Analysis", Icon: BarChart3 }] : []),
+    ...(canManageCycles ? [
+      { key: "cycles" as const, label: "Cycles", Icon: CalendarRange },
+      { key: "org" as const, label: "Org Tree", Icon: Network },
+    ] : []),
+  ];
+
+  const VIEW_SUBTITLE: Record<PerfView, string> = {
+    self: "Capture outcomes, adoption and measurable impact — not just activity.",
+    reviews: "Peer reviews colleagues have asked you to complete.",
+    team: "Your team's self-assessments and peer reviews.",
+    analysis: "Org-wide ratings, distribution and trends for leadership.",
+    cycles: "Open and manage performance review cycles.",
+    org: "Define who reports to whom — the reporting tree that scopes visibility.",
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{PA_CSS}</style>
-      <div className="pa" style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
+
+      {/* ── Page header (pure app styling, outside the scoped .pa block) ─── */}
+      <div className="max-w-[980px] mx-auto w-full animate-fade-in-up">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="h-5 w-5 rounded-md flex items-center justify-center" style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}>
+                <Award className="h-3 w-3 text-white" />
+              </div>
+              <span className="text-label-upper text-blue-500">Performance</span>
+            </div>
+            <h1 className="text-display text-slate-900">Performance Assessment</h1>
+            <p className="text-sm text-slate-500 mt-1.5 font-medium">{VIEW_SUBTITLE[view]}</p>
+          </div>
+
+          {/* Role-gated segmented control */}
+          <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 flex-wrap" role="tablist" aria-label="Performance views">
+            {tabs.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={view === key}
+                onClick={() => setView(key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-all",
+                  view === key ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+                {key === "reviews" && pendingReviews > 0 && (
+                  <span className="flex items-center justify-center h-4 min-w-[16px] rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">{pendingReviews}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Non-wizard views (fully app-styled, outside .pa) ──────────────── */}
+      {view === "reviews" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceReviews /></div>}
+      {view === "team" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceTeam /></div>}
+      {view === "analysis" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceAnalysis /></div>}
+      {view === "cycles" && <div className="max-w-[980px] mx-auto w-full mt-5"><PerformanceCycles /></div>}
+      {view === "org" && <div className="max-w-[980px] mx-auto w-full mt-5"><OrgTreeEditor /></div>}
+
+      {/* ── Self-assessment wizard ───────────────────────────────────────── */}
+      {view === "self" && (
+      <div className="pa mt-5" style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
 
         {/* ── Step nav ──────────────────────────────────────────────────── */}
         <div className="stepnav">
@@ -842,6 +1048,19 @@ export default function PerformanceAssessmentPage() {
         </div>
 
         <div className="wrap">
+          {/* Already-submitted banner — fetched from the server on load */}
+          {existingSelf && (
+            <div className="draftbar" style={{ background: "#eef2ff", borderColor: "#c7d2fe" }}>
+              <span style={{ color: "#3730a3" }}>
+                ✓ You submitted your self-assessment{existingSelf.review_period ? <> for <b>{existingSelf.review_period}</b></> : null}
+                {existingSelf.rating_band ? <> — <b>{existingSelf.rating_band}</b></> : null}
+                {existingSelf.total_score != null ? <> ({Number(existingSelf.total_score).toFixed(2)} / 5)</> : null}.
+              </span>
+              <span style={{ display: "flex", gap: 8 }}>
+                <button className="primary" onClick={() => loadSubmitted(existingSelf.id)}>View / edit</button>
+              </span>
+            </div>
+          )}
           {/* Draft / flash banners */}
           {draftFound && (
             <div className="draftbar">
@@ -964,36 +1183,28 @@ export default function PerformanceAssessmentPage() {
             <>
               <div className="card">
                 <h2>About You &amp; Your Role</h2>
-                <div style={{ marginBottom: 14 }}>
-                  <label className="fld">Filled by</label>
-                  <div className="toggle">
-                    <button className={mode === "self" ? "on" : ""} onClick={() => { setModeState("self"); setIsDirty(true); }}>Self-assessment</button>
-                    <button className={mode === "rev" ? "on" : ""} onClick={() => { setModeState("rev"); setIsDirty(true); }}>Reviewer</button>
-                  </div>
+                <div className="note" style={{ marginTop: 0 }}>
+                  This is your <b>self-assessment</b>{activeCycle ? <> for <b>{activeCycle.name}</b></> : null}. Your name, designation and review period are filled in for you — edit them if needed. Peer reviews of <i>others</i> are completed from the <b>My Reviews</b> tab.
                 </div>
 
-                <div className="grid2" style={{ marginBottom: 12 }}>
+                <div className="grid2" style={{ marginBottom: 12, marginTop: 12 }}>
                   <div>
-                    <label className="fld">Employee <span className="req-star">*</span></label>
-                    <input className={errCls("emp")} value={emp} onChange={(e) => { setEmp(e.target.value); clearErr("emp"); setIsDirty(true); }} placeholder="Full name" />
+                    <label className="fld">Your name <span className="req-star">*</span></label>
+                    <input className={errCls("emp")} value={emp} onChange={(e) => { setEmp(e.target.value); setRev(e.target.value); clearErr("emp"); setIsDirty(true); }} placeholder="Full name" />
                     <Err k="emp" />
                   </div>
-                  <div>
-                    <label className="fld">{mode === "self" ? "Employee (self)" : "Reviewer"} <span className="req-star">*</span></label>
-                    <input className={errCls("rev")} value={rev} onChange={(e) => { setRev(e.target.value); clearErr("rev"); setIsDirty(true); }} placeholder={mode === "self" ? "Your name" : "Reporting head"} />
-                    <Err k="rev" />
-                  </div>
-                </div>
-                <div className="grid2" style={{ marginBottom: 16 }}>
                   <div>
                     <label className="fld">Designation <span className="req-star">*</span></label>
                     <input className={errCls("desig")} value={desig} onChange={(e) => { setDesig(e.target.value); clearErr("desig"); setIsDirty(true); }} placeholder="e.g. Senior Engineer" />
                     <Err k="desig" />
                   </div>
+                </div>
+                <div className="grid2" style={{ marginBottom: 16 }}>
                   <div>
                     <label className="fld">Review period</label>
                     <input value={period} onChange={(e) => { setPeriod(e.target.value); setIsDirty(true); }} placeholder="e.g. H1 2026" />
                   </div>
+                  <div />
                 </div>
 
                 <label className="fld">Career level</label>
@@ -1386,6 +1597,50 @@ export default function PerformanceAssessmentPage() {
                 )}
               </div>
 
+              {/* ── Nominate peer reviewers ──────────────────────────────── */}
+              {mode === "self" && (
+                <div className="card" style={{ margin: "0 0 16px" }}>
+                  <h3 className="sec" style={{ marginTop: 0 }}>Nominate your peer reviewers</h3>
+                  <p className="hint">
+                    Pick <b>two colleagues</b> from anywhere in the organisation. They will be asked to complete a short
+                    peer review of you{activeCycle ? <> for <b>{activeCycle.name}</b></> : null}. Your team lead and leadership see both your self-assessment and their reviews.
+                  </p>
+                  {!activeCycle && (
+                    <div className="note">No review cycle is open right now — your submission is still saved, and reviews can be completed once HR opens a cycle.</div>
+                  )}
+                  <div style={{ position: "relative", marginBottom: 10 }}>
+                    <Search style={{ width: 15, height: 15, position: "absolute", left: 11, top: 11, color: "#94a3b8" }} />
+                    <input value={reviewerSearch} onChange={(e) => setReviewerSearch(e.target.value)}
+                      placeholder="Search colleagues by name…" style={{ paddingLeft: 32 }} />
+                  </div>
+                  <div className="hint" style={{ marginBottom: 8 }}>{reviewerIds.length} / 2 selected</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+                    {orgUsers
+                      .filter((u) => u.id !== user?.id && u.name.toLowerCase().includes(reviewerSearch.toLowerCase()))
+                      .map((u) => {
+                        const on = reviewerIds.includes(u.id);
+                        const disabled = !on && reviewerIds.length >= 2;
+                        return (
+                          <div key={u.id}
+                            onClick={() => !disabled && toggleReviewer(u.id)}
+                            className={`facet ${on ? "on" : ""}`}
+                            style={{ width: "auto", opacity: disabled ? 0.45 : 1, cursor: disabled ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ width: 30, height: 30, borderRadius: "50%", background: u.avatar_color || "#3b82f6", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "0 0 auto" }}>
+                              {u.name.charAt(0).toUpperCase()}
+                            </span>
+                            <span style={{ minWidth: 0 }}>
+                              <b style={{ display: "block", fontSize: 13, marginBottom: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</b>
+                              <span style={{ fontSize: 11 }}>{u.role || u.department || ""}</span>
+                            </span>
+                            {on && <Check style={{ width: 16, height: 16, color: "#4f46e5", marginLeft: "auto", flex: "0 0 auto" }} />}
+                          </div>
+                        );
+                      })}
+                    {orgUsers.length === 0 && <div className="hint">Loading colleagues…</div>}
+                  </div>
+                </div>
+              )}
+
               <h3 className="sec">Summary</h3>
 
               <div className="rev-block">
@@ -1476,7 +1731,17 @@ export default function PerformanceAssessmentPage() {
                 <span style={{ display: "flex", gap: 8 }}>
                   <button className="ghost" onClick={() => { saveDraft(); showFlash("💾 Saved on this device."); }}>💾 Save &amp; finish later</button>
                   <button className="primary" onClick={() => window.print()}>Print / PDF</button>
-                  <button className="accent-btn" onClick={submitAssessment}>Submit</button>
+                  {submitted ? (
+                    hasFullPerformanceAccess ? (
+                      <button className="accent-btn" onClick={() => setView("analysis")}>View in Analysis →</button>
+                    ) : (
+                      <button className="ghost" disabled style={{ opacity: 1, color: "#16a34a", borderColor: "#86efac", background: "#f0fdf4" }}>✓ Submitted</button>
+                    )
+                  ) : (
+                    <button className="accent-btn" onClick={submitAssessment} disabled={submitting}>
+                      {submitting ? "Submitting…" : "Submit"}
+                    </button>
+                  )}
                 </span>
               </div>
 
@@ -1489,6 +1754,7 @@ export default function PerformanceAssessmentPage() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }

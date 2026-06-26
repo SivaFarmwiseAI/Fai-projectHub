@@ -65,13 +65,15 @@ const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
 };
 
 /* ── Role display config ──────────────────────────────────── */
-const ROLES: RoleType[] = ["Admin", "CEO", "Team Lead", "Member"];
+const ROLES: RoleType[] = ["Admin", "CEO", "HR", "Leadership", "Team Lead", "Member"];
 
 const ROLE_CONFIG: Record<RoleType, { color: string; bg: string; border: string; dot: string }> = {
-  Admin:       { color: "text-orange-700",  bg: "bg-orange-50",  border: "border-orange-200", dot: "bg-orange-500" },
-  CEO:         { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500" },
-  "Team Lead": { color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-500" },
-  Member:      { color: "text-pink-700",    bg: "bg-pink-50",    border: "border-pink-200",   dot: "bg-pink-500" },
+  Admin:        { color: "text-orange-700",  bg: "bg-orange-50",  border: "border-orange-200", dot: "bg-orange-500" },
+  CEO:          { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500" },
+  HR:           { color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200", dot: "bg-violet-500" },
+  Leadership:   { color: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200", dot: "bg-indigo-500" },
+  "Team Lead":  { color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-500" },
+  Member:       { color: "text-pink-700",    bg: "bg-pink-50",    border: "border-pink-200",   dot: "bg-pink-500" },
 };
 
 /* ── Section colour accent ────────────────────────────────── */

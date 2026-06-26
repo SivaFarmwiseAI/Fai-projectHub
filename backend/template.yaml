@@ -280,6 +280,13 @@ Resources:
       LogGroupName: !Sub /aws/lambda/projecthub-schedule-requests-${Env}
       RetentionInDays: 30
 
+  PerformanceAssessmentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/projecthub-performance-assessments-${Env}
+      RetentionInDays: 30
+
   # ── Lambda Functions ────────────────────────────────────────────────────────
   #
   # Each function owns a single API domain. Routes within the domain are
@@ -742,6 +749,32 @@ Resources:
           Properties:
             RestApiId: !Ref Api
             Path: /api/schedule-requests/{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: python3.10
+
+  # ── Performance Assessments ─────────────────────────────────────────────────
+
+  PerformanceAssessmentsFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: PerformanceAssessmentsLogGroup
+    Properties:
+      FunctionName: !Sub projecthub-performance-assessments-${Env}
+      Handler: src.handlers.performance_assessments.handler
+      Description: /api/performance-assessments – assessment submissions + leadership analysis
+      MemorySize: 256
+      Events:
+        PerformanceAssessmentsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/performance-assessments
+            Method: ANY
+        PerformanceAssessmentsProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/performance-assessments/{proxy+}
             Method: ANY
     Metadata:
       BuildMethod: python3.10

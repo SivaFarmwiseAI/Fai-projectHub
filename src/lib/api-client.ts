@@ -443,6 +443,43 @@ export const analytics = {
     get<{ notifications: Notification[] }>(`/analytics/notifications${unread ? "?unread_only=true" : ""}`),
 };
 
+// ── Performance Assessments (Keka-style 360°) ───────────────────────────────
+export const performanceAssessments = {
+  list:     (params?: { kind?: string; status?: string; cycle_id?: string; career_level?: string; rating_band?: string }) =>
+    get<{ assessments: PerformanceAssessmentRow[] }>(`/performance-assessments${_qs(params)}`),
+  create:   (data: CreatePerformanceAssessmentPayload) =>
+    post<{ assessment: PerformanceAssessment; nominated: number }>("/performance-assessments", data),
+  get:      (id: string) => get<{ assessment: PerformanceAssessment }>(`/performance-assessments/${id}`),
+  update:   (id: string, data: UpdatePerformanceAssessmentPayload) =>
+    patch<{ assessment: PerformanceAssessment }>(`/performance-assessments/${id}`, data),
+  delete:   (id: string) => del<void>(`/performance-assessments/${id}`),
+  analysis: (cycleId?: string) =>
+    get<{ analysis: PerformanceAnalysisData }>(`/performance-assessments/analysis/summary${cycleId ? `?cycle_id=${cycleId}` : ""}`),
+
+  // 360 flow
+  myReviews:     (status?: string) =>
+    get<{ reviews: PeerReviewAssignment[] }>(`/performance-assessments/my/reviews${status ? `?status=${status}` : ""}`),
+  myAssessments: () =>
+    get<{ assessments: PerformanceAssessmentRow[]; reviews_received: ReviewReceived[] }>("/performance-assessments/my/assessments"),
+  team:          (cycleId?: string) =>
+    get<{ reports: TeamReportRow[] }>(`/performance-assessments/team${cycleId ? `?cycle_id=${cycleId}` : ""}`),
+  report:        (subjectId: string, cycleId?: string) =>
+    get<{ report: EmployeeReport }>(`/performance-assessments/report/${subjectId}${cycleId ? `?cycle_id=${cycleId}` : ""}`),
+
+  // Cycles (HR)
+  cycles:        () => get<{ cycles: ReviewCycle[] }>("/performance-assessments/cycles"),
+  activeCycle:   () => get<{ cycle: ReviewCycle | null }>("/performance-assessments/cycles/active"),
+  createCycle:   (data: { name: string; status?: string; start_date?: string; end_date?: string }) =>
+    post<{ cycle: ReviewCycle }>("/performance-assessments/cycles", data),
+  updateCycle:   (id: string, data: { name?: string; status?: string; start_date?: string; end_date?: string }) =>
+    patch<{ cycle: ReviewCycle }>(`/performance-assessments/cycles/${id}`, data),
+
+  // Org tree
+  orgTree:       () => get<{ tree: OrgTreeNode[] }>("/performance-assessments/org/tree"),
+  setManager:    (user_id: string, manager_id: string | null) =>
+    patch<{ ok: boolean }>("/performance-assessments/org/manager", { user_id, manager_id }),
+};
+
 // ── Standup ───────────────────────────────────────────────────────────────────
 export const standup = {
   today:   (date?: string) =>
@@ -1154,6 +1191,239 @@ export interface Notification {
   message?: string;
   is_read: boolean;
   created_at: string;
+}
+
+// ── Performance Assessment types ────────────────────────────────────────────
+export interface PerformanceAssessment {
+  id: string;
+  employee_name: string;
+  employee_user_id?: string | null;
+  subject_user_id?: string | null;
+  subject_name?: string | null;
+  employee_color?: string | null;
+  designation?: string | null;
+  review_period?: string | null;
+  career_level: string;            // junior | mid | senior
+  filled_by: string;               // self | rev
+  kind: string;                    // self | peer
+  status: string;                  // pending | submitted
+  cycle_id?: string | null;
+  cycle_name?: string | null;
+  author_user_id?: string | null;
+  nominated_by?: string | null;
+  reviewer_name?: string | null;
+  reviewer_user_id?: string | null;
+  role_areas: string[];
+  individual_score?: number | null;
+  team_score?: number | null;
+  org_score?: number | null;
+  culture_score?: number | null;
+  total_score?: number | null;
+  rating_band?: string | null;     // Exceptional | Exceeds Expectation | …
+  severity: string;                // none | concern | serious
+  capped: boolean;
+  data: Record<string, unknown>;   // full form snapshot (contributions, entries, culture, gate)
+  submitted_by?: string | null;
+  submitted_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** List/table row — omits the heavy `data` snapshot. */
+export interface PerformanceAssessmentRow {
+  id: string;
+  employee_name: string;
+  subject_user_id?: string | null;
+  employee_color?: string | null;
+  designation?: string | null;
+  review_period?: string | null;
+  career_level: string;
+  filled_by: string;
+  kind?: string;
+  status?: string;
+  cycle_id?: string | null;
+  cycle_name?: string | null;
+  role_areas: string[];
+  total_score?: number | null;
+  rating_band?: string | null;
+  severity: string;
+  capped: boolean;
+  submitted_by_name?: string | null;
+  peer_count?: number;
+  created_at: string;
+}
+
+export interface PerformanceBandCount { band: string; count: number }
+export interface PerformanceGroupStat { key: string; count: number; avg_total: number | null }
+
+export interface PerformanceAnalysisData {
+  totals: {
+    submissions: number;
+    employees: number;
+    avg_total: number | null;
+    flagged: number;             // severity != 'none'
+    peer_reviews: number;
+    peer_pending: number;
+  };
+  band_distribution: PerformanceBandCount[];
+  by_role_area: PerformanceGroupStat[];
+  by_level: PerformanceGroupStat[];
+  recent: PerformanceAssessmentRow[];
+}
+
+export interface CreatePerformanceAssessmentPayload {
+  employee_name: string;
+  employee_user_id?: string | null;
+  subject_user_id?: string | null;
+  designation?: string | null;
+  review_period?: string | null;
+  career_level: string;
+  filled_by: string;
+  kind?: string;                   // self | peer
+  cycle_id?: string | null;
+  reviewer_ids?: string[];         // nominated peer reviewers (self-assessment)
+  reviewer_name?: string | null;
+  reviewer_user_id?: string | null;
+  role_areas: string[];
+  individual_score?: number | null;
+  team_score?: number | null;
+  org_score?: number | null;
+  culture_score?: number | null;
+  total_score?: number | null;
+  rating_band?: string | null;
+  severity?: string;
+  capped?: boolean;
+  data: Record<string, unknown>;
+}
+
+export interface UpdatePerformanceAssessmentPayload {
+  role_areas?: string[];
+  individual_score?: number | null;
+  team_score?: number | null;
+  org_score?: number | null;
+  culture_score?: number | null;
+  total_score?: number | null;
+  rating_band?: string | null;
+  severity?: string;
+  capped?: boolean;
+  data?: Record<string, unknown>;
+  status?: string;                 // pending | submitted
+}
+
+export interface ReviewCycle {
+  id: string;
+  name: string;
+  status: string;                  // draft | open | closed
+  start_date?: string | null;
+  end_date?: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  self_count?: number;
+  peer_count?: number;
+  peer_pending?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface OrgTreeNode {
+  id: string;
+  name: string;
+  role: string;
+  role_type: string;
+  department?: string | null;
+  avatar_color: string;
+  manager_id?: string | null;
+  manager_name?: string | null;
+}
+
+/** A peer review assigned to me (I'm a nominated reviewer). */
+export interface PeerReviewAssignment {
+  id: string;
+  status: string;                  // pending | submitted
+  cycle_id?: string | null;
+  cycle_name?: string | null;
+  review_period?: string | null;
+  total_score?: number | null;
+  rating_band?: string | null;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  subject_color?: string | null;
+  subject_role?: string | null;
+  subject_department?: string | null;
+  nominated_by_name?: string | null;
+  created_at: string;
+  submitted_at?: string | null;
+}
+
+/** A peer review written about me. */
+export interface ReviewReceived {
+  id: string;
+  status: string;
+  total_score?: number | null;
+  rating_band?: string | null;
+  author_name?: string | null;
+  author_color?: string | null;
+  created_at: string;
+  submitted_at?: string | null;
+}
+
+/** A direct/indirect report in the Team view. */
+export interface TeamReportRow {
+  id: string;
+  name: string;
+  avatar_color: string;
+  role: string;
+  department?: string | null;
+  depth: number;
+  self_id?: string | null;
+  total_score?: number | null;
+  rating_band?: string | null;
+  severity?: string | null;
+  self_status?: string | null;
+  peer_done: number;
+  peer_total: number;
+}
+
+export interface EmployeeReportPeer {
+  id: string;
+  status: string;
+  author_name?: string | null;
+  author_color?: string | null;
+  total_score?: number | null;
+  rating_band?: string | null;
+  data: Record<string, unknown>;
+  created_at: string;
+  submitted_at?: string | null;
+}
+
+export interface EmployeeReport {
+  subject: {
+    id: string;
+    name: string;
+    role?: string;
+    department?: string | null;
+    avatar_color: string;
+    manager_id?: string | null;
+    manager_name?: string | null;
+  } | null;
+  self: {
+    id: string;
+    total_score?: number | null;
+    individual_score?: number | null;
+    team_score?: number | null;
+    org_score?: number | null;
+    culture_score?: number | null;
+    rating_band?: string | null;
+    severity?: string | null;
+    capped?: boolean;
+    career_level?: string;
+    role_areas?: string[];
+    review_period?: string | null;
+    data?: Record<string, unknown>;
+    status?: string;
+    created_at?: string;
+  } | null;
+  peers: EmployeeReportPeer[];
 }
 
 // Payload types

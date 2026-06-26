@@ -42,7 +42,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SECTION_ORDER, type MenuItemConfig } from "@/lib/menu-access";
+import { SECTION_ORDER, type MenuItemConfig, type RoleType } from "@/lib/menu-access";
 
 /* ── Icon map: key → Lucide icon component ──────────────────── */
 const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
@@ -146,9 +146,7 @@ export function Sidebar() {
 
   /* Build visible sections from context-driven menu items */
   const visibleItems = menuItems.filter((item) =>
-    item.allowedRoles.includes(
-      userRole as "CEO" | "Team Lead" | "Member" | "Admin",
-    ),
+    item.allowedRoles.includes(userRole as RoleType),
   );
 
   const visibleSections = SECTION_ORDER.map((sectionTitle) => ({

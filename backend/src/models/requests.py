@@ -422,3 +422,72 @@ class MultipartCompleteRequest(BaseModel):
     key: str
     upload_id: str
     parts: List[MultipartPart]
+
+
+# ── Performance Assessments ───────────────────────────────────────────────────
+
+class CreatePerformanceAssessmentRequest(BaseModel):
+    """POST /api/performance-assessments — a submitted assessment + computed scores.
+
+    For a self-assessment, `reviewer_ids` nominates the peer reviewers (the
+    handler creates a pending peer review row for each)."""
+    employee_name: str
+    employee_user_id: Optional[UUID] = None
+    subject_user_id: Optional[UUID] = None
+    designation: Optional[str] = None
+    review_period: Optional[str] = None
+    career_level: str = "mid"          # junior | mid | senior
+    filled_by: str = "self"            # self | rev
+    kind: str = "self"                 # self | peer
+    cycle_id: Optional[UUID] = None
+    reviewer_ids: List[UUID] = Field(default_factory=list)
+    reviewer_name: Optional[str] = None
+    reviewer_user_id: Optional[UUID] = None
+    role_areas: List[str] = Field(default_factory=list)
+    individual_score: Optional[float] = None
+    team_score: Optional[float] = None
+    org_score: Optional[float] = None
+    culture_score: Optional[float] = None
+    total_score: Optional[float] = None
+    rating_band: Optional[str] = None
+    severity: str = "none"             # none | concern | serious
+    capped: bool = False
+    data: dict = Field(default_factory=dict)
+
+
+class UpdatePerformanceAssessmentRequest(BaseModel):
+    """PATCH /api/performance-assessments/<id> — a nominated reviewer filling in
+    (or revising) their assigned peer review."""
+    role_areas: Optional[List[str]] = None
+    individual_score: Optional[float] = None
+    team_score: Optional[float] = None
+    org_score: Optional[float] = None
+    culture_score: Optional[float] = None
+    total_score: Optional[float] = None
+    rating_band: Optional[str] = None
+    severity: Optional[str] = None
+    capped: Optional[bool] = None
+    data: Optional[dict] = None
+    status: Optional[str] = None        # pending | submitted
+
+
+class CreateReviewCycleRequest(BaseModel):
+    """POST /api/performance-assessments/cycles — HR opens a review cycle."""
+    name: str
+    status: str = "draft"               # draft | open | closed
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class UpdateReviewCycleRequest(BaseModel):
+    """PATCH /api/performance-assessments/cycles/<id>."""
+    name: Optional[str] = None
+    status: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class SetManagerRequest(BaseModel):
+    """PATCH /api/performance-assessments/org/manager — set a user's reporting manager."""
+    user_id: UUID
+    manager_id: Optional[UUID] = None
