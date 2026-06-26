@@ -1,9 +1,9 @@
-export type RoleType = "CEO" | "Team Lead" | "Member" | "Admin";
+export type RoleType = "CEO" | "Team Lead" | "Member" | "Admin" | "HR" | "Leadership";
 
 /**
  * ALL_ROLES — Admin is listed first so it appears first in the admin UI matrix.
  */
-export const ALL_ROLES: RoleType[] = ["Admin", "CEO", "Team Lead", "Member"];
+export const ALL_ROLES: RoleType[] = ["Admin", "CEO", "HR", "Leadership", "Team Lead", "Member"];
 
 export type MenuItemConfig = {
   key: string;
