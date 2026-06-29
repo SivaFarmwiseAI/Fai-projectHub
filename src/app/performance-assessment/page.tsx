@@ -11,6 +11,8 @@ import {
   Network,
   Search,
   Check,
+  Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -237,8 +239,8 @@ const PA_CSS = `
 .pa .sn.done .snum{background:#4f46e5;color:#fff}
 .pa .sn.locked{opacity:.4;cursor:not-allowed;pointer-events:none}
 /* content */
-.pa .wrap{max-width:980px;margin:0 auto;width:100%}
-.pa .card{background:var(--card);border:1px solid rgba(0,0,0,.06);border-radius:18px;padding:22px 24px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.03)}
+.pa .wrap{max-width:1280px;margin:0 auto;width:100%}
+.pa .card{background:var(--card);border:1px solid rgba(0,0,0,.06);border-radius:18px;padding:28px 32px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.03)}
 .pa h2{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px;color:var(--ink)}
 .pa h3.sec{font-size:13px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:22px 0 10px;color:var(--leaf);border-bottom:1px solid var(--leaf-soft);padding-bottom:6px}
 .pa p{margin:0 0 10px}
@@ -267,12 +269,29 @@ const PA_CSS = `
 .pa .ack{background:var(--leaf-soft);border:1px dashed #c7d2fe;border-radius:16px;padding:18px}
 .pa .ack label{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-bottom:12px;cursor:pointer}
 .pa .ack input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:0 0 auto;cursor:pointer;accent-color:#4f46e5}
-.pa .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pa .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .pa .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .pa label.fld{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
 .pa input:not([type=checkbox]):not([type=file]),.pa select,.pa textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit;transition:box-shadow .2s ease,border-color .2s ease}
 .pa input:not([type=checkbox]):not([type=file]):focus,.pa select:focus,.pa textarea:focus{outline:none;border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
 .pa textarea{resize:vertical;min-height:54px}
+/* File upload — a styled label-button wrapping a visually-hidden native input.
+   Native file inputs render inconsistently (and the button is invisible here
+   because the rule above excludes [type=file]); this gives a consistent,
+   accessible "Choose File" button across all browsers. */
+.pa .custom-q-row{display:flex;align-items:center;gap:8px}
+.pa .custom-q-row input{flex:1}
+.pa .custom-remove{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;color:var(--red);cursor:pointer;transition:border-color .18s ease,background .18s ease,color .18s ease}
+.pa .custom-remove:hover{border-color:var(--red);background:var(--red);color:#fff}
+.pa .proof-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.pa .or-sep{font-size:12.5px;font-weight:600;color:var(--muted);flex:0 0 auto;padding-bottom:10px}
+.pa .file-row{display:flex;align-items:center;gap:10px}
+.pa label.file-btn{display:inline-flex;flex-direction:row;align-items:center;gap:7px;margin-bottom:0;padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex:0 0 auto;transition:box-shadow .2s ease,border-color .2s ease,background .2s ease}
+.pa label.file-btn:hover{border-color:rgba(59,130,246,.55);background:var(--accent-soft)}
+.pa label.file-btn:focus-within{outline:none;border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
+.pa .file-btn svg{flex:0 0 auto}
+.pa .file-btn input[type=file]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.pa .file-name{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pa input[type=file]{font-size:13px;padding:6px}
 .pa .hint{font-size:12.5px;color:var(--muted);margin:0 0 10px}
 .pa .facets{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
@@ -283,14 +302,14 @@ const PA_CSS = `
 .pa .rb{border:1px solid var(--line);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);transition:all .14s cubic-bezier(.16,1,.3,1)}
 .pa .rb:hover{border-color:#bfdbfe;background:#f8fafc}.pa .rb.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .pa .rb b{display:block;font-size:15px;font-weight:800;margin-bottom:2px;color:inherit}
-.pa .contrib{border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:18px;margin-bottom:16px;background:#f8fafc}
+.pa .contrib{border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:22px 24px;margin-bottom:18px;background:#f8fafc}
 .pa .contrib .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .pa .contrib .ch h4{margin:0;font-size:14px;font-weight:700;color:var(--leaf)}
 .pa .rm{background:#fef2f2;color:var(--red);border:1px solid #fecaca;border-radius:9px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;transition:background .15s}
 .pa .rm:hover{background:#fee2e2}
-.pa .field{margin-bottom:10px}
+.pa .field{margin-bottom:14px}
 .pa .field label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;color:#334155}
-.pa .block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin:0 0 12px}
+.pa .block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:0 0 14px}
 .pa .block.alt{background:#fafbff;border-color:#e0e7ff}
 .pa .block:last-child{margin-bottom:0}
 .pa .blockh{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--leaf);margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line)}
@@ -566,7 +585,8 @@ export default function PerformanceAssessmentPage() {
   }, [cCounter]);
 
   const removeContrib = useCallback((id: number) => {
-    setContributions((p) => p.filter((c) => c.id !== id));
+    // At least one Individual Contribution is mandatory — never remove the last.
+    setContributions((p) => (p.length <= 1 ? p : p.filter((c) => c.id !== id)));
     setIsDirty(true);
   }, []);
 
@@ -630,6 +650,17 @@ export default function PerformanceAssessmentPage() {
     setContributions((p) =>
       p.map((c) =>
         c.id === id ? { ...c, custom: [...c.custom, { q: "", a: "" }] } : c,
+      ),
+    );
+    setIsDirty(true);
+  }, []);
+
+  const removeCustomField = useCallback((id: number, ci: number) => {
+    setContributions((p) =>
+      p.map((c) =>
+        c.id === id
+          ? { ...c, custom: c.custom.filter((_, i) => i !== ci) }
+          : c,
       ),
     );
     setIsDirty(true);
@@ -1556,7 +1587,7 @@ export default function PerformanceAssessmentPage() {
       <style>{PA_CSS}</style>
 
       {/* ── Page header (pure app styling, outside the scoped .pa block) ─── */}
-      <div className="max-w-[980px] mx-auto w-full animate-fade-in-up">
+      <div className="max-w-[1280px] mx-auto w-full animate-fade-in-up">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -1613,27 +1644,27 @@ export default function PerformanceAssessmentPage() {
 
       {/* ── Non-wizard views (fully app-styled, outside .pa) ──────────────── */}
       {view === "reviews" && (
-        <div className="max-w-[980px] mx-auto w-full mt-5">
+        <div className="max-w-[1280px] mx-auto w-full mt-5">
           <PerformanceReviews />
         </div>
       )}
       {view === "team" && (
-        <div className="max-w-[980px] mx-auto w-full mt-5">
+        <div className="max-w-[1280px] mx-auto w-full mt-5">
           <PerformanceTeam />
         </div>
       )}
       {view === "analysis" && (
-        <div className="max-w-[980px] mx-auto w-full mt-5">
+        <div className="max-w-[1280px] mx-auto w-full mt-5">
           <PerformanceAnalysis />
         </div>
       )}
       {view === "cycles" && (
-        <div className="max-w-[980px] mx-auto w-full mt-5">
+        <div className="max-w-[1280px] mx-auto w-full mt-5">
           <PerformanceCycles />
         </div>
       )}
       {view === "org" && (
-        <div className="max-w-[980px] mx-auto w-full mt-5">
+        <div className="max-w-[1280px] mx-auto w-full mt-5">
           <OrgTreeEditor />
         </div>
       )}
@@ -2212,12 +2243,14 @@ export default function PerformanceAssessmentPage() {
                       <div key={c.id} className="contrib">
                         <div className="ch">
                           <h4>Contribution #{idx + 1}</h4>
-                          <button
-                            className="rm"
-                            onClick={() => removeContrib(c.id)}
-                          >
-                            Remove
-                          </button>
+                          {contributions.length > 1 && (
+                            <button
+                              className="rm"
+                              onClick={() => removeContrib(c.id)}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
 
                         <div className="grid2" style={{ marginBottom: 14 }}>
@@ -2468,8 +2501,11 @@ export default function PerformanceAssessmentPage() {
                               placeholder="The specifics that back up the above."
                             />
                           </div>
-                          <div className="grid2" style={{ marginBottom: 0 }}>
-                            <div className="field" style={{ marginBottom: 0 }}>
+                          <div className="proof-row" style={{ marginBottom: 0 }}>
+                            <div
+                              className="field"
+                              style={{ marginBottom: 0, flex: 1 }}
+                            >
                               <label>Attach proof — link / reference</label>
                               <input
                                 value={c.proofref}
@@ -2479,18 +2515,31 @@ export default function PerformanceAssessmentPage() {
                                 placeholder="Link to a doc, dashboard, commit, screenshot…"
                               />
                             </div>
-                            <div className="field" style={{ marginBottom: 0 }}>
-                              <label>…or choose a file</label>
-                              <input
-                                type="file"
-                                onChange={(e) =>
-                                  updContrib(
-                                    c.id,
-                                    "prooffilename",
-                                    e.target.files?.[0]?.name || "",
-                                  )
-                                }
-                              />
+                            <span className="or-sep">or</span>
+                            <div className="file-row">
+                              <label className="file-btn">
+                                <Upload size={14} aria-hidden="true" />
+                                choose a file
+                                <input
+                                  type="file"
+                                  aria-label="Choose a proof file"
+                                  onChange={(e) =>
+                                    updContrib(
+                                      c.id,
+                                      "prooffilename",
+                                      e.target.files?.[0]?.name || "",
+                                    )
+                                  }
+                                />
+                              </label>
+                              {c.prooffilename && (
+                                <span
+                                  className="file-name"
+                                  title={c.prooffilename}
+                                >
+                                  {c.prooffilename}
+                                </span>
+                              )}
                             </div>
                           </div>
                           {c.custom.map((cp, ci) => (
@@ -2499,20 +2548,33 @@ export default function PerformanceAssessmentPage() {
                               className="field"
                               style={{ marginTop: 10 }}
                             >
-                              <input
-                                value={cp.q}
-                                onChange={(e) =>
-                                  updCustom(c.id, ci, "q", e.target.value)
-                                }
-                                placeholder="Your own aspect / question"
-                                style={{ marginBottom: 6 }}
-                              />
+                              <div className="custom-q-row">
+                                <input
+                                  value={cp.q}
+                                  onChange={(e) =>
+                                    updCustom(c.id, ci, "q", e.target.value)
+                                  }
+                                  placeholder="Your own aspect / question"
+                                />
+                                <button
+                                  type="button"
+                                  className="custom-remove"
+                                  aria-label="Remove this point"
+                                  title="Remove this point"
+                                  onClick={() =>
+                                    removeCustomField(c.id, ci)
+                                  }
+                                >
+                                  <X size={15} />
+                                </button>
+                              </div>
                               <textarea
                                 value={cp.a}
                                 onChange={(e) =>
                                   updCustom(c.id, ci, "a", e.target.value)
                                 }
                                 placeholder="Your answer / detail"
+                                style={{ marginTop: 6 }}
                               />
                             </div>
                           ))}
