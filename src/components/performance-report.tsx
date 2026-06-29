@@ -1,17 +1,38 @@
 "use client";
 
-/**
- * Per-employee performance report (Keka-style): the subject's self-assessment
- * alongside every peer review, with scores and a print/PDF action. Opened from
- * the Team view and the leadership Analysis. Fully app-styled.
- */
-
 import { useEffect, useState } from "react";
-import { X, Loader2, Printer, ShieldAlert, Users2, Award } from "lucide-react";
+import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp } from "lucide-react";
 import { performanceAssessments, type EmployeeReport } from "@/lib/api-client";
 import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 
-interface Contribution { title?: string; area?: string; self?: number | null; value?: string; changed?: string }
+/* ─── Data shape mirrors gather() in the assessment page ─── */
+interface Contribution {
+  id?: number;
+  title?: string;
+  area?: string;
+  context?: string;
+  problem?: string;
+  create?: string;
+  adopt?: string;
+  changed?: string;
+  value?: string;
+  sustain?: string;
+  evidence?: string;
+  proofref?: string;
+  self?: number | null;
+  reviewer?: number | null;
+  impacts?: string[];
+  impactWhy?: Record<string, string>;
+  flagged?: boolean;
+}
+
+interface Entry {
+  id?: number;
+  rating?: number | null;
+  text?: string;
+  remark?: string;
+}
+
 interface PeerData {
   competencies?: Record<string, number>;
   strengths?: string;
@@ -20,6 +41,60 @@ interface PeerData {
   comment?: string;
 }
 
+interface AssessmentData {
+  contributions?: Contribution[];
+  teamEntries?: Entry[];
+  orgEntries?: Entry[];
+  cultRatings?: Record<string, number>;
+  cultComment?: string;
+  gateFlags?: string[];
+  level?: string;
+  facets?: string[];
+}
+
+const FACET_LABELS: Record<string, string> = {
+  eng: "Engineering / Development",
+  ds: "Data Science / AI",
+  sales: "Sales / Business Development",
+  ba: "Product / Business Analysis",
+  delivery: "Delivery / Project Management",
+  client: "Client Engagement / Management",
+};
+
+const IMPACT_LABELS: Record<string, string> = {
+  reusable: "Reusable asset / component",
+  time: "Time / effort saved",
+  quality: "Better quality / fewer errors",
+  smarter: "Did it a smarter / different way",
+  learning: "Learned & applied a new skill",
+  adoption: "Adoption / usage",
+  capability: "New capability built",
+  cost: "Cost reduction",
+  revenue: "Direct revenue",
+  strategic: "Strategic (new geography / dept / market)",
+  customer: "Customer impact",
+  team: "Team multiplication",
+};
+
+const CULT_ITEMS: [string, string][] = [
+  ["punct",   "Punctuality — arrives on time"],
+  ["attend",  "Attendance & regularity"],
+  ["deliver", "Delivers on time / meets commitments"],
+  ["team",    "Team-friendly & respectful"],
+  ["conduct", "Professional conduct & confidentiality"],
+  ["commit",  "Commitment & ownership"],
+  ["hours",   "Manages workload within working hours"],
+];
+
+const RATING_LABELS: Record<number, string> = {
+  5: "Exceptional",
+  4: "Exceeds",
+  3: "Meets",
+  2: "Below",
+  1: "Unsatisfactory",
+};
+
+/* ─── Main Modal ─── */
 export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId: string; cycleId?: string; onClose: () => void }) {
   const [report, setReport] = useState<EmployeeReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,15 +118,27 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
   const subject = report?.subject;
   const self = report?.self;
   const peers = report?.peers ?? [];
-  const contributions = (self?.data?.contributions as Contribution[] | undefined) ?? [];
+  const data = (self?.data ?? {}) as AssessmentData;
+  const contributions = data.contributions ?? [];
+  const teamEntries = data.teamEntries ?? [];
+  const orgEntries = data.orgEntries ?? [];
+  const cultRatings = data.cultRatings ?? {};
+  const cultComment = data.cultComment ?? "";
+  const gateFlags = data.gateFlags ?? [];
   const color = bandColor(self?.rating_band);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 animate-scale-in print-header" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[120] flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white"
+      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8 animate-scale-in print-header"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 sticky top-0 bg-white rounded-t-2xl z-10">
           {loading || !subject ? (
             <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading report…</div>
           ) : (
@@ -74,7 +161,7 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
               <Printer className="h-3.5 w-3.5" /> Print
             </button>
             <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
-              <X className="h-4.5 w-4.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -84,8 +171,9 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
         ) : loading ? (
           <div className="p-10 flex items-center justify-center text-slate-400 gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : (
-          <div className="p-5 max-h-[70vh] overflow-y-auto print:max-h-none space-y-6">
-            {/* Self-assessment */}
+          <div className="p-5 max-h-[78vh] overflow-y-auto print:max-h-none space-y-6">
+
+            {/* ── Score summary ── */}
             <section>
               <SectionLabel icon={<Award className="h-3.5 w-3.5 text-indigo-500" />} text="Self-assessment" />
               {!self ? (
@@ -94,49 +182,112 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
                 <div className="rounded-2xl border border-slate-100 overflow-hidden">
                   <div className="px-4 py-3 flex items-center gap-4 flex-wrap" style={{ background: `${color}0d` }}>
                     <div>
-                      <div className="stat-number text-3xl font-extrabold text-slate-900 leading-none">{fmtScore(self.total_score)}</div>
+                      <div className="text-3xl font-extrabold text-slate-900 leading-none">{fmtScore(self.total_score)}</div>
                       <div className="text-[11px] text-slate-400 font-medium mt-1">weighted / 5.0</div>
                     </div>
                     <Band band={self.rating_band} capped={self.capped} />
-                    <div className="flex items-center gap-3 ml-auto">
+                    <div className="flex items-center gap-3 ml-auto flex-wrap">
                       <Pill label="Individual" value={self.individual_score} />
                       <Pill label="Team" value={self.team_score} />
                       <Pill label="Org" value={self.org_score} />
                       <Pill label="Culture" value={self.culture_score} />
                     </div>
                   </div>
-                  <div className="p-4 space-y-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] font-semibold text-slate-500">{levelLabel(self.career_level)}</span>
-                      {(self.role_areas ?? []).map((k) => (
-                        <span key={k} className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">{roleLabel(k)}</span>
-                      ))}
-                    </div>
-                    {contributions.length > 0 && (
-                      <div className="space-y-2">
-                        {contributions.map((c, i) => (
-                          <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-[13px] font-bold text-slate-800">{c.title || `Contribution #${i + 1}`}</p>
-                              <span className="text-[11px] font-semibold text-slate-500 shrink-0">{ratingLabel(c.self)}</span>
-                            </div>
-                            {c.area && <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{roleLabel(c.area)}</p>}
-                            {(c.value || c.changed) && <p className="text-[12px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">{c.value || c.changed}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {self.severity && self.severity !== "none" && (
-                      <div className="rounded-xl border border-red-100 bg-red-50 p-2.5 flex items-center gap-2 text-xs font-bold text-red-700">
-                        <ShieldAlert className="h-3.5 w-3.5" /> Integrity gate — {self.severity}{self.capped ? " · rating capped one band" : ""}
-                      </div>
+                  <div className="px-4 py-2.5 flex flex-wrap items-center gap-1.5 border-b border-slate-100">
+                    <span className="text-[11px] font-semibold text-slate-500">{levelLabel(self.career_level)}</span>
+                    {(self.role_areas ?? []).map((k) => (
+                      <span key={k} className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">{roleLabel(k)}</span>
+                    ))}
+                    {self.review_period && (
+                      <span className="ml-auto text-[11px] text-slate-400 font-medium">Period: {self.review_period}</span>
                     )}
                   </div>
+                  {self.severity && self.severity !== "none" && (
+                    <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-bold text-red-700 bg-red-50 border-b border-red-100">
+                      <ShieldAlert className="h-3.5 w-3.5" /> Integrity gate flagged — {self.severity}{self.capped ? " · rating capped one band" : ""}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
 
-            {/* Peer reviews */}
+            {/* ── Contributions ── */}
+            {contributions.length > 0 && (
+              <section>
+                <SectionLabel icon={<span className="text-indigo-500 text-[13px] font-bold">①</span>} text={`Individual contributions (${contributions.length})`} />
+                <div className="space-y-4">
+                  {contributions.map((c, i) => (
+                    <ContributionCard key={c.id ?? i} c={c} index={i} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Team ── */}
+            {teamEntries.length > 0 && (
+              <section>
+                <SectionLabel icon={<span className="text-blue-500 text-[13px] font-bold">②</span>} text="Team impact" />
+                <div className="space-y-3">
+                  {teamEntries.map((e, i) => (
+                    <EntryCard key={e.id ?? i} entry={e} index={i} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Org ── */}
+            {orgEntries.length > 0 && (
+              <section>
+                <SectionLabel icon={<span className="text-purple-500 text-[13px] font-bold">③</span>} text="Organisation impact" />
+                <div className="space-y-3">
+                  {orgEntries.map((e, i) => (
+                    <EntryCard key={e.id ?? i} entry={e} index={i} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Culture ── */}
+            {CULT_ITEMS.some(([k]) => cultRatings[k] != null) && (
+              <section>
+                <SectionLabel icon={<span className="text-emerald-500 text-[13px] font-bold">④</span>} text="Culture & values" />
+                <div className="rounded-2xl border border-slate-100 p-4 space-y-3">
+                  {CULT_ITEMS.filter(([k]) => cultRatings[k] != null).map(([k, label]) => (
+                    <div key={k} className="flex items-center gap-3">
+                      <span className="flex-1 text-[13px] text-slate-700 font-medium">{label}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${(cultRatings[k] / 5) * 100}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-700 w-14 text-right">
+                          {cultRatings[k]} — {RATING_LABELS[cultRatings[k]] ?? ""}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {cultComment && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1">Additional comment</p>
+                      <p className="text-[13px] text-slate-600 leading-relaxed">{cultComment}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* ── Integrity Gate ── */}
+            {gateFlags.length > 0 && (
+              <section>
+                <SectionLabel icon={<ShieldAlert className="h-3.5 w-3.5 text-red-500" />} text="Integrity gate — flagged behaviours" />
+                <div className="rounded-2xl border border-red-100 bg-red-50 p-4 flex flex-wrap gap-2">
+                  {gateFlags.map((f) => (
+                    <span key={f} className="text-[12px] font-semibold text-red-700 bg-white border border-red-200 px-2.5 py-1 rounded-full">{f}</span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Peer reviews ── */}
             <section>
               <SectionLabel icon={<Users2 className="h-3.5 w-3.5 text-indigo-500" />} text={`Peer reviews (${peers.length})`} />
               {peers.length === 0 ? (
@@ -186,9 +337,113 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
                 </div>
               )}
             </section>
+
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Contribution Card with expand/collapse ─── */
+function ContributionCard({ c, index }: { c: Contribution; index: number }) {
+  const [open, setOpen] = useState(false);
+  const ratingColor = c.self === 5 ? "#059669" : c.self === 4 ? "#16a34a" : c.self === 3 ? "#f59e0b" : c.self != null ? "#ef4444" : "#64748b";
+
+  const fields: [string, string | undefined][] = [
+    ["Context / background", c.context],
+    ["Problem statement", c.problem],
+    ["What was created / built", c.create],
+    ["What was adopted / used by others", c.adopt],
+    ["What changed as a result", c.changed],
+    ["Business / team value", c.value],
+    ["How to sustain this outcome", c.sustain],
+    ["Evidence / proof", c.evidence],
+    ["Reference / link", c.proofref],
+  ];
+  const visibleFields = fields.filter(([, v]) => v?.trim());
+
+  return (
+    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+      {/* Summary row — always visible */}
+      <button className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors" onClick={() => setOpen(o => !o)}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="text-[12px] font-bold text-slate-400">#{index + 1}</span>
+            <p className="text-[13px] font-bold text-slate-900">{c.title || `Contribution ${index + 1}`}</p>
+            {c.area && (
+              <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                {FACET_LABELS[c.area] ?? c.area}
+              </span>
+            )}
+            {c.flagged && (
+              <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <ShieldAlert className="h-2.5 w-2.5" /> Flagged
+              </span>
+            )}
+          </div>
+          {(c.impacts ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {(c.impacts ?? []).map((imp) => (
+                <span key={imp} className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                  {IMPACT_LABELS[imp] ?? imp}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: ratingColor, background: `${ratingColor}18`, border: `1px solid ${ratingColor}40` }}>
+            {ratingLabel(c.self)}
+          </span>
+          {open ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      {open && (
+        <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 space-y-3">
+          {visibleFields.map(([label, val]) => (
+            <Field key={label} label={label} value={val!} />
+          ))}
+          {/* Impact reasons */}
+          {Object.entries(c.impactWhy ?? {}).filter(([, v]) => v?.trim()).map(([k, v]) => (
+            <Field key={k} label={`Impact detail — ${IMPACT_LABELS[k] ?? k}`} value={v} />
+          ))}
+          {visibleFields.length === 0 && <p className="text-[12px] text-slate-400">No additional detail entered.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Team / Org Entry Card ─── */
+function EntryCard({ entry, index }: { entry: Entry; index: number }) {
+  const ratingColor = entry.rating === 5 ? "#059669" : entry.rating === 4 ? "#16a34a" : entry.rating === 3 ? "#f59e0b" : entry.rating != null ? "#ef4444" : "#64748b";
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-bold text-slate-400 mt-0.5">#{index + 1}</span>
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {entry.text && <p className="text-[13px] text-slate-800 leading-relaxed">{entry.text}</p>}
+          {entry.remark && <p className="text-[12px] text-slate-500 italic leading-relaxed">{entry.remark}</p>}
+        </div>
+        {entry.rating != null && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ color: ratingColor, background: `${ratingColor}18`, border: `1px solid ${ratingColor}40` }}>
+            {entry.rating} — {RATING_LABELS[entry.rating] ?? ""}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Small helpers ─── */
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">{value}</p>
     </div>
   );
 }
@@ -210,7 +465,7 @@ function Band({ band, capped, small }: { band?: string | null; capped?: boolean;
 function Pill({ label, value }: { label: string; value?: number | null }) {
   return (
     <span className="flex flex-col items-center">
-      <span className="stat-number text-sm font-bold text-slate-800">{fmtScore(value)}</span>
+      <span className="text-sm font-bold text-slate-800">{fmtScore(value)}</span>
       <span className="text-[9px] uppercase tracking-wide text-slate-400 font-semibold">{label}</span>
     </span>
   );

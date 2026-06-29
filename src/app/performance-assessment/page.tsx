@@ -2057,12 +2057,8 @@ export default function PerformanceAssessmentPage() {
                       <input
                         className={errCls("emp")}
                         value={emp}
-                        onChange={(e) => {
-                          setEmp(e.target.value);
-                          setRev(e.target.value);
-                          clearErr("emp");
-                          setIsDirty(true);
-                        }}
+                        readOnly
+                        style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed" }}
                         placeholder="Full name"
                       />
                       <Err k="emp" />
@@ -2074,11 +2070,8 @@ export default function PerformanceAssessmentPage() {
                       <input
                         className={errCls("desig")}
                         value={desig}
-                        onChange={(e) => {
-                          setDesig(e.target.value);
-                          clearErr("desig");
-                          setIsDirty(true);
-                        }}
+                        readOnly
+                        style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed" }}
                         placeholder="e.g. Senior Engineer"
                       />
                       <Err k="desig" />
