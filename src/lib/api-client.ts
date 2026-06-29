@@ -634,6 +634,8 @@ export interface Task {
   estimated_hours?: number;
   revised_estimate_hours?: number;
   actual_hours?: number;
+  /** When false (default), task hours auto-sum from milestones; when true, set manually. */
+  hours_overridden?: boolean;
   review_status?: string;
   review_feedback?: string;
   steps?: TaskStep[];

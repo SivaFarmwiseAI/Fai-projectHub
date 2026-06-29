@@ -206,6 +206,11 @@ def _update_task(event, origin, task_id):
     updated = execute_returning(f"UPDATE tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Task not found")
+    # If the user switched hours back to "auto" (not overridden), immediately
+    # re-derive the totals from the milestones so the response is consistent.
+    if fields.get("hours_overridden") is False:
+        _rollup_task_hours(task_id)
+        updated = fetchone("SELECT * FROM tasks WHERE id = %s", (task_id,))
     return resp({"task": updated}, origin=origin)
 
 
@@ -363,6 +368,18 @@ def _add_task_attachment(event, origin, task_id):
 
 # ── Milestones ────────────────────────────────────────────────────────────────
 
+def _rollup_task_hours(task_id):
+    """Recompute the parent task's estimated/actual hours as the sum of its
+    milestones — unless the task is manually overridden (handled in SQL).
+
+    Best-effort: a missing function (migration 019 not yet applied) or any other
+    rollup error must NOT fail the milestone create/update/delete it follows."""
+    try:
+        execute("SELECT fn_rollup_task_hours(%s)", (task_id,))
+    except Exception as e:
+        log.warning("Task hours rollup skipped for %s: %s", task_id, e)
+
+
 def _create_milestone(event, origin, task_id):
     get_current_user(event)
     body = CreateMilestoneRequest(**get_body(event))
@@ -374,6 +391,7 @@ def _create_milestone(event, origin, task_id):
     """, (task_id, body.title, body.description, body.deliverable_type, json.dumps(body.success_criteria),
           str(body.assignee_id) if body.assignee_id else None, body.target_day,
           body.estimated_hours, body.order_index))
+    _rollup_task_hours(task_id)
     return resp({"milestone": ms}, 201, origin)
 
 
@@ -395,6 +413,7 @@ def _update_milestone(event, origin, task_id, ms_id):
     updated = execute_returning(f"UPDATE task_milestones SET {set_clause} WHERE id = %s AND task_id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Milestone not found")
+    _rollup_task_hours(task_id)
     return resp({"milestone": updated}, origin=origin)
 
 
@@ -406,6 +425,7 @@ def _delete_milestone(event, origin, task_id, ms_id):
     )
     if not deleted:
         raise HTTPError(404, "Milestone not found")
+    _rollup_task_hours(task_id)
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 

@@ -135,6 +135,9 @@ class UpdateTaskRequest(BaseModel):
     approach: Optional[str] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
+    # When True, task hours are entered manually and NOT auto-summed from
+    # milestones. When False, the task hours roll up from its milestones.
+    hours_overridden: Optional[bool] = None
     plan_status: Optional[str] = None
     review_status: Optional[str] = None
     success_criteria: Optional[List[str]] = None
