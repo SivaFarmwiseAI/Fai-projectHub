@@ -231,7 +231,7 @@ export default function MeetingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-[1600px]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>

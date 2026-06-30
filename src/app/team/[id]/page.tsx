@@ -1061,7 +1061,7 @@ export default function TeamMemberPage({
   const aiInsight = AI_INSIGHTS[user.id];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
+    <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
       {/* Back link */}
       <Link href="/team">
         <Button variant="ghost" size="sm">

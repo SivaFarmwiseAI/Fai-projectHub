@@ -43,6 +43,76 @@ type OutcomeType = string;
 function getUser(id: string) {
   return _userMap[id];
 }
+
+/** Searchable autocomplete for assigning any user in the organisation. Picking
+ *  someone who isn't a project member yet is fine — the Create/Update Task API
+ *  auto-adds them to the project (dedup-safe) when the task is saved.
+ *  `excludeIds` hides project members and already-selected users. */
+function AddPeople({
+  excludeIds,
+  onAdd,
+}: {
+  excludeIds: string[];
+  onAdd: (userId: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const exclude = new Set(excludeIds);
+  const matches = Object.values(_userMap)
+    .filter((u) => !exclude.has(u.id))
+    .filter((u) => u.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .slice(0, 8);
+  return (
+    <div className="relative mt-2">
+      <input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder="+ Add people — search anyone in the org…"
+        className="w-full border rounded-md px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+      />
+      {open && q.trim() && (
+        <>
+          <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-44 overflow-y-auto">
+            {matches.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-3 py-2">
+                No matching users.
+              </p>
+            ) : (
+              matches.map((u) => (
+                <button
+                  type="button"
+                  key={u.id}
+                  onClick={() => {
+                    onAdd(u.id);
+                    setQ("");
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left"
+                >
+                  <div
+                    className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                    style={{ backgroundColor: u.avatar_color }}
+                  >
+                    {u.name[0]}
+                  </div>
+                  <span className="text-xs text-gray-700">{u.name}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">
+                    {u.role}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+        </>
+      )}
+    </div>
+  );
+}
 function computeImpactAreas(_pid: string, _section: string, _sid: string) {
   return [];
 }
@@ -2265,44 +2335,62 @@ function TaskCard({
                   </span>
                 )}
               </label>
-              <div className="max-h-32 overflow-y-auto rounded-md border border-gray-200 p-1.5 space-y-0.5 bg-white">
-                {(projectMembers ?? []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-2 py-1">
-                    No members assigned to this project.
-                  </p>
-                ) : (
-                  (projectMembers ?? []).map((u) => {
-                    const checked = editAssigneeIds.includes(u.id);
-                    return (
-                      <label
-                        key={u.id}
-                        className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
-                          checked
-                            ? "bg-blue-50 border border-blue-200"
-                            : "hover:bg-gray-50 border border-transparent"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleEditAssignee(u.id)}
-                          className="h-3.5 w-3.5"
-                        />
-                        <div
-                          className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                          style={{ backgroundColor: u.avatar_color }}
-                        >
-                          {u.name[0]}
-                        </div>
-                        <span className="truncate">{u.name}</span>
-                        <span className="text-[10px] text-gray-400 ml-auto">
-                          {u.role}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
+              {(() => {
+                const members = projectMembers ?? [];
+                const memberIds = new Set(members.map((m) => m.id));
+                // Assignees added via "Add People" who aren't members yet.
+                const extra = editAssigneeIds
+                  .filter((id) => !memberIds.has(id))
+                  .map((id) => getUser(id))
+                  .filter(Boolean) as User[];
+                const list = [...members, ...extra];
+                return (
+                  <>
+                    <div className="max-h-32 overflow-y-auto rounded-md border border-gray-200 p-1.5 space-y-0.5 bg-white">
+                      {list.length === 0 ? (
+                        <p className="text-xs text-muted-foreground px-2 py-1">
+                          No members assigned to this project.
+                        </p>
+                      ) : (
+                        list.map((u) => {
+                          const checked = editAssigneeIds.includes(u.id);
+                          return (
+                            <label
+                              key={u.id}
+                              className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                                checked
+                                  ? "bg-blue-50 border border-blue-200"
+                                  : "hover:bg-gray-50 border border-transparent"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleEditAssignee(u.id)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <div
+                                className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                                style={{ backgroundColor: u.avatar_color }}
+                              >
+                                {u.name[0]}
+                              </div>
+                              <span className="truncate">{u.name}</span>
+                              <span className="text-[10px] text-gray-400 ml-auto">
+                                {u.role}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    <AddPeople
+                      excludeIds={list.map((m) => m.id)}
+                      onAdd={(uid) => toggleEditAssignee(uid)}
+                    />
+                  </>
+                );
+              })()}
             </div>
 
             {/* Phase Selection */}
@@ -7903,7 +7991,7 @@ export default function ProjectDetailPage({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-[1600px] mx-auto space-y-6">
       {/* ── Back + Header ── */}
       <div>
         <div className="flex items-center gap-2 mb-2">
@@ -8579,12 +8667,19 @@ export default function ProjectDetailPage({
                   </label>
                   {(() => {
                     const projectMembers = project.assignees ?? [];
+                    const memberIds = new Set(projectMembers.map((m) => m.id));
+                    // Users selected via "Add People" who aren't project members
+                    // yet — show them here so they stay visible/removable.
+                    const extraSelected = newTaskAssignees
+                      .filter((id) => !memberIds.has(id))
+                      .map((id) => getUser(id))
+                      .filter(Boolean) as User[];
+                    const displayList = [...projectMembers, ...extraSelected];
                     const selectedNames = newTaskAssignees
-                      .map(
-                        (id) => projectMembers.find((m) => m.id === id)?.name,
-                      )
+                      .map((id) => getUser(id)?.name)
                       .filter(Boolean);
                     return (
+                      <>
                       <div className="relative">
                         <button
                           type="button"
@@ -8618,12 +8713,12 @@ export default function ProjectDetailPage({
                         </button>
                         {showAssigneeDropdown && (
                           <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                            {projectMembers.length === 0 ? (
+                            {displayList.length === 0 ? (
                               <p className="text-xs text-muted-foreground px-3 py-2">
                                 No members assigned to this project.
                               </p>
                             ) : (
-                              projectMembers.map((m) => (
+                              displayList.map((m) => (
                                 <label
                                   key={m.id}
                                   className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer"
@@ -8659,6 +8754,15 @@ export default function ProjectDetailPage({
                           />
                         )}
                       </div>
+                      <AddPeople
+                        excludeIds={displayList.map((m) => m.id)}
+                        onAdd={(uid) =>
+                          setNewTaskAssignees((prev) =>
+                            prev.includes(uid) ? prev : [...prev, uid],
+                          )
+                        }
+                      />
+                      </>
                     );
                   })()}
                 </div>

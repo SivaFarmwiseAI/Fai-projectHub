@@ -115,6 +115,14 @@ def _create_task(event, origin):
           body.order_index, current_user["id"]))
 
     for uid in all_ids:
+        # Auto-add the assignee to the project (so "Add People" can pull in a
+        # user who isn't a member yet), then assign them to the task. Both
+        # inserts are dedup-safe via ON CONFLICT, so existing members are a no-op.
+        execute(
+            "INSERT INTO project_assignees (project_id, user_id) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (str(body.project_id), uid),
+        )
         execute(
             "INSERT INTO task_assignees (task_id, user_id, added_by) "
             "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
@@ -135,10 +143,18 @@ def _add_task_assignee(event, origin, task_id):
     user_id = body.get("user_id")
     if not user_id:
         raise HTTPError(400, "user_id is required")
-    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+    task_row = fetchone("SELECT project_id FROM tasks WHERE id = %s", (task_id,))
+    if not task_row:
         raise HTTPError(404, "Task not found")
     if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
         raise HTTPError(404, "User not found")
+    # "Add People" can assign a user who isn't a project member yet — auto-add
+    # them to the project first (dedup-safe), then assign them to the task.
+    execute(
+        "INSERT INTO project_assignees (project_id, user_id) "
+        "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (task_row["project_id"], user_id),
+    )
     execute(
         "INSERT INTO task_assignees (task_id, user_id, added_by) "
         "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",

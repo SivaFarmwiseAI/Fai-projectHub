@@ -156,11 +156,8 @@ export default function NewProjectPage() {
     ]).then(([usersRes, meRes]) => {
       const me = meRes.user as User | null;
       setCurrentUser(me);
-      // Only Team Lead and CEO can appear in the assignee list
-      const eligible = usersRes.users.filter(
-        u => u.role_type === "Team Lead" || u.role_type === "CEO"
-      );
-      setUserList(eligible);
+      // Show every user as an eligible team member / assignee.
+      setUserList(usersRes.users);
       // If current user is a Team Lead, auto-select them
       if (me && me.role_type === "Team Lead") {
         setSelectedMembers([me.id]);

@@ -239,7 +239,7 @@ const PA_CSS = `
 .pa .sn.done .snum{background:#4f46e5;color:#fff}
 .pa .sn.locked{opacity:.4;cursor:not-allowed;pointer-events:none}
 /* content */
-.pa .wrap{max-width:1280px;margin:0 auto;width:100%}
+.pa .wrap{max-width:1440px;margin:0 auto;width:100%}
 .pa .card{background:var(--card);border:1px solid rgba(0,0,0,.06);border-radius:18px;padding:28px 32px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05),0 0 0 1px rgba(0,0,0,.03)}
 .pa h2{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px;color:var(--ink)}
 .pa h3.sec{font-size:13px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:22px 0 10px;color:var(--leaf);border-bottom:1px solid var(--leaf-soft);padding-bottom:6px}
@@ -360,7 +360,33 @@ const PA_CSS = `
 .pa .err-msg{font-size:11.5px;color:#dc2626;margin-top:3px;display:block;line-height:1.4}
 .pa .top-err{font-size:12.5px;padding:9px 13px;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:10px;margin-bottom:12px}
 @media (max-width:760px){.pa .gb,.pa .grid2,.pa .tmpl,.pa .rate{grid-template-columns:1fr}.pa .facet{width:100%}}
-@media print{.pa .stepnav,.pa .navbtns,.pa .addbtn,.pa .rm,.pa .ghost{display:none!important}}
+@media print{
+  /* A4 page geometry with consistent margins */
+  @page{size:A4 portrait;margin:14mm}
+  html,body{background:#fff!important}
+  /* Faithful colours (score badge, severity dots, warn boxes) */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  /* Isolate the Review & Submit document — hide app shell, tabs, banners, etc. */
+  body *{visibility:hidden!important}
+  #pa-print,#pa-print *{visibility:visible!important}
+  #pa-print{position:absolute!important;left:0;top:0;width:100%!important;max-width:none!important;margin:0!important}
+  /* Drop interactive / non-content controls even inside the printed area */
+  .no-print,.pa .stepnav,.pa .navbtns,.pa .addbtn,.pa .rm,.pa .ghost,.pa-save-btn{display:none!important}
+  /* Consistent typography */
+  #pa-print{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#0f172a;font-size:10.5pt;line-height:1.45}
+  #pa-print h2{font-size:17pt;margin:0 0 12px}
+  #pa-print h3{font-size:12pt}
+  #pa-print h4{font-size:11pt;margin:0 0 4px}
+  /* Flatten the outer card; lighten nested cards so nothing stacks heavy chrome */
+  #pa-print.card{border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;border-radius:0!important}
+  #pa-print .card{box-shadow:none!important;border:1px solid #e2e8f0!important;border-radius:8px!important;padding:12px 14px!important;margin:0 0 12px!important}
+  /* Never split a logical block across a page boundary */
+  #pa-print .rev-block,#pa-print .contrib,#pa-print .scorebar,#pa-print .cap-note,#pa-print .warn-box,#pa-print .map-row,#pa-print table,#pa-print tr{page-break-inside:avoid;break-inside:avoid}
+  #pa-print h2,#pa-print h3,#pa-print h4{page-break-after:avoid;break-after:avoid}
+  /* Nothing clipped or scroll-truncated */
+  #pa-print *{max-height:none!important;overflow:visible!important}
+  #pa-print .rev-block{margin-bottom:12px}
+}
 .pa-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
 .pa-dialog{background:#fff;border-radius:18px;padding:28px 28px 22px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22)}
 .pa-dialog h3{margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.02em;color:#0f172a;font-family:inherit}
@@ -695,7 +721,8 @@ export default function PerformanceAssessmentPage() {
 
   const removeEntry = useCallback((section: "team" | "org", eid: number) => {
     const setter = section === "team" ? setTeamEntries : setOrgEntries;
-    setter((p) => p.filter((e) => e.id !== eid));
+    // At least one entry per section is mandatory — never remove the last one.
+    setter((p) => (p.length <= 1 ? p : p.filter((e) => e.id !== eid)));
     setIsDirty(true);
   }, []);
 
@@ -965,10 +992,16 @@ export default function PerformanceAssessmentPage() {
             errs["e_org_" + e.id + "_rate"] = "Please select a rating (1–5)";
         });
       } else if (s === 5) {
+        let missingCult = 0;
         CULT_ITEMS.forEach(([k, label]) => {
-          if (cultRatings[k] == null)
+          if (cultRatings[k] == null) {
             errs["b_culture_" + k] = `Please select a rating for "${label}"`;
+            missingCult++;
+          }
         });
+        if (missingCult)
+          te =
+            "Please select a rating for all mandatory Culture & Discipline items.";
       }
 
       setErrors(errs);
@@ -1468,15 +1501,18 @@ export default function PerformanceAssessmentPage() {
     idx: number;
   }) => {
     const tkey = "e_" + section + "_" + e.id;
+    const entryCount = (section === "team" ? teamEntries : orgEntries).length;
     return (
       <div className="block">
         <div className="ch" style={{ marginBottom: 8 }}>
           <h4 style={{ margin: 0, fontSize: 13, color: "var(--leaf)" }}>
             Contribution #{idx + 1}
           </h4>
-          <button className="rm" onClick={() => removeEntry(section, e.id)}>
-            Remove
-          </button>
+          {entryCount > 1 && (
+            <button className="rm" onClick={() => removeEntry(section, e.id)}>
+              Remove
+            </button>
+          )}
         </div>
         <div className="field">
           <label>
@@ -1587,7 +1623,7 @@ export default function PerformanceAssessmentPage() {
       <style>{PA_CSS}</style>
 
       {/* ── Page header (pure app styling, outside the scoped .pa block) ─── */}
-      <div className="max-w-[1280px] mx-auto w-full animate-fade-in-up">
+      <div className="max-w-[1440px] mx-auto w-full animate-fade-in-up">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -1644,27 +1680,27 @@ export default function PerformanceAssessmentPage() {
 
       {/* ── Non-wizard views (fully app-styled, outside .pa) ──────────────── */}
       {view === "reviews" && (
-        <div className="max-w-[1280px] mx-auto w-full mt-5">
+        <div className="max-w-[1440px] mx-auto w-full mt-5">
           <PerformanceReviews />
         </div>
       )}
       {view === "team" && (
-        <div className="max-w-[1280px] mx-auto w-full mt-5">
+        <div className="max-w-[1440px] mx-auto w-full mt-5">
           <PerformanceTeam />
         </div>
       )}
       {view === "analysis" && (
-        <div className="max-w-[1280px] mx-auto w-full mt-5">
+        <div className="max-w-[1440px] mx-auto w-full mt-5">
           <PerformanceAnalysis />
         </div>
       )}
       {view === "cycles" && (
-        <div className="max-w-[1280px] mx-auto w-full mt-5">
+        <div className="max-w-[1440px] mx-auto w-full mt-5">
           <PerformanceCycles />
         </div>
       )}
       {view === "org" && (
-        <div className="max-w-[1280px] mx-auto w-full mt-5">
+        <div className="max-w-[1440px] mx-auto w-full mt-5">
           <OrgTreeEditor />
         </div>
       )}
@@ -2850,6 +2886,7 @@ export default function PerformanceAssessmentPage() {
                     items are required. The section score is the average of your
                     answers.
                   </p>
+                  {topErr && <div className="top-err">{topErr}</div>}
                   <table className="matrix">
                     <tbody>
                       <tr>
@@ -3014,7 +3051,7 @@ export default function PerformanceAssessmentPage() {
 
             {/* ── STEP 7: REVIEW & SUBMIT ──────────────────────────────────── */}
             {step === 7 && (
-              <div className="card">
+              <div className="card" id="pa-print">
                 <h2>Review &amp; Submit</h2>
 
                 {/* Score card */}
@@ -3080,7 +3117,7 @@ export default function PerformanceAssessmentPage() {
 
                 {/* ── Nominate peer reviewers ──────────────────────────────── */}
                 {mode === "self" && (
-                  <div className="card" style={{ margin: "0 0 16px" }}>
+                  <div className="card no-print" style={{ margin: "0 0 16px" }}>
                     <h3 className="sec" style={{ marginTop: 0 }}>
                       Nominate your peer reviewers
                     </h3>

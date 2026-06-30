@@ -369,7 +369,7 @@ export default function DiscussionsPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-4xl">
+    <div className="space-y-5 sm:space-y-6 max-w-[1600px]">
       {/* Header */}
       <div className="animate-fade-in-up">
         <div className="flex items-center gap-3 mb-1">

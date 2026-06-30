@@ -786,7 +786,7 @@ export default function CEOCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen p-0 max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen p-0 max-w-[1600px] mx-auto space-y-5">
       {/* ---- Header ---- */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in-up">
         <div>

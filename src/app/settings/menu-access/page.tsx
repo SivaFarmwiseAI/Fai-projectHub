@@ -205,7 +205,7 @@ export default function MenuAccessPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-[1600px] mx-auto space-y-6">
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
