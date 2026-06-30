@@ -1294,7 +1294,9 @@ function MilestoneSection({
       });
 
       // 2. Record a revision (with attachments) so the change + evidence is
-      //    captured on the milestone's history timeline.
+      //    captured on the milestone's history timeline. Best-effort: the
+      //    status/hours update above is the primary action and must stand even
+      //    if the history write fails (e.g. revision tables not yet migrated).
       if (
         statusChanged ||
         hoursChanged ||
@@ -1308,18 +1310,22 @@ function MilestoneSection({
           parts.push(`${actVal ?? 0}h spent / ${estVal ?? 0}h est`);
         const summary =
           updNote.trim() || parts.join(" · ") || "Progress update";
-        await tasksApi.addMilestoneRevision(taskId, milestone.id, {
-          summary,
-          change_type: statusChanged ? "status_change" : "note",
-          details: updNote.trim() || undefined,
-          attachments: updAttachments.length
-            ? updAttachments.map((a) => ({
-                title: a.fileName || a.url,
-                type: a.fileName ? "document" : "url",
-                url: a.url,
-              }))
-            : undefined,
-        });
+        try {
+          await tasksApi.addMilestoneRevision(taskId, milestone.id, {
+            summary,
+            change_type: statusChanged ? "status_change" : "note",
+            details: updNote.trim() || undefined,
+            attachments: updAttachments.length
+              ? updAttachments.map((a) => ({
+                  title: a.fileName || a.url,
+                  type: a.fileName ? "document" : "url",
+                  url: a.url,
+                }))
+              : undefined,
+          });
+        } catch (revErr) {
+          console.warn("Milestone revision not recorded:", revErr);
+        }
       }
 
       if (updStatus === "completed" && localStatus !== "completed")
@@ -1369,6 +1375,35 @@ function MilestoneSection({
         e instanceof Error ? e.message : undefined,
       );
       setIsDeleting(false);
+    }
+  };
+
+  // Quick file/link submit — persists the upload as a milestone revision
+  // attachment so it lands on the milestone history (not lost on refresh).
+  const [attaching, setAttaching] = useState(false);
+  const quickAttach = async (v: { url: string; fileName?: string }) => {
+    setAttaching(true);
+    try {
+      await tasksApi.addMilestoneRevision(taskId, milestone.id, {
+        summary: `File submitted: ${v.fileName || v.url}`,
+        change_type: "note",
+        attachments: [
+          {
+            title: v.fileName || v.url,
+            type: v.fileName ? "document" : "url",
+            url: v.url,
+          },
+        ],
+      });
+      showToast.success("File submitted");
+      onUpdate?.();
+    } catch (e) {
+      showToast.error(
+        "Failed to submit file",
+        e instanceof Error ? e.message : undefined,
+      );
+    } finally {
+      setAttaching(false);
     }
   };
 
@@ -1457,11 +1492,6 @@ function MilestoneSection({
                 </div>
               )}
             </div>
-          )}
-          {milestone.target_day && (
-            <span className="text-[10px] text-muted-foreground">
-              Day {milestone.target_day}
-            </span>
           )}
           {(localEstHours != null || localActHours != null) && (
             <span
@@ -1734,37 +1764,21 @@ function MilestoneSection({
             </div>
           )}
 
-          {/* Attachment / Upload area */}
+          {/* Submit file / deliverable — wired to milestone history */}
           {milestone.status !== "completed" && (
-            <div className="space-y-2">
-              {viewRole === "team_member" && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="text-[10px] h-7 gap-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Upload className="h-3 w-3" /> Submit Deliverable
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-[10px] h-7 gap-1"
-                  >
-                    <FileUp className="h-3 w-3" /> Upload Document
-                  </Button>
-                </div>
-              )}
-              {viewRole === "ceo" &&
-                (milestone.deliverables ?? []).length === 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-[11px] h-7 gap-1"
-                  >
-                    <Upload className="h-3 w-3" /> Submit Deliverable
-                  </Button>
-                )}
-              <AttachmentBar label="Attach file to milestone" compact />
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Upload className="h-3 w-3" /> Submit file / deliverable
+                {attaching && <Loader2 className="h-3 w-3 animate-spin" />}
+              </label>
+              <AttachmentBar
+                label="Attach a file or paste a link"
+                compact
+                value={null}
+                onChange={(v) => {
+                  if (v) quickAttach(v);
+                }}
+              />
             </div>
           )}
 
@@ -1838,6 +1852,13 @@ function TaskCard({
   const assigneeBtnRef = useRef<HTMLButtonElement>(null);
   const [showAddUpdate, setShowAddUpdate] = useState(false);
   const [updateText, setUpdateText] = useState("");
+  // Task-level "Update progress" panel — mirrors the milestone update panel so a
+  // task can record status changes, notes and file uploads on one timeline.
+  const [taskUpdStatus, setTaskUpdStatus] = useState<string>(task.status);
+  const [taskUpdAttachments, setTaskUpdAttachments] = useState<
+    { url: string; fileName?: string }[]
+  >([]);
+  const [savingTaskUpdate, setSavingTaskUpdate] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [completeHours, setCompleteHours] = useState<number>(
@@ -1848,9 +1869,12 @@ function TaskCard({
   const completeTask = async () => {
     setSavingComplete(true);
     try {
+      // When hours roll up from milestones, the task's actual hours are already
+      // the milestone sum — don't overwrite them with a manual figure.
+      const auto = (task.milestones ?? []).length > 0 && !task.hours_overridden;
       await tasksApi.update(task.id, {
         status: "completed",
-        actual_hours: completeHours || undefined,
+        actual_hours: auto ? undefined : completeHours || undefined,
       });
       fireMilestoneCelebration();
       showToast.success("Task completed");
@@ -1894,12 +1918,62 @@ function TaskCard({
     }
   };
 
+  const submitTaskUpdate = async () => {
+    setSavingTaskUpdate(true);
+    try {
+      const statusChanged = taskUpdStatus !== task.status;
+      // 1. Apply a status change to the task itself.
+      if (statusChanged) {
+        await tasksApi.update(task.id, { status: taskUpdStatus });
+      }
+      // 2. Post the note to the progress-updates log.
+      if (updateText.trim()) {
+        await tasksApi.addUpdate(task.id, { message: updateText.trim() });
+      }
+      // 3. Record a revision (with attachments) on the task history timeline.
+      if (statusChanged || updateText.trim() || taskUpdAttachments.length) {
+        const parts: string[] = [];
+        if (statusChanged)
+          parts.push(
+            `Status → ${(taskUpdStatus as string).replace("_", " ")}`,
+          );
+        const summary =
+          updateText.trim() || parts.join(" · ") || "Progress update";
+        await tasksApi.addRevision(task.id, {
+          summary,
+          change_type: statusChanged ? "status_change" : "note",
+          details: updateText.trim() || undefined,
+          attachments: taskUpdAttachments.length
+            ? taskUpdAttachments.map((a) => ({
+                title: a.fileName || a.url,
+                type: a.fileName ? "document" : "url",
+                url: a.url,
+              }))
+            : undefined,
+        });
+      }
+      if (taskUpdStatus === "completed" && task.status !== "completed")
+        fireMilestoneCelebration();
+      showToast.success("Update posted");
+      setUpdateText("");
+      setTaskUpdAttachments([]);
+      setShowAddUpdate(false);
+      onReviewUpdate?.();
+    } catch (e) {
+      showToast.error(
+        "Failed to post update",
+        e instanceof Error ? e.message : undefined,
+      );
+    } finally {
+      setSavingTaskUpdate(false);
+    }
+  };
+
   const [showAddMilestoneForm, setShowAddMilestoneForm] = useState(false);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDesc, setMilestoneDesc] = useState("");
   const [milestoneDeliverableType, setMilestoneDeliverableType] =
     useState("document");
-  const [milestoneTargetDay, setMilestoneTargetDay] = useState<number>(5);
   const [milestoneSuccessCriteria, setMilestoneSuccessCriteria] = useState<
     string[]
   >([]);
@@ -1915,13 +1989,17 @@ function TaskCard({
       setMilestoneTitle("");
       setMilestoneDesc("");
       setMilestoneDeliverableType("document");
-      setMilestoneTargetDay(5);
       setMilestoneSuccessCriteria([]);
       setMilestoneAssigneeId("");
       setMilestoneEstimatedHours(0);
       setNewCriteria("");
     }
   }, [showAddMilestoneForm, task]);
+
+  // Sync the update-panel status switch to the task's current status on open.
+  useEffect(() => {
+    if (showAddUpdate) setTaskUpdStatus(task.status);
+  }, [showAddUpdate, task.status]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -1931,6 +2009,10 @@ function TaskCard({
   const [editHours, setEditHours] = useState(task.estimated_hours ?? 0);
   const [editActualHours, setEditActualHours] = useState(
     task.actual_hours ?? 0,
+  );
+  // Whether hours are entered manually (override) vs. summed from milestones.
+  const [editHoursOverride, setEditHoursOverride] = useState<boolean>(
+    !!task.hours_overridden,
   );
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignee_id ?? "");
   const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
@@ -1949,6 +2031,7 @@ function TaskCard({
     setEditStatus(task.status);
     setEditHours(task.estimated_hours ?? 0);
     setEditActualHours(task.actual_hours ?? 0);
+    setEditHoursOverride(!!task.hours_overridden);
     setEditAssigneeId(task.assignee_id ?? "");
     setEditAssigneeIds(
       task.assignees?.map((a) => a.id) ??
@@ -1979,9 +2062,21 @@ function TaskCard({
   const pendingExtensions = (task.deadline_extensions ?? []).filter(
     (de) => de.status === "pending",
   ).length;
-  const hoursCompleted = (task.steps ?? [])
-    .filter((s) => s.status === "completed")
-    .reduce((sum, s) => sum + (s.estimated_hours ?? 0), 0);
+
+  // ── Hours accumulate from milestones (unless manually overridden) ──
+  // When the task has milestones and is not overridden, its estimated/actual
+  // hours are the sum of its milestones'. Otherwise the stored task values win.
+  const milestoneEstSum = (task.milestones ?? []).reduce(
+    (sum, m) => sum + (m.estimated_hours ?? 0),
+    0,
+  );
+  const milestoneActSum = (task.milestones ?? []).reduce(
+    (sum, m) => sum + (m.actual_hours ?? 0),
+    0,
+  );
+  const hoursAuto = totalMilestones > 0 && !task.hours_overridden;
+  const effEstHours = hoursAuto ? milestoneEstSum : (task.estimated_hours ?? 0);
+  const effActHours = hoursAuto ? milestoneActSum : (task.actual_hours ?? 0);
 
   if (isEditing) {
     return (
@@ -2080,46 +2175,82 @@ function TaskCard({
               </div>
             </div>
 
-            {/* Hours (estimated + manual actual) */}
+            {/* Hours (auto-summed from milestones, or manual override) */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">
-                Hours (est / actual)
-              </label>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="Est"
-                  title="Estimated hours"
-                  value={editHours || ""}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (e.target.value === "" || v >= 0) setEditHours(v);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "e" || e.key === "+")
-                      e.preventDefault();
-                  }}
-                  className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
-                />
-                <span className="text-gray-400 text-xs">/</span>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="Actual"
-                  title="Actual hours spent (manual)"
-                  value={editActualHours || ""}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (e.target.value === "" || v >= 0) setEditActualHours(v);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "e" || e.key === "+")
-                      e.preventDefault();
-                  }}
-                  className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-medium text-gray-500">
+                  Hours (est / actual)
+                </label>
+                {totalMilestones > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEditHoursOverride((v) => !v)}
+                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
+                      editHoursOverride
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                    title={
+                      editHoursOverride
+                        ? "Switch back to summing hours from milestones"
+                        : "Override the milestone-summed hours manually"
+                    }
+                  >
+                    {editHoursOverride ? "Manual override" : "Auto from milestones"}
+                  </button>
+                )}
               </div>
+              {totalMilestones > 0 && !editHoursOverride ? (
+                <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-blue-100 bg-blue-50/40 text-xs text-gray-600">
+                  <span className="font-semibold text-gray-700">
+                    {milestoneActSum}
+                  </span>
+                  <span className="text-gray-400">/</span>
+                  <span className="font-semibold text-gray-700">
+                    {milestoneEstSum}
+                  </span>
+                  <span className="text-[10px] text-blue-500 ml-auto">
+                    summed from {totalMilestones} milestone
+                    {totalMilestones > 1 ? "s" : ""}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Est"
+                    title="Estimated hours"
+                    value={editHours || ""}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (e.target.value === "" || v >= 0) setEditHours(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                        e.preventDefault();
+                    }}
+                    className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
+                  />
+                  <span className="text-gray-400 text-xs">/</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Actual"
+                    title="Actual hours spent (manual)"
+                    value={editActualHours || ""}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (e.target.value === "" || v >= 0) setEditActualHours(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                        e.preventDefault();
+                    }}
+                    className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -2204,13 +2335,24 @@ function TaskCard({
                 if (!editTitle.trim()) return;
                 try {
                   const primary = editAssigneeIds[0] ?? "";
+                  // When hours roll up from milestones (not overridden) we let
+                  // the backend recompute the totals; only push manual hours
+                  // when the user has explicitly overridden them.
+                  const overriding = totalMilestones > 0 && editHoursOverride;
                   await tasksApi.update(task.id, {
                     title: editTitle,
                     description: editDesc || undefined,
                     priority: editPriority,
                     status: editStatus,
-                    estimated_hours: editHours || undefined,
-                    actual_hours: editActualHours || undefined,
+                    hours_overridden: totalMilestones > 0 ? editHoursOverride : undefined,
+                    estimated_hours:
+                      overriding || totalMilestones === 0
+                        ? editHours || undefined
+                        : undefined,
+                    actual_hours:
+                      overriding || totalMilestones === 0
+                        ? editActualHours || undefined
+                        : undefined,
                     assignee_id: primary || undefined,
                     phase_id: editPhaseId || undefined,
                   });
@@ -2343,12 +2485,14 @@ function TaskCard({
             </p>
             <p className="text-[9px] text-muted-foreground">milestones</p>
           </div>
-          {/* Hours */}
+          {/* Hours — actual / estimated, rolled up from milestones */}
           <div className="text-center">
             <p className="text-xs font-bold">
-              {hoursCompleted}/{task.estimated_hours}h
+              {effActHours}/{effEstHours}h
             </p>
-            <p className="text-[9px] text-muted-foreground">hours</p>
+            <p className="text-[9px] text-muted-foreground">
+              {hoursAuto ? "hours (rolled up)" : "hours"}
+            </p>
           </div>
           {/* Assignees (clickable to edit) — shows stacked avatars when there are multiple */}
           {(() => {
@@ -2451,26 +2595,32 @@ function TaskCard({
                 {task.status.replace("_", " ")}
               </p>
             </div>
-            {task.estimated_hours != null && (
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
-                  Est. Hours
-                </p>
-                <p className="text-xs font-semibold text-gray-700">
-                  {task.estimated_hours}h
-                </p>
-              </div>
-            )}
-            {task.actual_hours != null && (
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
-                  Actual Hours
-                </p>
-                <p className="text-xs font-semibold text-gray-700">
-                  {task.actual_hours}h
-                </p>
-              </div>
-            )}
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
+                Est. Hours
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                {effEstHours}h
+                {hoursAuto && (
+                  <span className="ml-1 text-[9px] font-normal text-blue-500">
+                    auto
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
+                Actual Hours
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                {effActHours}h
+                {hoursAuto && (
+                  <span className="ml-1 text-[9px] font-normal text-blue-500">
+                    auto
+                  </span>
+                )}
+              </p>
+            </div>
             {task.created_at && (
               <div className="bg-gray-50 rounded-lg px-3 py-2">
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">
@@ -2526,31 +2676,44 @@ function TaskCard({
                 </div>
               ) : (
                 <div className="flex items-end gap-2 flex-wrap">
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
-                      Hours spent{" "}
-                      {task.estimated_hours
-                        ? `(est. ${task.estimated_hours}h)`
-                        : ""}
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      autoFocus
-                      value={completeHours || ""}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (e.target.value === "" || v >= 0)
-                          setCompleteHours(v);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "-" || e.key === "e" || e.key === "+")
-                          e.preventDefault();
-                      }}
-                      className="h-8 w-28 text-xs"
-                      placeholder="0"
-                    />
-                  </div>
+                  {hoursAuto ? (
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-blue-500" />
+                      <span>
+                        <span className="font-semibold text-gray-700">
+                          {effActHours}h
+                        </span>{" "}
+                        spent (summed from milestones)
+                        {effEstHours ? ` of ${effEstHours}h est.` : ""}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
+                        Hours spent{" "}
+                        {task.estimated_hours
+                          ? `(est. ${task.estimated_hours}h)`
+                          : ""}
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        autoFocus
+                        value={completeHours || ""}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (e.target.value === "" || v >= 0)
+                            setCompleteHours(v);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "-" || e.key === "e" || e.key === "+")
+                            e.preventDefault();
+                        }}
+                        className="h-8 w-28 text-xs"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     onClick={completeTask}
@@ -2896,7 +3059,7 @@ function TaskCard({
                     />
                   </div>
 
-                  {/* Grid for Deliverable Type & Target Day */}
+                  {/* Grid for Deliverable Type & Estimated Hours */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
@@ -2930,68 +3093,50 @@ function TaskCard({
 
                     <div>
                       <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
-                        Target Completion (Project Day)
-                        <span className="text-red-500">*</span>
+                        Estimated Hours<span className="text-red-500">*</span>
                       </label>
                       <Input
                         type="number"
-                        min={1}
-                        placeholder="5"
-                        value={milestoneTargetDay || ""}
+                        min={0}
+                        step="0.5"
+                        placeholder="8.5"
+                        value={milestoneEstimatedHours === 0 ? "" : milestoneEstimatedHours}
                         onChange={(e) => {
                           const v = Number(e.target.value);
-                          if (e.target.value === "" || v >= 0) {
-                            setMilestoneTargetDay(v);
-                            setMilestoneErrors((p) => ({
-                              ...p,
-                              targetDay: "",
-                            }));
-                          }
+                          if (e.target.value === "" || v >= 0)
+                            setMilestoneEstimatedHours(
+                              e.target.value === "" ? "" : v,
+                            );
+                          setMilestoneErrors((p) => ({ ...p, estimatedHours: "" }));
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === "-" || e.key === "e" || e.key === "+")
-                            e.preventDefault();
-                        }}
-                        className={`text-xs h-8 focus-visible:ring-blue-400 ${milestoneErrors.targetDay ? "border-red-400 focus-visible:ring-red-400" : "border-blue-100"}`}
+                        onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === "+") e.preventDefault(); }}
+                        className={`text-xs h-8 focus-visible:ring-blue-400 ${milestoneErrors.estimatedHours ? "border-red-400 focus-visible:ring-red-400" : "border-blue-100"}`}
                       />
-                      {milestoneErrors.targetDay && (
+                      {milestoneErrors.estimatedHours ? (
                         <p className="text-[10px] text-red-500 mt-0.5">
-                          {milestoneErrors.targetDay}
+                          {milestoneErrors.estimatedHours}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Part of the task&apos;s total time
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Assignee & Estimated Hours */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
-                      <select
-                        value={milestoneAssigneeId}
-                        onChange={(e) => setMilestoneAssigneeId(e.target.value)}
-                        className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
-                      >
-                        <option value="">Unassigned</option>
-                        {(projectMembers ?? []).map((u) => (
-                          <option key={u.id} value={u.id}>{u.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Estimated Hours</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="8.5"
-                        value={milestoneEstimatedHours === 0 ? "" : milestoneEstimatedHours}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (e.target.value === "" || v >= 0) setMilestoneEstimatedHours(e.target.value === "" ? "" : v);
-                        }}
-                        onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === "+") e.preventDefault(); }}
-                        className="text-xs h-8 border-blue-100 focus-visible:ring-blue-400"
-                      />
-                    </div>
+                  {/* Assignee */}
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
+                    <select
+                      value={milestoneAssigneeId}
+                      onChange={(e) => setMilestoneAssigneeId(e.target.value)}
+                      className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+                    >
+                      <option value="">Unassigned</option>
+                      {(projectMembers ?? []).map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Success Criteria List */}
@@ -3068,8 +3213,11 @@ function TaskCard({
                         if (!milestoneDeliverableType)
                           errs.deliverableType =
                             "Please select Deliverable Type";
-                        if (!milestoneTargetDay)
-                          errs.targetDay = "Please enter Target Completion Day";
+                        if (
+                          milestoneEstimatedHours === "" ||
+                          milestoneEstimatedHours <= 0
+                        )
+                          errs.estimatedHours = "Please enter Estimated Hours";
                         if (Object.keys(errs).length > 0) {
                           setMilestoneErrors(errs);
                           return;
@@ -3081,29 +3229,34 @@ function TaskCard({
                             title: milestoneTitle,
                             description: milestoneDesc || undefined,
                             deliverable_type: milestoneDeliverableType,
-                            target_day: milestoneTargetDay || undefined,
                             success_criteria:
                               milestoneSuccessCriteria.length > 0
                                 ? milestoneSuccessCriteria
                                 : undefined,
                             assignee_id: milestoneAssigneeId || undefined,
-                            estimated_hours: milestoneEstimatedHours !== "" && milestoneEstimatedHours > 0
-                              ? milestoneEstimatedHours
-                              : undefined,
+                            estimated_hours:
+                              milestoneEstimatedHours !== ""
+                                ? milestoneEstimatedHours
+                                : undefined,
                             order_index: (task.milestones?.length ?? 0),
                           })
                           .then(() => {
                             setMilestoneTitle("");
                             setMilestoneDesc("");
                             setMilestoneDeliverableType("document");
-                            setMilestoneTargetDay(5);
                             setMilestoneSuccessCriteria([]);
                             setMilestoneAssigneeId("");
                             setMilestoneEstimatedHours(0);
                             setShowAddMilestoneForm(false);
+                            showToast.success("Milestone added");
                             onReviewUpdate?.();
                           })
-                          .catch(() => {});
+                          .catch((e) => {
+                            showToast.error(
+                              "Failed to add milestone",
+                              e instanceof Error ? e.message : undefined,
+                            );
+                          });
                       }}
                       className="text-[11px] h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                     >
@@ -3255,12 +3408,22 @@ function TaskCard({
             </div>
           )}
 
+          {/* ══════ ACTIVITY & HISTORY ══════ */}
+          <div className="flex items-center gap-2 pt-1 pb-1 border-b border-border">
+            <RotateCcw className="h-4 w-4 text-purple-500" />
+            <h5 className="text-sm font-semibold text-gray-800">
+              Activity &amp; History
+            </h5>
+            <span className="text-[11px] text-muted-foreground">
+              status changes, progress notes &amp; uploaded files
+            </span>
+          </div>
+
           {/* ── Task-level Updates ── */}
           {(task.updates ?? []).length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
-                <RotateCcw className="h-4 w-4 text-purple-500" />
-                <h5 className="text-sm font-semibold text-gray-800">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Progress Updates
                 </h5>
               </div>
@@ -3294,12 +3457,12 @@ function TaskCard({
             </div>
           )}
 
-          {/* ── Add Update Input ── */}
+          {/* ── Add Update / Update Progress panel ── */}
           {showAddUpdate && (
-            <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-3 space-y-2">
+            <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-purple-700 uppercase tracking-wider">
-                  New Update
+                  Update Progress
                 </span>
                 <button
                   onClick={() => setShowAddUpdate(false)}
@@ -3308,19 +3471,112 @@ function TaskCard({
                   <X className="h-3 w-3" />
                 </button>
               </div>
+
+              {/* Status */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                  Status
+                </label>
+                <div className="flex gap-1 flex-wrap">
+                  {(
+                    ["planning", "in_progress", "completed", "blocked"] as const
+                  ).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setTaskUpdStatus(s)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                        taskUpdStatus === s
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {s.replace("_", " ")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Note */}
               <Textarea
                 placeholder="Describe your progress, blockers, or changes..."
                 className="text-[11px] min-h-[60px] resize-none"
                 value={updateText}
                 onChange={(e) => setUpdateText(e.target.value)}
               />
-              <AttachmentBar label="Attach supporting document" compact />
-              <div className="flex gap-2">
+
+              {/* Attachments */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                  Attachments
+                </label>
+                {taskUpdAttachments.length > 0 && (
+                  <div className="space-y-1 mb-1.5">
+                    {taskUpdAttachments.map((a, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2 py-1 text-[10px]"
+                      >
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 truncate font-medium text-emerald-800 hover:underline"
+                        >
+                          {a.fileName || a.url}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTaskUpdAttachments((prev) =>
+                              prev.filter((_, j) => j !== i),
+                            )
+                          }
+                          className="text-red-400 hover:text-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <AttachmentBar
+                  label="Attach file or paste a link"
+                  compact
+                  value={null}
+                  onChange={(v) => {
+                    if (v) setTaskUpdAttachments((prev) => [...prev, v]);
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1 border-t border-purple-100">
                 <Button
                   size="sm"
-                  className="text-[10px] h-6 gap-1 bg-purple-600 hover:bg-purple-700"
+                  onClick={submitTaskUpdate}
+                  disabled={
+                    savingTaskUpdate ||
+                    (taskUpdStatus === task.status &&
+                      !updateText.trim() &&
+                      taskUpdAttachments.length === 0)
+                  }
+                  className="text-[11px] h-7 gap-1 bg-purple-600 hover:bg-purple-700 text-white"
                 >
-                  <Send className="h-3 w-3" /> Post Update
+                  {savingTaskUpdate ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Send className="h-3 w-3" />
+                  )}{" "}
+                  Post Update
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowAddUpdate(false)}
+                  className="text-[11px] h-7"
+                >
+                  Cancel
                 </Button>
               </div>
             </div>
