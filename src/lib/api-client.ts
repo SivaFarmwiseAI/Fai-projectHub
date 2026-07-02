@@ -473,6 +473,7 @@ export const performanceAssessments = {
     post<{ cycle: ReviewCycle }>("/performance-assessments/cycles", data),
   updateCycle:   (id: string, data: { name?: string; status?: string; start_date?: string; end_date?: string }) =>
     patch<{ cycle: ReviewCycle }>(`/performance-assessments/cycles/${id}`, data),
+  deleteCycle:   (id: string) => del<void>(`/performance-assessments/cycles/${id}`),
 
   // Org tree
   orgTree:       () => get<{ tree: OrgTreeNode[] }>("/performance-assessments/org/tree"),

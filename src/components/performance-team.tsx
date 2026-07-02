@@ -11,6 +11,7 @@ import { Users2, Loader2, FileText, ShieldAlert, CheckCircle2, Clock } from "luc
 import { performanceAssessments, type TeamReportRow } from "@/lib/api-client";
 import { bandColor, fmtScore } from "@/lib/performance";
 import { EmployeeReportModal } from "@/components/performance-report";
+import { PerfLoader } from "@/components/performance-loader";
 
 export function PerformanceTeam() {
   const [reports, setReports] = useState<TeamReportRow[]>([]);
@@ -27,7 +28,7 @@ export function PerformanceTeam() {
   }, []);
 
   if (loading) {
-    return <div className="space-y-3 animate-pulse">{[0, 1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-2xl" />)}</div>;
+    return <PerfLoader label="Loading your team…" />;
   }
 
   if (reports.length === 0) {
@@ -49,9 +50,9 @@ export function PerformanceTeam() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Users2 className="h-4 w-4 text-blue-500" />
-        <h3 className="text-sm font-bold text-slate-900">Your team</h3>
-        <span className="text-xs text-slate-400 font-medium">· {done}/{reports.length} self-assessments submitted</span>
+        <Users2 className="h-5 w-5 text-blue-500" />
+        <h3 className="text-base font-bold text-slate-900">Your team</h3>
+        <span className="text-sm text-slate-400 font-medium">· {done}/{reports.length} self-assessments submitted</span>
       </div>
 
       <div className="bg-white rounded-2xl border shadow-card overflow-hidden divide-y divide-slate-100" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
@@ -60,38 +61,38 @@ export function PerformanceTeam() {
           const submitted = r.self_status === "submitted";
           return (
             <button key={r.id} onClick={() => setOpenSubject(r.id)}
-              className="w-full text-left px-5 py-3.5 flex items-center gap-3 hover:bg-slate-50 transition-colors animate-fade-in-up"
-              style={{ animationDelay: `${Math.min(i, 8) * 30}ms`, paddingLeft: 20 + Math.min((r.depth - 1), 3) * 16 }}>
-              <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
+              className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 transition-colors animate-fade-in-up"
+              style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
+              <div className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
                 style={{ backgroundColor: r.avatar_color || "#3b82f6" }}>
                 {r.name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{r.name}</p>
-                  {r.severity && r.severity !== "none" && <ShieldAlert className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+                  <p className="text-base font-semibold text-slate-900 truncate">{r.name}</p>
+                  {r.severity && r.severity !== "none" && <ShieldAlert className="h-4 w-4 text-red-500 shrink-0" />}
                 </div>
-                <p className="text-[11px] text-slate-400 font-medium truncate">{r.role || "—"}{r.department ? ` · ${r.department}` : ""}</p>
+                <p className="text-[13px] text-slate-400 font-medium truncate">{r.role || "—"}{r.department ? ` · ${r.department}` : ""}</p>
               </div>
 
               {/* Self status */}
-              <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${submitted ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-slate-500 bg-slate-100"}`}>
-                {submitted ? <CheckCircle2 className="h-2.5 w-2.5" /> : <Clock className="h-2.5 w-2.5" />}
+              <span className={`hidden sm:inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${submitted ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-slate-500 bg-slate-100"}`}>
+                {submitted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                 Self {submitted ? "done" : "pending"}
               </span>
 
               {/* Peer progress */}
-              <span className="hidden md:inline text-[11px] font-medium text-slate-400 w-20 text-right">
+              <span className="hidden md:inline text-[13px] font-medium text-slate-500 w-24 text-right">
                 Peers {r.peer_done}/{r.peer_total}
               </span>
 
               {/* Band + score */}
               {submitted && r.rating_band ? (
-                <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                <span className="inline-flex items-center text-[12px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
                   style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}40` }}>{r.rating_band}</span>
               ) : null}
-              <span className="stat-number text-sm font-bold text-slate-900 w-10 text-right">{fmtScore(r.total_score)}</span>
-              <FileText className="h-4 w-4 text-slate-300 shrink-0" />
+              <span className="stat-number text-lg font-bold text-slate-900 w-14 text-right">{fmtScore(r.total_score)}</span>
+              <FileText className="h-5 w-5 text-slate-300 shrink-0" />
             </button>
           );
         })}

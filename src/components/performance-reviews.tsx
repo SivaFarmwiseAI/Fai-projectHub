@@ -11,6 +11,7 @@ import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil } f
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
 import { bandColor, bandForScore, fmtScore, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 import { cn } from "@/lib/utils";
+import { PerfLoader } from "@/components/performance-loader";
 
 interface PeerData { competencies?: Record<string, number>; strengths?: string; improvements?: string; comment?: string }
 
@@ -52,7 +53,7 @@ export function PerformanceReviews() {
   }, []);
 
   if (loading) {
-    return <div className="space-y-3 animate-pulse">{[0, 1, 2].map((i) => <div key={i} className="h-20 bg-slate-100 rounded-2xl" />)}</div>;
+    return <PerfLoader label="Loading your reviews…" />;
   }
 
   const pending = reviews.filter((r) => r.status === "pending");
@@ -66,7 +67,7 @@ export function PerformanceReviews() {
           <Inbox className="h-4 w-4 text-blue-500" />
           <h3 className="text-sm font-bold text-slate-900">Reviews to complete</h3>
           {pending.length > 0 && (
-            <span className="flex items-center justify-center h-5 min-w-[20px] rounded-full bg-amber-500 text-[10px] font-bold text-white px-1.5">{pending.length}</span>
+            <span className="flex items-center justify-center h-6 min-w-[24px] rounded-full bg-amber-500 text-xs font-bold text-white px-1.5">{pending.length}</span>
           )}
         </div>
         {pending.length === 0 ? (
@@ -78,15 +79,15 @@ export function PerformanceReviews() {
                 <Avatar name={r.subject_name} color={r.subject_color} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-slate-900 truncate">{r.subject_name}</p>
-                  <p className="text-[11px] text-slate-400 font-medium truncate">
+                  <p className="text-[13px] text-slate-400 font-medium truncate">
                     {r.subject_role || "—"}{r.subject_department ? ` · ${r.subject_department}` : ""}
                     {r.cycle_name ? ` · ${r.cycle_name}` : ""}
                     {r.nominated_by_name ? ` · asked by ${r.nominated_by_name}` : ""}
                   </p>
                 </div>
                 <button onClick={() => openWrite(r)}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-3.5 py-2 text-xs font-semibold shadow-glow-blue">
-                  <PenLine className="h-3.5 w-3.5" /> Write review
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-4 py-2.5 text-sm font-semibold shadow-glow-blue">
+                  <PenLine className="h-4 w-4" /> Write review
                 </button>
               </div>
             ))}
@@ -107,13 +108,13 @@ export function PerformanceReviews() {
                 <Avatar name={r.subject_name} color={r.subject_color} small />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-slate-800 truncate">{r.subject_name}</p>
-                  <p className="text-[10px] text-slate-400">Submitted {fmtDate(r.submitted_at || r.created_at)}</p>
+                  <p className="text-[12px] text-slate-400">Submitted {fmtDate(r.submitted_at || r.created_at)}</p>
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
                 <span className="stat-number text-sm font-bold text-slate-700 w-10 text-right">{fmtScore(r.total_score)}</span>
                 <button onClick={() => openEdit(r)}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-slate-200 text-slate-500 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700">
-                  <Pencil className="h-3 w-3" /> Edit
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 text-slate-500 px-3 py-2 text-[13px] font-semibold hover:bg-slate-50 hover:text-slate-700">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
               </div>
             ))}
@@ -124,20 +125,20 @@ export function PerformanceReviews() {
       {/* Reviews about me */}
       {received.length > 0 && (
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldCheck className="h-4 w-4 text-indigo-500" />
-            <h3 className="text-sm font-bold text-slate-900">Reviews about you</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck className="h-5 w-5 text-indigo-500" />
+            <h3 className="text-base font-bold text-slate-900">Reviews about you</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-3">
             {received.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-                <Avatar name={r.author_name} color={r.author_color} small />
+              <div key={r.id} className="bg-white rounded-xl border px-5 py-4 flex items-center gap-4" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                <Avatar name={r.author_name} color={r.author_color} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold text-slate-800 truncate">{r.author_name || "Peer reviewer"}</p>
-                  <p className="text-[10px] text-slate-400">{r.status === "submitted" ? `Submitted ${fmtDate(r.submitted_at || r.created_at)}` : "Pending"}</p>
+                  <p className="text-base font-semibold text-slate-800 truncate">{r.author_name || "Peer reviewer"}</p>
+                  <p className="text-[13px] text-slate-400">{r.status === "submitted" ? `Submitted ${fmtDate(r.submitted_at || r.created_at)}` : "Pending"}</p>
                 </div>
                 {r.status === "submitted" ? (r.rating_band && <Band band={r.rating_band} />) : (
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Awaiting</span>
+                  <span className="text-sm font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full">Awaiting</span>
                 )}
               </div>
             ))}
@@ -203,7 +204,7 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
             {PEER_COMPETENCIES.map((c) => (
               <div key={c.key}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[13px] font-semibold text-slate-700">{c.label}</span>
+                  <span className="text-[13px] font-semibold text-slate-700">{c.label} <span className="text-red-500">*</span></span>
                   <span className="text-[11px] text-slate-400">{c.hint}</span>
                 </div>
                 <div className="flex gap-1.5">
@@ -261,7 +262,7 @@ function Avatar({ name, color, small }: { name?: string | null; color?: string |
 function Band({ band }: { band?: string | null }) {
   const color = bandColor(band);
   return (
-    <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+    <span className="inline-flex items-center text-[13px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
       style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}40` }}>{band || "Unrated"}</span>
   );
 }

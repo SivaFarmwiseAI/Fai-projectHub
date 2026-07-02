@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+  Fragment,
+} from "react";
 import {
   Award,
   BarChart3,
@@ -13,6 +20,7 @@ import {
   Check,
   Upload,
   X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -55,11 +63,43 @@ interface Contribution {
   custom: { q: string; a: string }[];
 }
 
+/** A blank Individual Contribution. One exists by default; users add more via
+ *  "+ Add a contribution". */
+function blankContrib(id: number): Contribution {
+  return {
+    id,
+    self: null,
+    reviewer: null,
+    impacts: [],
+    impactWhy: {},
+    title: "",
+    area: "",
+    context: "",
+    problem: "",
+    create: "",
+    adopt: "",
+    changed: "",
+    value: "",
+    sustain: "",
+    evidence: "",
+    proofref: "",
+    prooffilename: "",
+    rjust: "",
+    custom: [],
+  };
+}
+
 interface Entry {
   id: number;
   rating: number | null;
   text: string;
   remark: string;
+}
+
+/** A blank Team/Organization contribution row. One exists by default; users add
+ *  more via "+ Add a … contribution". */
+function blankEntry(id: number): Entry {
+  return { id, rating: null, text: "", remark: "" };
 }
 
 interface SubmitStepError {
@@ -227,7 +267,7 @@ const PA_CSS = `
 .pa{--green:#16a34a;--orange:#f59e0b;--red:#ef4444;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff;--accent:#3b82f6;--accent-soft:#eff6ff;--leaf:#4f46e5;--leaf-soft:#eef2ff;color:var(--ink);line-height:1.55}
 .pa *{box-sizing:border-box}
 /* step nav — white app-style bar, blue→indigo active pill */
-.pa .stepnav{background:rgba(255,255,255,.92);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);position:sticky;top:0;z-index:20;border:1px solid rgba(0,0,0,.06);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05);margin-bottom:16px}
+.pa .stepnav{background:rgba(255,255,255,.92);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid rgba(0,0,0,.06);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05);margin-bottom:16px}
 .pa .stepnav-inner{display:flex;overflow-x:auto;padding:8px;gap:4px;scrollbar-width:none}
 .pa .stepnav-inner::-webkit-scrollbar{display:none}
 .pa .sn{display:flex;align-items:center;gap:7px;padding:8px 12px;color:#64748b;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:10px;white-space:nowrap;flex-shrink:0;transition:all .18s cubic-bezier(.16,1,.3,1)}
@@ -247,19 +287,19 @@ const PA_CSS = `
 .pa .lead{font-size:15px}
 .pa ul{margin:6px 0 14px;padding-left:22px}.pa li{margin:3px 0}
 .pa .pill-list{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}
-.pa .pill-list li{background:var(--leaf-soft);color:var(--leaf);font-weight:600;font-size:12px;padding:4px 11px;border-radius:9999px;margin:0}
+.pa .pill-list li{background:var(--leaf-soft);color:var(--leaf);font-weight:600;font-size:13px;padding:5px 12px;border-radius:9999px;margin:0}
 .pa .opening{background:linear-gradient(135deg,#eff6ff,#eef2ff);border:1px solid #dbeafe;border-left:3px solid var(--accent);border-radius:0 14px 14px 0;padding:16px 20px;margin:6px 0}
 .pa .opening .big{font-size:16px;font-weight:800;letter-spacing:-.01em;color:#1e3a8a}
 .pa .formula{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border-radius:14px;padding:18px 20px;text-align:center;font-size:18px;font-weight:800;letter-spacing:.3px;margin:14px 0;box-shadow:0 4px 20px rgba(59,130,246,.18)}
 .pa .formula small{display:block;font-weight:500;font-size:12.5px;opacity:.9;margin-top:6px;letter-spacing:0}
-.pa .gb{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 16px}
-.pa .ex{border-radius:14px;padding:14px;font-size:13px}
-.pa .ex .tag{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:2px 9px;border-radius:9999px;margin-bottom:8px}
+.pa .gb{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0 20px}
+.pa .ex{border-radius:14px;padding:18px 20px;font-size:13.5px;line-height:1.65}
+.pa .ex .tag{display:block;width:fit-content;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border-radius:9999px;margin-bottom:10px}
 .pa .bad{background:#fef2f2;border:1px solid #fecaca}.pa .bad .tag{background:var(--red);color:#fff}
 .pa .good{background:#f0fdf4;border:1px solid #bbf7d0}.pa .good .tag{background:var(--green);color:#fff}
 .pa .hier{border-left:3px solid var(--accent);background:#f8fafc;border-radius:0 12px 12px 0;padding:12px 16px;margin:8px 0;font-size:13px}
 .pa .hier h4{margin:0 0 4px;font-size:13.5px;font-weight:700}.pa .hier .q{font-style:italic;color:var(--muted);font-size:12.5px;margin:2px 0 6px}
-.pa .hier .lv{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.pa .hier .lv{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
 .pa table.matrix{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:13px}
 .pa table.matrix th,.pa table.matrix td{border:1px solid var(--line);padding:9px 12px;text-align:left}
 .pa table.matrix th{background:var(--leaf-soft);color:var(--leaf);font-weight:700}
@@ -271,10 +311,17 @@ const PA_CSS = `
 .pa .ack input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:0 0 auto;cursor:pointer;accent-color:#4f46e5}
 .pa .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .pa .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.pa label.fld{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+.pa label.fld{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
 .pa input:not([type=checkbox]):not([type=file]),.pa select,.pa textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit;transition:box-shadow .2s ease,border-color .2s ease}
 .pa input:not([type=checkbox]):not([type=file]):focus,.pa select:focus,.pa textarea:focus{outline:none;border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
 .pa textarea{resize:vertical;min-height:54px}
+/* Custom, consistently-placed dropdown chevron (replaces the inconsistent
+   native select arrow). Pinned 12px from the right edge across all browsers. */
+.pa select{appearance:none;-webkit-appearance:none;-moz-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:14px;padding-right:34px}
+/* Only while the dropdown picker is actually OPEN, flip the chevron up and tint
+   it the accent. The :open pseudo-class (unlike :focus) clears as soon as the
+   list closes, so the arrow doesn't stay stuck up after selecting. */
+.pa select:open{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 15l6-6 6 6'/%3E%3C/svg%3E")}
 /* File upload — a styled label-button wrapping a visually-hidden native input.
    Native file inputs render inconsistently (and the button is invisible here
    because the rule above excludes [type=file]); this gives a consistent,
@@ -297,9 +344,9 @@ const PA_CSS = `
 .pa .facets{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
 .pa .facet{border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;font-size:13px;width:calc(50% - 5px);transition:all .18s cubic-bezier(.16,1,.3,1)}
 .pa .facet:hover{border-color:#c7d2fe;background:#fafbff}.pa .facet.on{border-color:var(--leaf);background:var(--leaf-soft);box-shadow:0 0 0 1px var(--leaf)}
-.pa .facet b{display:block;margin-bottom:3px;font-size:13px;font-weight:700}.pa .facet span{color:var(--muted);font-size:12px}
+.pa .facet b{display:block;margin-bottom:3px;font-size:13px;font-weight:700}.pa .facet span{color:var(--muted);font-size:13px}
 .pa .rate{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:8px 0}
-.pa .rb{border:1px solid var(--line);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);transition:all .14s cubic-bezier(.16,1,.3,1)}
+.pa .rb{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);transition:all .14s cubic-bezier(.16,1,.3,1)}
 .pa .rb:hover{border-color:#bfdbfe;background:#f8fafc}.pa .rb.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .pa .rb b{display:block;font-size:15px;font-weight:800;margin-bottom:2px;color:inherit}
 .pa .contrib{border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:22px 24px;margin-bottom:18px;background:#f8fafc}
@@ -357,7 +404,7 @@ const PA_CSS = `
 .pa .req-error{border-color:#ef4444!important;background:#fff8f8!important;box-shadow:0 0 0 3px rgba(239,68,68,.16)!important}
 .pa .rate-err{outline:2px solid #ef4444;outline-offset:3px;border-radius:12px}
 .pa .req-star{color:#ef4444;font-size:11px;vertical-align:super;line-height:0;margin-left:1px}
-.pa .err-msg{font-size:11.5px;color:#dc2626;margin-top:3px;display:block;line-height:1.4}
+.pa .err-msg{font-size:12.5px;color:#dc2626;margin-top:3px;display:block;line-height:1.4}
 .pa .top-err{font-size:12.5px;padding:9px 13px;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:10px;margin-bottom:12px}
 @media (max-width:760px){.pa .gb,.pa .grid2,.pa .tmpl,.pa .rate{grid-template-columns:1fr}.pa .facet{width:100%}}
 @media print{
@@ -367,8 +414,8 @@ const PA_CSS = `
   /* Faithful colours (score badge, severity dots, warn boxes) */
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   /* Isolate the Review & Submit document — hide app shell, tabs, banners, etc. */
-  body *{visibility:hidden!important}
-  #pa-print,#pa-print *{visibility:visible!important}
+  body:has(#pa-print) *{visibility:hidden!important}
+  body:has(#pa-print) #pa-print,body:has(#pa-print) #pa-print *{visibility:visible!important}
   #pa-print{position:absolute!important;left:0;top:0;width:100%!important;max-width:none!important;margin:0!important}
   /* Drop interactive / non-content controls even inside the printed area */
   .no-print,.pa .stepnav,.pa .navbtns,.pa .addbtn,.pa .rm,.pa .ghost,.pa-save-btn{display:none!important}
@@ -388,6 +435,10 @@ const PA_CSS = `
   #pa-print .rev-block{margin-bottom:12px}
 }
 .pa-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+/* Transient confirmation toast — pinned bottom-right, visible without scrolling. */
+.pa-toast{position:fixed;bottom:28px;right:28px;z-index:300;display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:14px;padding:16px 22px;font-size:15.5px;font-weight:700;box-shadow:0 12px 40px rgba(22,163,74,.45);max-width:440px;animation:pa-toast-in .25s cubic-bezier(.16,1,.3,1)}
+.pa-toast.warn{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 12px 40px rgba(245,158,11,.45)}
+@keyframes pa-toast-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .pa-dialog{background:#fff;border-radius:18px;padding:28px 28px 22px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22)}
 .pa-dialog h3{margin:0 0 8px;font-size:17px;font-weight:800;letter-spacing:-.02em;color:#0f172a;font-family:inherit}
 .pa-dialog p{margin:0 0 22px;font-size:14px;color:#64748b;line-height:1.6}
@@ -396,11 +447,11 @@ const PA_CSS = `
 .pa-save-btn:hover{background:#e0e7ff}
 .pa .miss-card{margin-top:10px;border:1px solid #fde68a;border-radius:12px;background:#fffbeb;padding:11px 14px 9px;cursor:pointer;transition:all .15s}
 .pa .miss-card:hover{background:#fef3c7;border-color:#f59e0b}
-.pa .miss-card-hd{font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-.pa .miss-field{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#78350f;padding:2px 0;line-height:1.4}
+.pa .miss-card-hd{font-size:12px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.pa .miss-field{display:flex;align-items:center;gap:6px;font-size:13px;color:#78350f;padding:2px 0;line-height:1.4}
 .pa .miss-dot{width:5px;height:5px;border-radius:50%;background:#f59e0b;flex-shrink:0}
 .pa .miss-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.pa .miss-go-btn{background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.pa .miss-go-btn{background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .pa .miss-go-btn:hover{background:#d97706}
 `;
 
@@ -418,12 +469,16 @@ export default function PerformanceAssessmentPage() {
 
   // 360 flow — reviewer nomination + active cycle
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
+  const [orgUsersStatus, setOrgUsersStatus] = useState<
+    "loading" | "loaded" | "error"
+  >("loading");
   const [reviewerIds, setReviewerIds] = useState<string[]>([]);
   const [reviewerSearch, setReviewerSearch] = useState("");
   const [activeCycle, setActiveCycle] = useState<ReviewCycle | null>(null);
   const [pendingReviews, setPendingReviews] = useState(0);
   const [existingSelf, setExistingSelf] =
     useState<PerformanceAssessmentRow | null>(null);
+  const [booting, setBooting] = useState(true);
   const [unlocked, setUnlocked] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
   const [mode, setModeState] = useState<"self" | "rev">("self");
@@ -446,13 +501,15 @@ export default function PerformanceAssessmentPage() {
   const [facets, setFacets] = useState<Set<string>>(new Set());
 
   // Contributions
-  const [contributions, setContributions] = useState<Contribution[]>([]);
-  const [cCounter, setCCounter] = useState(0);
+  const [contributions, setContributions] = useState<Contribution[]>(() => [
+    blankContrib(1),
+  ]);
+  const [cCounter, setCCounter] = useState(1);
 
   // Entries
-  const [teamEntries, setTeamEntries] = useState<Entry[]>([]);
-  const [orgEntries, setOrgEntries] = useState<Entry[]>([]);
-  const [eCounter, setECounter] = useState(0);
+  const [teamEntries, setTeamEntries] = useState<Entry[]>(() => [blankEntry(1)]);
+  const [orgEntries, setOrgEntries] = useState<Entry[]>(() => [blankEntry(2)]);
+  const [eCounter, setECounter] = useState(2);
 
   // Culture
   const [cultRatings, setCultRatings] = useState<Record<string, number>>({});
@@ -492,22 +549,28 @@ export default function PerformanceAssessmentPage() {
   // Load the org directory (for reviewer nomination), the active review cycle,
   // the pending-review count (My Reviews badge) and any already-submitted
   // self-assessment so we can show/fetch it instead of a blank form.
-  useEffect(() => {
+  const loadOrgUsers = useCallback(() => {
+    setOrgUsersStatus("loading");
     usersApi
       .list()
-      .then((r) => setOrgUsers(r.users || []))
-      .catch(() => {});
-    performanceAssessments
-      .activeCycle()
-      .then((r) => setActiveCycle(r.cycle))
-      .catch(() => {});
-    performanceAssessments
-      .myReviews("pending")
-      .then((r) => setPendingReviews((r.reviews || []).length))
-      .catch(() => {});
-    performanceAssessments
-      .myAssessments()
       .then((r) => {
+        setOrgUsers(r.users || []);
+        setOrgUsersStatus("loaded");
+      })
+      .catch((e) => {
+        console.error("Failed to load colleagues:", e);
+        setOrgUsersStatus("error");
+      });
+  }, []);
+
+  useEffect(() => {
+    loadOrgUsers();
+    Promise.allSettled([
+      performanceAssessments.activeCycle().then((r) => setActiveCycle(r.cycle)),
+      performanceAssessments
+        .myReviews("pending")
+        .then((r) => setPendingReviews((r.reviews || []).length)),
+      performanceAssessments.myAssessments().then((r) => {
         const self =
           (r.assessments || []).find((a) => a.status === "submitted") ||
           (r.assessments || [])[0] ||
@@ -516,9 +579,9 @@ export default function PerformanceAssessmentPage() {
           setExistingSelf(self);
           setSubmitted(true);
         }
-      })
-      .catch(() => {});
-  }, []);
+      }),
+    ]).finally(() => setBooting(false));
+  }, [loadOrgUsers]);
 
   const toggleReviewer = useCallback((id: string) => {
     setReviewerIds((prev) => {
@@ -581,33 +644,14 @@ export default function PerformanceAssessmentPage() {
 
   // ── Contributions ────────────────────────────────────────────────────────
   const addContrib = useCallback(() => {
-    const id = cCounter + 1;
-    setCCounter(id);
     setIsDirty(true);
-    setContributions((p) => [
-      ...p,
-      {
-        id,
-        self: null,
-        reviewer: null,
-        impacts: [],
-        impactWhy: {},
-        title: "",
-        area: "",
-        context: "",
-        problem: "",
-        create: "",
-        adopt: "",
-        changed: "",
-        value: "",
-        sustain: "",
-        evidence: "",
-        proofref: "",
-        prooffilename: "",
-        rjust: "",
-        custom: [],
-      },
-    ]);
+    setCCounter(cCounter + 1);
+    setContributions((p) => {
+      // Derive the id from the current list (counter as a floor) so a rapid
+      // double-click can't create two contributions with the same id / React key.
+      const id = Math.max(cCounter + 1, p.reduce((m, c) => Math.max(m, c.id), 0) + 1);
+      return [...p, blankContrib(id)];
+    });
   }, [cCounter]);
 
   const removeContrib = useCallback((id: number) => {
@@ -710,11 +754,15 @@ export default function PerformanceAssessmentPage() {
   // ── Entries ───────────────────────────────────────────────────────────────
   const addEntry = useCallback(
     (section: "team" | "org") => {
-      const id = eCounter + 1;
-      setECounter(id);
-      const setter = section === "team" ? setTeamEntries : setOrgEntries;
-      setter((p) => [...p, { id, rating: null, text: "", remark: "" }]);
       setIsDirty(true);
+      setECounter(eCounter + 1);
+      const setter = section === "team" ? setTeamEntries : setOrgEntries;
+      setter((p) => {
+        // id derived from the current list (counter as a floor) — duplicate-key safe
+        // even on a rapid double-click.
+        const id = Math.max(eCounter + 1, p.reduce((m, e) => Math.max(m, e.id), 0) + 1);
+        return [...p, blankEntry(id)];
+      });
     },
     [eCounter],
   );
@@ -1338,14 +1386,19 @@ export default function PerformanceAssessmentPage() {
       setDesig(dd.desig || "");
       setPeriod(dd.period || "");
       const contribs = (dd.contributions as Contribution[]) || [];
+      // At least one Individual Contribution is mandatory — never start empty.
+      if (!contribs.length) contribs.push(blankContrib(1));
       setContributions(contribs);
-      setCCounter(Math.max(0, ...contribs.map((c) => c.id)));
+      setCCounter(Math.max(1, ...contribs.map((c) => c.id)));
       const team = (dd.teamEntries as Entry[]) || [];
       const org = (dd.orgEntries as Entry[]) || [];
+      // At least one entry per section is mandatory — never start empty.
+      if (!team.length) team.push(blankEntry(1));
+      if (!org.length) org.push(blankEntry(2));
       setTeamEntries(team);
       setOrgEntries(org);
       setECounter(
-        Math.max(0, ...team.map((e) => e.id), ...org.map((e) => e.id)),
+        Math.max(2, ...team.map((e) => e.id), ...org.map((e) => e.id)),
       );
       setCultRatings((dd.cultRatings as Record<string, number>) || {});
       setCultComment(dd.cultComment || "");
@@ -1367,22 +1420,6 @@ export default function PerformanceAssessmentPage() {
       /* ignore */
     }
   }, [applyState, goto]);
-
-  // Pull the user's already-submitted self-assessment back into the form to
-  // view/edit (re-saving updates the same record).
-  const loadSubmitted = useCallback(
-    async (id: string) => {
-      try {
-        const r = await performanceAssessments.get(id);
-        applyState((r.assessment.data as Record<string, unknown>) || {});
-        setSubmitted(true);
-        goto(7);
-      } catch {
-        showFlash("⚠️ Couldn't load your submitted assessment.");
-      }
-    },
-    [applyState, goto, showFlash],
-  );
 
   const discardDraft = useCallback(() => {
     localStorage.removeItem(DRAFT_KEY);
@@ -1504,7 +1541,15 @@ export default function PerformanceAssessmentPage() {
     const entryCount = (section === "team" ? teamEntries : orgEntries).length;
     return (
       <div className="block">
-        <div className="ch" style={{ marginBottom: 8 }}>
+        <div
+          className="ch"
+          style={{
+            marginBottom: 8,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <h4 style={{ margin: 0, fontSize: 13, color: "var(--leaf)" }}>
             Contribution #{idx + 1}
           </h4>
@@ -1618,30 +1663,52 @@ export default function PerformanceAssessmentPage() {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (booting) {
+    return (
+      <div className="max-w-[1440px] mx-auto w-full flex items-center justify-center py-32 animate-fade-in-up">
+        <div className="flex flex-col items-center gap-5">
+          <div
+            className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-md"
+            style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
+          >
+            <Award className="h-7 w-7 text-white" />
+          </div>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading performance
+            assessment…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <style>{PA_CSS}</style>
+
+      {/* Transient confirmations (Draft saved, Progress saved, …) shown as a
+          bottom-right toast so they're visible without scrolling to the top. */}
+      {flash && (
+        <div className={`pa-toast${flash.includes("⚠️") ? " warn" : ""}`}>
+          {flash}
+        </div>
+      )}
 
       {/* ── Page header (pure app styling, outside the scoped .pa block) ─── */}
       <div className="max-w-[1440px] mx-auto w-full animate-fade-in-up">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-3">
               <div
-                className="h-5 w-5 rounded-md flex items-center justify-center"
-                style={{
-                  background: "linear-gradient(135deg,#3b82f6,#6366f1)",
-                }}
+                className="h-12 w-12 rounded-2xl flex items-center justify-center shadow-md shrink-0"
+                style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
               >
-                <Award className="h-3 w-3 text-white" />
+                <Award className="h-7 w-7 text-white" />
               </div>
-              <span className="text-label-upper text-blue-500">
-                Performance
-              </span>
+              <h1 className="text-display text-slate-900">
+                Performance Assessment
+              </h1>
             </div>
-            <h1 className="text-display text-slate-900">
-              Performance Assessment
-            </h1>
             <p className="text-sm text-slate-500 mt-1.5 font-medium">
               {VIEW_SUBTITLE[view]}
             </p>
@@ -1707,14 +1774,7 @@ export default function PerformanceAssessmentPage() {
 
       {/* ── Self-assessment wizard ───────────────────────────────────────── */}
       {view === "self" && (
-        <div
-          className="pa mt-5"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            minHeight: "100%",
-          }}
-        >
+        <div className="pa mt-5">
           {/* ── Step nav ──────────────────────────────────────────────────── */}
           <div className="stepnav">
             <div className="stepnav-inner">
@@ -1767,7 +1827,7 @@ export default function PerformanceAssessmentPage() {
                 <span style={{ display: "flex", gap: 8 }}>
                   <button
                     className="primary"
-                    onClick={() => loadSubmitted(existingSelf.id)}
+                    onClick={() => setView("reviews")}
                   >
                     View
                   </button>
@@ -1788,18 +1848,6 @@ export default function PerformanceAssessmentPage() {
                 </span>
               </div>
             )}
-            {flash && (
-              <div
-                className="draftbar"
-                style={{ background: "#f0fdf4", borderColor: "#86efac" }}
-              >
-                <span style={{ color: "#16a34a", fontWeight: 600 }}>
-                  {flash}
-                </span>
-                <span />
-              </div>
-            )}
-
             {/* ── Unsaved-changes dialog ──────────────────────────────────── */}
             {showDraftDialog && (
               <div className="pa-overlay">
@@ -2144,19 +2192,16 @@ export default function PerformanceAssessmentPage() {
                       <Err k="desig" />
                     </div>
                   </div>
-                  <div className="grid2" style={{ marginBottom: 16 }}>
-                    <div>
-                      <label className="fld">Review period</label>
-                      <input
-                        value={period}
-                        onChange={(e) => {
-                          setPeriod(e.target.value);
-                          setIsDirty(true);
-                        }}
-                        placeholder="e.g. H1 2026"
-                      />
-                    </div>
-                    <div />
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="fld">Review period</label>
+                    <input
+                      value={period}
+                      onChange={(e) => {
+                        setPeriod(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      placeholder="e.g. H1 2026"
+                    />
                   </div>
 
                   <label className="fld">Career level</label>
@@ -2307,7 +2352,7 @@ export default function PerformanceAssessmentPage() {
                           </div>
                           <div>
                             <label className="fld">
-                              Role area <span className="req-star">*</span>
+                              Role <span className="req-star">*</span>
                             </label>
                             <select
                               className={errCls("c" + c.id + "_area")}
@@ -2776,7 +2821,9 @@ export default function PerformanceAssessmentPage() {
                   </p>
                   {topErr && <div className="top-err">{topErr}</div>}
                   {teamEntries.map((e, idx) => (
-                    <EntryBlock key={e.id} section="team" e={e} idx={idx} />
+                    <Fragment key={e.id}>
+                      {EntryBlock({ section: "team", e, idx })}
+                    </Fragment>
                   ))}
                   <button className="addbtn" onClick={() => addEntry("team")}>
                     + Add a team contribution
@@ -2834,7 +2881,9 @@ export default function PerformanceAssessmentPage() {
                   </div>
                   {topErr && <div className="top-err">{topErr}</div>}
                   {orgEntries.map((e, idx) => (
-                    <EntryBlock key={e.id} section="org" e={e} idx={idx} />
+                    <Fragment key={e.id}>
+                      {EntryBlock({ section: "org", e, idx })}
+                    </Fragment>
                   ))}
                   <button className="addbtn" onClick={() => addEntry("org")}>
                     + Add an organization contribution
@@ -2917,7 +2966,7 @@ export default function PerformanceAssessmentPage() {
                                 setIsDirty(true);
                               }}
                             >
-                              <option value="">—</option>
+                              <option value="">Awaiting Rating</option>
                               {SCALE5.map((s, i) => (
                                 <option key={i} value={NUM[i]}>
                                   {s}
@@ -3245,9 +3294,30 @@ export default function PerformanceAssessmentPage() {
                             </div>
                           );
                         })}
-                      {orgUsers.length === 0 && (
-                        <div className="hint">Loading colleagues…</div>
+                      {orgUsers.length === 0 &&
+                        orgUsersStatus === "loading" && (
+                          <div className="hint">Loading colleagues…</div>
+                        )}
+                      {orgUsersStatus === "error" && (
+                        <div className="hint">
+                          Couldn&apos;t load colleagues.{" "}
+                          <button
+                            type="button"
+                            onClick={loadOrgUsers}
+                            style={{
+                              color: "var(--accent)",
+                              fontWeight: 600,
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Retry
+                          </button>
+                        </div>
                       )}
+                      {orgUsers.length === 0 &&
+                        orgUsersStatus === "loaded" && (
+                          <div className="hint">No colleagues found.</div>
+                        )}
                     </div>
                   </div>
                 )}
@@ -3497,19 +3567,6 @@ export default function PerformanceAssessmentPage() {
                   </span>
                 </div>
 
-                {flash && (
-                  <div
-                    className="warn-box"
-                    style={{
-                      marginTop: 12,
-                      color: "#14532d",
-                      background: "#f0fdf4",
-                      border: "1px solid #86efac",
-                    }}
-                  >
-                    {flash}
-                  </div>
-                )}
               </div>
             )}
           </div>

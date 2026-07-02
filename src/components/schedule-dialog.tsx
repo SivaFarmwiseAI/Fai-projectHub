@@ -35,6 +35,12 @@ import { REVIEW_TYPE_LABELS } from "@/lib/labels";
 
 export type ScheduleTab = "leave" | "review" | "discussion";
 
+// Local YYYY-MM-DD — used as the date-picker `min` so past dates can't be picked.
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -77,7 +83,7 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[720px] p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-blue-600" />
@@ -132,6 +138,8 @@ function LeaveForm({
   onSuccess: (msg: string, detail?: string) => void;
 }) {
   const [type, setType] = useState("planned");
+  const [duration, setDuration] = useState<"full" | "half">("full");
+  const [halfPeriod, setHalfPeriod] = useState<"first" | "second">("first");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
@@ -150,11 +158,20 @@ function LeaveForm({
     }
     setSubmitting(true);
     try {
+      // The backend records a half-day as type "half_day" (0.5-day calc);
+      // full-day leave keeps the chosen category (planned/sick/…).
+      const effectiveType = duration === "half" ? "half_day" : type;
+      // The leave API has no half-period field, so note it in the reason.
+      const halfLabel = halfPeriod === "first" ? "First half" : "Second half";
+      const effectiveReason =
+        duration === "half"
+          ? reason ? `${halfLabel} — ${reason}` : halfLabel
+          : reason;
       await leaveApi.create({
-        type,
+        type: effectiveType,
         start_date: startDate,
         end_date: endDate,
-        reason,
+        reason: effectiveReason,
         cover_person_id: coverPerson || undefined,
         coverage_plan: coveragePlan || undefined,
         is_planned: type === "planned",
@@ -169,6 +186,9 @@ function LeaveForm({
     }
   }
 
+  const todayStr = todayISO();
+  const invalidRange = !!(startDate && endDate && endDate < startDate);
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -177,7 +197,7 @@ function LeaveForm({
           <Select value={type} onValueChange={v => v && setType(v)}>
             <SelectTrigger className="h-9 text-sm mt-1">
               <SelectValue>
-                {({ planned: "Planned", sick: "Sick", personal: "Personal", wfh: "Work from Home", half_day: "Half Day" } as Record<string, string>)[type] ?? type}
+                {({ planned: "Planned", sick: "Sick", personal: "Personal", wfh: "Work from Home" } as Record<string, string>)[type] ?? type}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -185,7 +205,6 @@ function LeaveForm({
               <SelectItem value="sick">Sick</SelectItem>
               <SelectItem value="personal">Personal</SelectItem>
               <SelectItem value="wfh">Work from Home</SelectItem>
-              <SelectItem value="half_day">Half Day</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -193,22 +212,78 @@ function LeaveForm({
           <Label className="text-xs">Start <span className="text-red-500">*</span></Label>
           <Input
             type="date"
+            min={todayStr}
             className="h-9 text-sm mt-1 cursor-pointer"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
-            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
         <div>
           <Label className="text-xs">End <span className="text-red-500">*</span></Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1 cursor-pointer"
+            min={startDate || todayStr}
+            className={`h-9 text-sm mt-1 cursor-pointer${invalidRange ? " border-red-400 focus-visible:ring-red-200" : ""}`}
             value={endDate}
             onChange={e => setEndDate(e.target.value)}
-            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
+      </div>
+
+      {invalidRange && (
+        <p className="text-xs font-medium text-red-600">
+          End date cannot be earlier than the start date. Please select a valid date range.
+        </p>
+      )}
+
+      <div>
+        <Label className="text-xs">Duration <span className="text-red-500">*</span></Label>
+        <div className="flex items-center gap-3 mt-1.5">
+          {([
+            { value: "full", label: "Full Day" },
+            { value: "half", label: "Half Day" },
+          ] as const).map(opt => (
+            <label
+              key={opt.value}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium cursor-pointer transition-colors ${
+                duration === opt.value
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 text-slate-600 hover:border-gray-300"
+              }`}
+            >
+              <input
+                type="radio"
+                name="leave-duration"
+                value={opt.value}
+                checked={duration === opt.value}
+                onChange={() => {
+                  setDuration(opt.value);
+                  if (opt.value === "half") setHalfPeriod("first");
+                }}
+                className="h-4 w-4 accent-blue-600 cursor-pointer"
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+
+        {duration === "half" && (
+          <div className="mt-2.5 max-w-[220px] animate-fade-in-up">
+            <Select value={halfPeriod} onValueChange={v => v && setHalfPeriod(v as "first" | "second")}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue>
+                  {halfPeriod === "first" ? "First Half" : "Second Half"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="first">First Half</SelectItem>
+                <SelectItem value="second">Second Half</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div>
@@ -252,7 +327,7 @@ function LeaveForm({
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={submitting} className="gap-1.5">
+        <Button size="sm" onClick={submit} disabled={submitting || invalidRange} className="gap-1.5">
           {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           Submit Request
         </Button>
@@ -368,10 +443,11 @@ function ReviewForm({
           <Label className="text-xs">Due Date</Label>
           <Input
             type="date"
+            min={todayISO()}
             className="h-9 text-sm mt-1 cursor-pointer"
             value={dueDate}
             onChange={e => setDueDate(e.target.value)}
-            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
       </div>
@@ -501,10 +577,11 @@ function DiscussionForm({
           <Label className="text-xs">Scheduled Date (optional)</Label>
           <Input
             type="date"
+            min={todayISO()}
             className="h-9 text-sm mt-1 cursor-pointer"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
-            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
         <div>
