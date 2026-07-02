@@ -42,7 +42,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SECTION_ORDER, type MenuItemConfig, type RoleType } from "@/lib/menu-access";
+import {
+  SECTION_ORDER,
+  type MenuItemConfig,
+  type RoleType,
+} from "@/lib/menu-access";
 
 /* ── Icon map: key → Lucide icon component ──────────────────── */
 const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
@@ -195,43 +199,50 @@ export function Sidebar() {
   function NavItem({ item }: { item: MenuItemConfig }) {
     const IconComponent = ITEM_ICONS[item.key] ?? LayoutDashboard;
     const exactMatchExists = visibleItems.some(
-      (other) => other.href !== item.href && pathname === other.href
+      (other) => other.href !== item.href && pathname === other.href,
     );
     const isActive =
       pathname === item.href ||
-      (!exactMatchExists && item.href !== "/" && pathname.startsWith(item.href + "/"));
+      (!exactMatchExists &&
+        item.href !== "/" &&
+        pathname.startsWith(item.href + "/"));
     const count = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+    const isDisabled = !!item.disabled;
 
     const iconEl = (
       <IconComponent
         className={cn(
           "h-[17px] w-[17px] shrink-0 transition-all duration-150",
-          isActive ? "text-white" : "text-slate-400 group-hover:text-blue-300",
-          "group-hover:scale-110",
+          isDisabled
+            ? "text-slate-500"
+            : isActive
+              ? "text-white"
+              : "text-slate-400 group-hover:text-blue-300",
+          !isDisabled && "group-hover:scale-110",
         )}
       />
     );
 
-    const linkContent = (
-      <Link
-        href={item.href}
-        onClick={() => setMobileOpen(false)}
-        className={cn(
-          "sidebar-nav-item relative flex items-center gap-3 rounded-xl font-medium group",
-          collapsed ? "justify-center px-0 py-2.5 mx-1" : "px-3 py-2.5",
-          isActive
-            ? "sidebar-nav-active text-white"
-            : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100",
-        )}
-      >
-        {isActive && !collapsed && (
+    const sharedClassName = cn(
+      "sidebar-nav-item relative flex items-center gap-1 rounded-xl font-medium group",
+      collapsed ? "justify-center px-0 py-2.5 mx-1" : "px-3 py-2.5",
+      isDisabled
+        ? "text-slate-500 cursor-not-allowed opacity-60"
+        : isActive
+          ? "sidebar-nav-active text-white"
+          : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100",
+    );
+
+    const innerContent = (
+      <>
+        {isActive && !collapsed && !isDisabled && (
           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-white/70" />
         )}
         {iconEl}
         {!collapsed && (
           <>
             <span className="flex-1 truncate text-[13px]">{item.label}</span>
-            {item.badgeKey && count > 0 && (
+            {item.badgeKey && count > 0 && !isDisabled && (
               <span
                 className={cn(
                   "animate-badge-pop flex items-center justify-center min-w-[20px] h-5 rounded-full text-[10px] font-bold px-1.5",
@@ -245,22 +256,41 @@ export function Sidebar() {
             )}
           </>
         )}
-        {collapsed && item.badgeKey && count > 0 && (
+        {collapsed && item.badgeKey && count > 0 && !isDisabled && (
           <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-amber-500 border-2 border-[#1e1b4b] text-[9px] font-bold text-white flex items-center justify-center">
             {count}
           </span>
         )}
+      </>
+    );
+
+    const linkContent = isDisabled ? (
+      <div className={sharedClassName} aria-disabled="true">
+        {innerContent}
+      </div>
+    ) : (
+      <Link
+        href={item.href}
+        onClick={() => setMobileOpen(false)}
+        className={sharedClassName}
+      >
+        {innerContent}
       </Link>
     );
 
-    if (collapsed) {
+    if (collapsed || isDisabled) {
       return (
         <Tooltip>
-          <TooltipTrigger>{linkContent}</TooltipTrigger>
+          <TooltipTrigger render={linkContent} />
           <TooltipContent side="right">
             <span className="font-semibold">{item.label}</span>
-            {item.badgeKey && count > 0 && (
-              <span className="ml-1 text-amber-400">({count})</span>
+            {isDisabled ? (
+              <span className="ml-1 text-slate-400">(disabled)</span>
+            ) : (
+              item.badgeKey &&
+              count > 0 && (
+                <span className="ml-1 text-amber-400">({count})</span>
+              )
             )}
           </TooltipContent>
         </Tooltip>
