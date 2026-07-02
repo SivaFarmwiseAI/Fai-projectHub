@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp, Activity } from "lucide-react";
 import { performanceAssessments, type EmployeeReport } from "@/lib/api-client";
+import { WorkHistory } from "@/components/work-history";
 import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 
 /* ─── Data shape mirrors gather() in the assessment page ─── */
@@ -209,6 +210,12 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
                   )}
                 </div>
               )}
+            </section>
+
+            {/* ── Objective work history (real task/milestone data) ── */}
+            <section className="print:hidden">
+              <SectionLabel icon={<Activity className="h-3.5 w-3.5 text-blue-500" />} text="Work history & activity" />
+              <WorkHistory subjectId={subjectId} />
             </section>
 
             {/* ── Contributions ── */}

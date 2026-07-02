@@ -111,6 +111,22 @@ def _user_tasks(event, origin, user_id):
     return resp({"tasks": tasks}, origin=origin)
 
 
+def _user_activity(event, origin, user_id):
+    """Objective work history for a member: tasks + milestones allotted, and a
+    time-ordered feed of updates/revisions they authored. Access is gated by
+    fn_can_view_subject (self / reporting subtree / leadership)."""
+    cu = get_current_user(event)
+    p = get_query(event)
+    data = call_fn(
+        "fn_user_work_history",
+        user_id, cu["id"], cu["role_type"],
+        p.get("from") or None, p.get("to") or None,
+    )
+    if data is None:
+        raise HTTPError(403, "Not allowed to view this member's work history")
+    return resp({"activity": data}, origin=origin)
+
+
 def _user_leave(event, origin, user_id):
     get_current_user(event)
     leave = fetchall("""
@@ -195,8 +211,9 @@ handler = make_handler([
     ("POST",   r"/api/departments",                      _create_department),
     ("GET",    r"/api/roles",                            _list_roles),
     ("POST",   r"/api/roles",                            _create_role),
-    ("GET",    rf"/api/users/(?P<user_id>{PARAM})/tasks", _user_tasks),
-    ("GET",    rf"/api/users/(?P<user_id>{PARAM})/leave", _user_leave),
+    ("GET",    rf"/api/users/(?P<user_id>{PARAM})/tasks",    _user_tasks),
+    ("GET",    rf"/api/users/(?P<user_id>{PARAM})/activity", _user_activity),
+    ("GET",    rf"/api/users/(?P<user_id>{PARAM})/leave",    _user_leave),
     ("GET",    rf"/api/users/(?P<user_id>{PARAM})",       _get_user),
     ("PATCH",  rf"/api/users/(?P<user_id>{PARAM})",       _update_user),
     ("DELETE", rf"/api/users/(?P<user_id>{PARAM})",       _deactivate_user),
