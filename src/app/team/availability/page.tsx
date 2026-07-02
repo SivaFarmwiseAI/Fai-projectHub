@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LeaveAnalytics } from "@/components/leave-analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -23,6 +24,7 @@ import {
   Home,
   UserCheck,
   Hourglass,
+  Search,
 } from "lucide-react";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import {
@@ -94,13 +96,15 @@ const statusColors: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────
 
 export default function LeaveAvailabilityPage() {
-  const { user: authUser, isCEO, isAdmin } = useAuth();
+  const { user: authUser, isCEO, isAdmin, isLead, isLeadership } = useAuth();
   const confirm = useConfirm();
   const [userList, setUserList] = useState<User[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [ceoComment, setCeoComment] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [analyticsUserId, setAnalyticsUserId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   async function loadLeaveData() {
     await Promise.all([
@@ -115,20 +119,61 @@ export default function LeaveAvailabilityPage() {
 
   const userMap = Object.fromEntries(userList.map(u => [u.id, u]));
 
-  const pendingLeaves = leaveRequests.filter(lr => lr.status === "pending");
-  const approvedLeaves = leaveRequests.filter(lr => lr.status === "approved");
-  const upcomingLeaves = leaveRequests.filter(lr => {
+  // ── Role-based visibility ──────────────────────────────────
+  //  CEO / Admin / Leadership → all employees
+  //  Team Lead                → direct reports (manager_id = me) + myself
+  //  Member                   → only myself
+  const canSeeEveryone = isCEO || isAdmin || isLeadership;
+  const visibleUsers = useMemo(() => {
+    if (canSeeEveryone) return userList;
+    if (isLead) return userList.filter(u => u.manager_id === authUser?.id || u.id === authUser?.id);
+    return userList.filter(u => u.id === authUser?.id);
+  }, [userList, canSeeEveryone, isLead, authUser?.id]);
+
+  const visibleIds = useMemo(() => new Set(visibleUsers.map(u => u.id)), [visibleUsers]);
+  // Leave data is scoped server-side too; this mirror keeps the UI consistent
+  // even before the backend deploy lands and against any stale cache.
+  const scopedLeave = useMemo(
+    () => leaveRequests.filter(lr => visibleIds.has(lr.user_id)),
+    [leaveRequests, visibleIds],
+  );
+
+  const pendingLeaves = scopedLeave.filter(lr => lr.status === "pending");
+  const approvedLeaves = scopedLeave.filter(lr => lr.status === "approved");
+  const upcomingLeaves = scopedLeave.filter(lr => {
     const start = new Date(lr.start_date).getTime();
     return start >= Date.now() && (lr.status === "approved" || lr.status === "pending");
   });
+
+  // ── Real-time search (within the role-scoped set) ──────────
+  const q = search.trim().toLowerCase();
+  const searchedUsers = useMemo(
+    () => (q ? visibleUsers.filter(u => u.name.toLowerCase().includes(q)) : visibleUsers),
+    [visibleUsers, q],
+  );
+  const nameOf = (lr: LeaveRequest) =>
+    (userMap[lr.user_id]?.name ?? lr.user_name ?? "").toLowerCase();
+  const matchesSearch = (lr: LeaveRequest) => !q || nameOf(lr).includes(q);
+  const shownPending = pendingLeaves.filter(matchesSearch);
+  const shownApproved = approvedLeaves.filter(matchesSearch);
+  const rejectedLeaves = scopedLeave.filter(lr => lr.status === "rejected");
+  const shownRejected = rejectedLeaves.filter(matchesSearch);
+
+  // Who may approve/reject a given request:
+  //   CEO / Admin / Leadership → anyone; Team Lead → their direct reports only.
+  const canApprove = (lr: LeaveRequest) => {
+    if (isCEO || isAdmin || isLeadership) return true;
+    if (isLead) return userMap[lr.user_id]?.manager_id === authUser?.id;
+    return false;
+  };
 
   // Build a 14-day availability calendar
   const calendarDays: { date: Date; dayLabel: string; users: { userId: string; status: string }[] }[] = [];
   for (let i = 0; i < 14; i++) {
     const date = new Date(Date.now() + i * 86400000);
     const dayLabel = format(date, "EEE d");
-    const users = userList.map(u => {
-      const lv = leaveRequests.find(lr => {
+    const users = visibleUsers.map(u => {
+      const lv = scopedLeave.find(lr => {
         const start = new Date(lr.start_date).getTime();
         const end = new Date(lr.end_date).getTime();
         return lr.user_id === u.id && date.getTime() >= start - 86400000 && date.getTime() <= end + 86400000 && lr.status !== "rejected";
@@ -151,22 +196,31 @@ export default function LeaveAvailabilityPage() {
   async function handleApprove(lr: LeaveRequest) {
     try {
       await leaveApi.update(lr.id, { status: "approved" });
-      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "approved" } : r));
-      showToast.success("Leave approved", `${userMap[lr.user_id]?.name}'s leave has been approved.`);
-      setCeoComment("");
-    } catch {
-      showToast.error("Failed to approve leave", "Please try again.");
+      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "approved", rejection_reason: undefined } : r));
+      showToast.success("Leave approved", `${userMap[lr.user_id]?.name ?? lr.user_name} has been notified.`);
+      setRejectingId(null);
+      setRejectReason("");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again.";
+      showToast.error("Failed to approve leave", msg);
     }
   }
 
   async function handleReject(lr: LeaveRequest) {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      showToast.error("Reason required", "A rejection reason is mandatory.");
+      return;
+    }
     try {
-      await leaveApi.update(lr.id, { status: "rejected" });
-      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "rejected" } : r));
-      showToast.info("Leave rejected", `${userMap[lr.user_id]?.name}'s leave has been rejected.`);
-      setCeoComment("");
-    } catch {
-      showToast.error("Failed to reject leave", "Please try again.");
+      await leaveApi.update(lr.id, { status: "rejected", rejection_reason: reason });
+      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "rejected", rejection_reason: reason } : r));
+      showToast.info("Leave rejected", `${userMap[lr.user_id]?.name ?? lr.user_name} has been notified with your reason.`);
+      setRejectingId(null);
+      setRejectReason("");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Please try again.";
+      showToast.error("Failed to reject leave", msg);
     }
   }
 
@@ -193,7 +247,7 @@ export default function LeaveAvailabilityPage() {
     }
   }
 
-  const availableToday = userList.length - leaveRequests.filter(lr => {
+  const availableToday = visibleUsers.length - scopedLeave.filter(lr => {
     const today = new Date();
     const start = new Date(lr.start_date);
     const end = new Date(lr.end_date);
@@ -257,7 +311,7 @@ export default function LeaveAvailabilityPage() {
           </div>
           <p className="text-2xl font-bold mt-1">
             {availableToday}
-            <span className="text-sm text-muted-foreground font-normal">/{userList.length}</span>
+            <span className="text-sm text-muted-foreground font-normal">/{visibleUsers.length}</span>
           </p>
         </Card>
       </div>
@@ -265,9 +319,34 @@ export default function LeaveAvailabilityPage() {
       {/* 14-Day Availability Calendar */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-blue-600" /> Team Availability — Next 14 Days
-          </CardTitle>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-blue-600" /> Team Availability — Next 14 Days
+            </CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search employees…"
+                className="h-8 pl-8 pr-8 text-xs"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+          {q && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {searchedUsers.length} of {visibleUsers.length} shown
+            </p>
+          )}
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-1">
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 inline-block" /> Available</span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-red-500 inline-block" /> On Leave</span>
@@ -289,7 +368,7 @@ export default function LeaveAvailabilityPage() {
                   );
                 })}
               </div>
-              {userList.map(user => (
+              {searchedUsers.map(user => (
                 <div key={user.id} className="grid gap-0.5" style={{ gridTemplateColumns: `100px repeat(14, 1fr)` }}>
                   <div className="flex items-center gap-1.5 p-1">
                     <Avatar user={user} size="sm" />
@@ -314,18 +393,23 @@ export default function LeaveAvailabilityPage() {
                   })}
                 </div>
               ))}
+              {searchedUsers.length === 0 && (
+                <div className="text-center text-xs text-muted-foreground py-6">
+                  No employees match &ldquo;{search}&rdquo;.
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Pending Leave Requests — CEO Action Needed */}
-      {pendingLeaves.length > 0 && (
+      {shownPending.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-amber-600 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" /> Action Required — Pending Leave Requests
           </h3>
-          {pendingLeaves.map(lr => {
+          {shownPending.map(lr => {
             const user = userMap[lr.user_id];
             const coverPerson = lr.cover_person_id ? userMap[lr.cover_person_id] : null;
 
@@ -389,26 +473,61 @@ export default function LeaveAvailabilityPage() {
                     <LeaveAnalytics userId={lr.user_id} onClose={() => setAnalyticsUserId(null)} />
                   )}
 
-                  <Separator />
-                  <div className="space-y-2">
-                    <h5 className="text-xs font-semibold flex items-center gap-1.5">
-                      <UserCheck className="h-3.5 w-3.5 text-blue-600" /> CEO Decision
-                    </h5>
-                    <Textarea
-                      placeholder="Add comment (optional)..."
-                      className="text-xs min-h-[50px]"
-                      value={ceoComment}
-                      onChange={e => setCeoComment(e.target.value)}
-                    />
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1" onClick={() => handleApprove(lr)}>
-                        <ShieldCheck className="h-3.5 w-3.5" /> Approve
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 gap-1" onClick={() => handleReject(lr)}>
-                        <ShieldX className="h-3.5 w-3.5" /> Reject
-                      </Button>
-                    </div>
-                  </div>
+                  {canApprove(lr) && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-semibold flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5 text-blue-600" /> Approval Decision
+                        </h5>
+                        {rejectingId === lr.id ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              autoFocus
+                              placeholder="Reason for rejection (required)…"
+                              className="text-xs min-h-[60px] border-red-200 focus-visible:ring-red-200"
+                              value={rejectReason}
+                              onChange={e => setRejectReason(e.target.value)}
+                            />
+                            {!rejectReason.trim() && (
+                              <p className="text-[10px] text-red-500">A rejection reason is mandatory.</p>
+                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 text-white gap-1 disabled:opacity-50"
+                                disabled={!rejectReason.trim()}
+                                onClick={() => handleReject(lr)}
+                              >
+                                <ShieldX className="h-3.5 w-3.5" /> Confirm Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1" onClick={() => handleApprove(lr)}>
+                              <ShieldCheck className="h-3.5 w-3.5" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-200 text-red-600 hover:bg-red-50 gap-1"
+                              onClick={() => { setRejectingId(lr.id); setRejectReason(""); }}
+                            >
+                              <ShieldX className="h-3.5 w-3.5" /> Reject
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -417,12 +536,12 @@ export default function LeaveAvailabilityPage() {
       )}
 
       {/* Approved & Past Leaves */}
-      {approvedLeaves.length > 0 && (
+      {shownApproved.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600" /> Approved Leaves
           </h3>
-          {approvedLeaves
+          {shownApproved
             .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
             .map(lr => {
               const user = userMap[lr.user_id];
@@ -482,8 +601,59 @@ export default function LeaveAvailabilityPage() {
         </div>
       )}
 
+      {/* Rejected Leaves — with the mandatory reason shown back to the member */}
+      {shownRejected.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <ShieldX className="h-4 w-4 text-red-600" /> Rejected Leaves
+          </h3>
+          {shownRejected
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .map(lr => {
+              const user = userMap[lr.user_id];
+              return (
+                <Card key={lr.id} className="border-red-200 opacity-90">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Avatar user={user} size="sm" />
+                      <span className="text-sm font-medium">{user?.name ?? lr.user_name}</span>
+                      <Badge variant="outline" className={`text-[10px] ${leaveTypeColors[lr.type]}`}>
+                        {leaveTypeLabels[lr.type]}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {formatShortDate(lr.start_date)}{lr.days > 1 ? ` — ${formatShortDate(lr.end_date)}` : ""} ({lr.days}d)
+                      </span>
+                      <Badge variant="outline" className={`text-[10px] ${statusColors.rejected}`}>Rejected</Badge>
+                      {(authUser?.id === lr.user_id || isAdmin || isCEO) && (
+                        <button
+                          onClick={() => handleCancelOrDelete(lr)}
+                          className="p-1 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors ml-auto"
+                          title="Delete leave"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {lr.reason && (
+                      <p className="text-xs text-muted-foreground mt-1.5 ml-9">{lr.reason}</p>
+                    )}
+                    {lr.rejection_reason && (
+                      <div className="mt-2 ml-9 bg-red-50 border border-red-200 rounded-lg p-2">
+                        <h5 className="text-[10px] font-semibold uppercase tracking-wider text-red-600 mb-0.5 flex items-center gap-1">
+                          <ShieldX className="h-3 w-3" /> Rejection Reason
+                        </h5>
+                        <p className="text-xs text-red-700">{lr.rejection_reason}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+        </div>
+      )}
+
       {/* No leaves state */}
-      {leaveRequests.length === 0 && (
+      {scopedLeave.length === 0 && (
         <Card className="p-8 text-center">
           <CalendarDays className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
           <p className="text-sm text-muted-foreground">

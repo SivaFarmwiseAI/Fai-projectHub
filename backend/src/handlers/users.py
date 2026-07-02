@@ -37,7 +37,7 @@ def _list_users(event, origin):
     rows = fetchall(f"""
         SELECT
           u.id, u.name, u.role, u.role_type, u.department,
-          u.avatar_color, u.is_active, u.email, u.created_at,
+          u.avatar_color, u.is_active, u.email, u.created_at, u.manager_id,
           COALESCE(ts.active_tasks, 0)        AS active_tasks,
           COALESCE(ts.completed_tasks, 0)     AS completed_tasks,
           COALESCE(ts.blocked_tasks, 0)       AS blocked_tasks,

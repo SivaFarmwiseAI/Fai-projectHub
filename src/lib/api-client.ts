@@ -352,7 +352,7 @@ export const leave = {
   create: (data: CreateLeavePayload) =>
     post<{ leave: LeaveRequest }>("/leave", data),
   get:    (id: string) => get<{ leave: LeaveRequest }>(`/leave/${id}`),
-  update: (id: string, data: { status: string; cover_person_id?: string; coverage_plan?: string }) =>
+  update: (id: string, data: { status: string; cover_person_id?: string; coverage_plan?: string; rejection_reason?: string }) =>
     patch<{ leave: LeaveRequest }>(`/leave/${id}`, data),
   cancel: (id: string) =>
     patch<{ leave: LeaveRequest }>(`/leave/${id}`, { status: "cancelled" }),
@@ -549,6 +549,7 @@ export interface User {
   role_type: string;
   department: string;
   avatar_color: string;
+  manager_id?: string | null;
   is_active?: boolean;
   created_at?: string;
   projects?: Project[];
@@ -795,6 +796,7 @@ export interface LeaveRequest {
   cover_person_id?: string;
   cover_person_name?: string;
   coverage_plan?: string;
+  rejection_reason?: string;
   is_planned: boolean;
   created_at: string;
 }

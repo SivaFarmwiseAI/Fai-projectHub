@@ -266,6 +266,7 @@ class UpdateLeaveRequest(BaseModel):
     status: str
     cover_person_id: Optional[UUID] = None
     coverage_plan: Optional[str] = None
+    rejection_reason: Optional[str] = None
 
 
 # ── Standup ───────────────────────────────────────────────────────────────────
