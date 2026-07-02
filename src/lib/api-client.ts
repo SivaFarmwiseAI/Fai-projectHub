@@ -77,7 +77,7 @@ export const auth = {
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const users = {
-  list:   (params?: { department?: string; role_type?: string }) =>
+  list:   (params?: { department?: string; role_type?: string; manager_id?: string }) =>
     get<{ users: User[] }>(`/users${_qs(params)}`),
   create: (data: CreateUserPayload) => post<{ user: User }>("/users", data),
   get:    (id: string) => get<{ user: User }>(`/users/${id}`),
@@ -550,6 +550,7 @@ export interface User {
   department: string;
   avatar_color: string;
   manager_id?: string | null;
+  manager_name?: string | null;
   is_active?: boolean;
   created_at?: string;
   projects?: Project[];

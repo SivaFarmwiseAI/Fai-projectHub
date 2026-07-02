@@ -32,6 +32,7 @@ class UpdateUserRequest(BaseModel):
     role_type: Optional[str] = None
     department: Optional[str] = None
     avatar_color: Optional[str] = None
+    manager_id: Optional[UUID] = None
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────

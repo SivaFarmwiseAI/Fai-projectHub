@@ -182,8 +182,8 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     label: "Leave & Availability",
     href: "/team/availability",
     section: "Team",
-    defaultRoles: ["Admin", "CEO", "Team Lead"],
-    allowedRoles: ["Admin", "CEO", "Team Lead"],
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
   },
   {
     key: "performance-assessment",

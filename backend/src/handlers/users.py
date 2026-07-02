@@ -31,13 +31,15 @@ def _list_users(event, origin):
 
     conds = ["u.is_active = %s"]
     params: list = [is_active]
-    if p.get("department"): conds.append("u.department = %s"); params.append(p["department"])
-    if p.get("role_type"):  conds.append("u.role_type = %s");  params.append(p["role_type"])
+    if p.get("department"):  conds.append("u.department = %s");  params.append(p["department"])
+    if p.get("role_type"):   conds.append("u.role_type = %s");   params.append(p["role_type"])
+    if p.get("manager_id"):  conds.append("u.manager_id = %s");  params.append(p["manager_id"])
 
     rows = fetchall(f"""
         SELECT
           u.id, u.name, u.role, u.role_type, u.department,
-          u.avatar_color, u.is_active, u.email, u.created_at, u.manager_id,
+          u.avatar_color, u.is_active, u.email, u.created_at,
+          u.manager_id, m.name AS manager_name,
           COALESCE(ts.active_tasks, 0)        AS active_tasks,
           COALESCE(ts.completed_tasks, 0)     AS completed_tasks,
           COALESCE(ts.blocked_tasks, 0)       AS blocked_tasks,
@@ -49,6 +51,7 @@ def _list_users(event, origin):
           ts.health_score
         FROM users u
         LEFT JOIN mv_team_stats ts ON ts.id = u.id
+        LEFT JOIN users m ON m.id = u.manager_id
         WHERE {" AND ".join(conds)}
         ORDER BY u.name
     """, tuple(params))
@@ -69,15 +72,18 @@ def _update_user(event, origin, user_id):
         raise HTTPError(403, "Cannot update another user")
     body = UpdateUserRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    # Only CEO/Admin can elevate role_type
-    if "role_type" in fields and current_user["role_type"] not in ("CEO", "Admin"):
-        del fields["role_type"]
+    # Only CEO/Admin can elevate role_type or reassign a user's team lead
+    if current_user["role_type"] not in ("CEO", "Admin"):
+        fields.pop("role_type", None)
+        fields.pop("manager_id", None)
+    if "manager_id" in fields:
+        fields["manager_id"] = str(fields["manager_id"])
     if not fields:
         raise HTTPError(400, "No fields to update")
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     updated = execute_returning(
         f"UPDATE users SET {set_clause}, updated_at = NOW() WHERE id = %s "
-        f"RETURNING id, name, email, role, role_type, department, avatar_color, updated_at",
+        f"RETURNING id, name, email, role, role_type, department, avatar_color, manager_id, updated_at",
         list(fields.values()) + [user_id],
     )
     if not updated:

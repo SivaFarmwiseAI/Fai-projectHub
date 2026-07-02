@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Users,
   FolderKanban,
@@ -13,9 +14,11 @@ import {
   Loader2,
   Activity,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { users as usersApi } from "@/lib/api-client";
 import type { User } from "@/lib/api-client";
+import { useAuth } from "@/contexts/auth-context";
 
 function getScoreColor(score: number): string {
   if (score >= 90) return "bg-green-500";
@@ -32,9 +35,11 @@ function getScoreLabel(score: number): string {
 }
 
 export default function TeamPage() {
+  const { user: authUser, isCEO, isAdmin, isLead, isLeadership } = useAuth();
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     usersApi.list()
@@ -42,6 +47,27 @@ export default function TeamPage() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  // ── Role-based visibility ──────────────────────────────────
+  //  CEO / Admin / Leadership → everyone
+  //  Team Lead                → direct reports (manager_id = me) + myself
+  //  Member                   → only myself
+  const canSeeEveryone = isCEO || isAdmin || isLeadership;
+  const visibleMembers = useMemo(() => {
+    if (canSeeEveryone) return teamMembers;
+    if (isLead) return teamMembers.filter(u => u.manager_id === authUser?.id || u.id === authUser?.id);
+    return teamMembers.filter(u => u.id === authUser?.id);
+  }, [teamMembers, canSeeEveryone, isLead, authUser?.id]);
+
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return visibleMembers;
+    return visibleMembers.filter((m) =>
+      [m.name, m.email, m.role, m.department].some((field) =>
+        field?.toLowerCase().includes(q)
+      )
+    );
+  }, [visibleMembers, search]);
 
   if (loading) {
     return (
@@ -73,7 +99,16 @@ export default function TeamPage() {
             Overview of team member activity and performance metrics
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search team..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 border-border focus-visible:ring-blue-400"
+            />
+          </div>
           <Link
             href="/team/activity"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
@@ -82,22 +117,24 @@ export default function TeamPage() {
             Cross-project activity
           </Link>
           <Badge variant="outline" className="text-sm px-3 py-1">
-            {teamMembers.length} members
+            {filteredMembers.length} member{filteredMembers.length !== 1 ? "s" : ""}
           </Badge>
         </div>
       </div>
 
       {/* Empty state */}
-      {teamMembers.length === 0 && (
+      {filteredMembers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
           <Users className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No team members found.</p>
+          <p className="text-sm">
+            {search ? "No team members match your search." : "No team members found."}
+          </p>
         </div>
       )}
 
       {/* Team Member Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {teamMembers.map((user) => {
+        {filteredMembers.map((user) => {
           const score = Math.round(user.health_score ?? 75);
           const activeTasks = user.active_tasks ?? 0;
           const completedTasks = user.completed_tasks ?? 0;
