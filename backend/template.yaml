@@ -98,11 +98,7 @@ Resources:
       CompatibleArchitectures:
         - x86_64
       RetentionPolicy: Retain
-    Metadata:
-      # Built without Docker via layer/Makefile, which pulls Linux x86_64
-      # (manylinux) wheels so compiled deps (cryptography, bcrypt,
-      # pydantic-core) match the Lambda runtime. Requires GNU make on PATH.
-      BuildMethod: makefile
+    # Metadata.BuildMethod removed — layer/python/ is pre-built via pip install
 
   # ── Document Storage – S3 + CloudFront ─────────────────────────────────────
   #
@@ -479,11 +475,29 @@ Resources:
       Description: /api/analytics – dashboard, team-health, velocity, workload, notifications
       MemorySize: 512
       Events:
+        AnalyticsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/analytics
+            Method: ANY
         AnalyticsProxy:
           Type: Api
           Properties:
             RestApiId: !Ref Api
             Path: /api/analytics/{proxy+}
+            Method: ANY
+        PublicNotificationsBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/public/notifications
+            Method: ANY
+        PublicNotificationsProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/public/notifications/{proxy+}
             Method: ANY
     Metadata:
       BuildMethod: python3.10
@@ -502,6 +516,12 @@ Resources:
       Description: /api/ai – plan generation, stack suggestion, review, insights
       Timeout: 90
       Events:
+        AIBase:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /api/ai
+            Method: ANY
         AIProxy:
           Type: Api
           Properties:

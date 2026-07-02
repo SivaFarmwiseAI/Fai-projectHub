@@ -15,7 +15,7 @@ PARAM = r"[^/]+"
 
 CORS_HEADERS = {
     "Access-Control-Allow-Methods": "GET,POST,PATCH,PUT,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,Cookie,X-Request-ID",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,Cookie,X-Request-ID,X-Api-Key,x-api-key",
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin",
 }

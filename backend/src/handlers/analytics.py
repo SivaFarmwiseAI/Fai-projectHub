@@ -1,6 +1,12 @@
 """Analytics Lambda handler — /api/analytics/*"""
 import logging
+import re
 from datetime import date
+
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user
@@ -115,6 +121,85 @@ def _mark_read(event, origin, notif_id):
     return resp({"ok": True}, origin=origin)
 
 
+# ── Public Notifications (API Key — no JWT required) ─────────────────────────
+
+PUBLIC_API_KEY = "dev-projecthub-key-2024"
+
+
+def _validate_api_key(event):
+    headers = event.get("headers") or {}
+    key = headers.get("x-api-key") or headers.get("X-Api-Key", "")
+    if key != PUBLIC_API_KEY:
+        raise HTTPError(401, "Invalid API key")
+
+
+def _public_notifications(event, origin):
+    _validate_api_key(event)
+    p = get_query(event)
+    application_id = p.get("applicationId", "")
+    user_id = p.get("userId", "")
+    if not application_id or not user_id:
+        raise HTTPError(400, "applicationId and userId are required")
+    if not _UUID_RE.match(application_id):
+        raise HTTPError(400, "applicationId must be a valid project UUID")
+    if not _UUID_RE.match(user_id):
+        raise HTTPError(400, "userId must be a valid UUID")
+    rows = fetchall("""
+        SELECT * FROM notifications
+        WHERE application_id = %s AND user_id = %s
+        ORDER BY created_at DESC LIMIT 50
+    """, (application_id, user_id))
+    unread_count = sum(1 for r in rows if not r.get("is_read"))
+    return resp({"notifications": rows, "unread_count": unread_count}, origin=origin)
+
+
+def _public_mark_read(event, origin, notif_id):
+    _validate_api_key(event)
+    if not _UUID_RE.match(notif_id):
+        raise HTTPError(400, "Invalid notification id")
+    execute(
+        "UPDATE notifications SET is_read = TRUE WHERE id = %s",
+        (notif_id,)
+    )
+    return resp({"ok": True}, origin=origin)
+
+
+def _public_delete_notification(event, origin, notif_id):
+    _validate_api_key(event)
+    if not _UUID_RE.match(notif_id):
+        raise HTTPError(400, "Invalid notification id")
+    execute("DELETE FROM notifications WHERE id = %s", (notif_id,))
+    return resp({"ok": True}, origin=origin)
+
+
+def _public_create_notification(event, origin):
+    _validate_api_key(event)
+    from uuid import uuid4
+    body = get_body(event)
+    application_id = body.get("applicationId", "")
+    user_id = body.get("userId", "")
+    if not application_id or not user_id or not body.get("title"):
+        raise HTTPError(400, "applicationId, userId and title are required")
+    if not _UUID_RE.match(application_id):
+        raise HTTPError(400, "applicationId must be a valid project UUID")
+    if not _UUID_RE.match(user_id):
+        raise HTTPError(400, "userId must be a valid UUID")
+    notif_id = str(uuid4())
+    execute("""
+        INSERT INTO notifications
+            (id, user_id, application_id, type, title, message)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (
+        notif_id,
+        user_id,
+        application_id,
+        body.get("type", "info"),
+        body.get("title", ""),
+        body.get("message", ""),
+    ))
+    return resp({"ok": True, "id": notif_id}, origin=origin)
+
+
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 def _refresh_views(event, origin):
@@ -127,16 +212,21 @@ def _refresh_views(event, origin):
 
 # All static multi-segment paths BEFORE any dynamic /<param> routes
 handler = make_handler([
-    ("GET",  r"/api/analytics/dashboard",                                    _dashboard),
-    ("GET",  r"/api/analytics/team-health",                                  _team_health),
-    ("GET",  r"/api/analytics/workload",                                     _workload),
-    ("GET",  r"/api/analytics/velocity",                                     _velocity),
-    ("GET",  r"/api/analytics/briefing",                                     _ceo_briefing),
-    ("GET",  r"/api/analytics/leave-analytics",                              _leave_analytics),
-    ("GET",  r"/api/analytics/projects/overview",                            _projects_overview),
-    ("GET",  r"/api/analytics/standup/team",                                 _team_standup),
-    ("POST", r"/api/analytics/notifications/read-all",                       _mark_all_read),
-    ("GET",  r"/api/analytics/notifications",                                _my_notifications),
-    ("POST", rf"/api/analytics/notifications/(?P<notif_id>{PARAM})/read",    _mark_read),
-    ("POST", r"/api/analytics/refresh-views",                                _refresh_views),
+    ("GET",    r"/api/analytics/dashboard",                                      _dashboard),
+    ("GET",    r"/api/analytics/team-health",                                    _team_health),
+    ("GET",    r"/api/analytics/workload",                                       _workload),
+    ("GET",    r"/api/analytics/velocity",                                       _velocity),
+    ("GET",    r"/api/analytics/briefing",                                       _ceo_briefing),
+    ("GET",    r"/api/analytics/leave-analytics",                                _leave_analytics),
+    ("GET",    r"/api/analytics/projects/overview",                              _projects_overview),
+    ("GET",    r"/api/analytics/standup/team",                                   _team_standup),
+    ("POST",   r"/api/analytics/notifications/read-all",                         _mark_all_read),
+    ("GET",    r"/api/analytics/notifications",                                  _my_notifications),
+    ("POST",   rf"/api/analytics/notifications/(?P<notif_id>{PARAM})/read",      _mark_read),
+    ("POST",   r"/api/analytics/refresh-views",                                  _refresh_views),
+    # ── Public endpoints (API key auth, no JWT needed) ──
+    ("GET",    r"/api/public/notifications",                                     _public_notifications),
+    ("POST",   r"/api/public/notifications",                                     _public_create_notification),
+    ("POST",   rf"/api/public/notifications/(?P<notif_id>{PARAM})/read",         _public_mark_read),
+    ("DELETE", rf"/api/public/notifications/(?P<notif_id>{PARAM})",              _public_delete_notification),
 ])

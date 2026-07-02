@@ -1,0 +1,13 @@
+{
+  "name": "enterprise-notification-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n API,UI -c bgBlue.white,bgGreen.white \"npm run dev:api\" \"npm run dev:ui\"",
+    "dev:api": "cd notification-api && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:ui": "cd notification-admin && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
