@@ -86,6 +86,11 @@ export const users = {
   tasks:  (id: string, status?: string) =>
     get<{ tasks: Task[] }>(`/users/${id}/tasks${status ? `?status=${status}` : ""}`),
   leave:  (id: string) => get<{ leave: LeaveRequest[] }>(`/users/${id}/leave`),
+  /** Objective work history: tasks/milestones allotted + an activity feed of
+   *  updates & revisions the member authored. `from`/`to` are ISO strings that
+   *  bound the activity feed (allotted items are always returned in full). */
+  activity: (id: string, params?: { from?: string; to?: string }) =>
+    get<{ activity: UserWorkHistory }>(`/users/${id}/activity${_qs(params)}`),
 };
 
 // ── Departments & Roles ───────────────────────────────────────────────────────
@@ -666,8 +671,15 @@ export interface TaskUpdateEntry {
   id: string;
   task_id: string;
   user_id: string;
+  user_name?: string;
   message: string;
   revised_estimate?: number;
+  created_at: string;
+}
+
+export interface MilestoneUpdateEntry {
+  id: string;
+  message: string;
   created_at: string;
 }
 
@@ -686,6 +698,7 @@ export interface TaskMilestone {
   outcome?: string;
   outcome_notes?: string;
   deliverables?: Deliverable[];
+  updates?: MilestoneUpdateEntry[];
   completed_at?: string;
   order_index: number;
 }
@@ -1045,6 +1058,93 @@ export interface MilestoneRevision {
   new_value?: string;
   attachments: RevisionAttachment[];
   created_at: string;
+}
+
+// ── Work history (objective performance view) ───────────────────────────────
+/** A single milestone as it appears nested inside a work-history task. */
+export interface WorkHistoryMilestone {
+  id: string;
+  title: string;
+  status: string;
+  assignee_id?: string | null;
+  target_day?: number | null;
+  estimated_hours?: number | null;
+  actual_hours?: number | null;
+  completed_at?: string | null;
+  order_index: number;
+}
+
+/** A task assigned to the member, across any project. */
+export interface WorkHistoryTask {
+  id: string;
+  project_id: string;
+  project_title: string;
+  phase_id?: string | null;
+  phase_name?: string | null;
+  title: string;
+  status: string;
+  priority?: string | null;
+  estimated_hours?: number | null;
+  actual_hours?: number | null;
+  created_at: string;
+  completed_at?: string | null;
+  /** true when the member is the task's primary assignee. */
+  is_primary: boolean;
+  milestones: WorkHistoryMilestone[];
+}
+
+/** A milestone allotted to the member (by milestone assignee), with context. */
+export interface WorkHistoryAllottedMilestone {
+  id: string;
+  title: string;
+  status: string;
+  target_day?: number | null;
+  estimated_hours?: number | null;
+  actual_hours?: number | null;
+  completed_at?: string | null;
+  task_id: string;
+  task_title: string;
+  phase_id?: string | null;
+  phase_name?: string | null;
+  project_id: string;
+  project_title: string;
+}
+
+export type WorkActivityKind =
+  | "task_update"
+  | "milestone_update"
+  | "task_revision"
+  | "milestone_revision";
+
+/** One entry in the member's "what they did" timeline. */
+export interface WorkActivityEntry {
+  kind: WorkActivityKind;
+  id: string;
+  created_at: string;
+  summary: string;
+  details?: string | null;
+  change_type?: RevisionChangeType | string | null;
+  task_id: string;
+  task_title: string;
+  milestone_id?: string | null;
+  milestone_title?: string | null;
+  project_id: string;
+  project_title: string;
+  attachments: RevisionAttachment[];
+}
+
+export interface UserWorkHistory {
+  subject: {
+    id: string;
+    name: string;
+    role?: string | null;
+    department?: string | null;
+    avatar_color?: string | null;
+  };
+  range: { from: string | null; to: string | null };
+  tasks: WorkHistoryTask[];
+  milestones: WorkHistoryAllottedMilestone[];
+  activity: WorkActivityEntry[];
 }
 
 export interface TaskAttachment {
