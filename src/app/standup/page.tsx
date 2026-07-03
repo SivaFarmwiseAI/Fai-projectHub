@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Activity, CheckCircle2, AlertCircle, AlertTriangle, Smile,
   SmilePlus, Meh, Frown, Send, Plus, Calendar,
-  TrendingUp, Users, Clock,
+  TrendingUp, Users, Clock, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -22,7 +23,14 @@ const moodConfig: Record<StandupMood, { icon: React.ReactNode; label: string; co
 };
 
 export default function StandupPage() {
+  const router = useRouter();
   const { user, isCEO, isLead, isAdmin } = useAuth();
+
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/");
+  }
+
   const [activeTab, setActiveTab] = useState<"team" | "my" | "submit">(
     isCEO || isLead || isAdmin ? "team" : "submit"
   );
@@ -140,6 +148,13 @@ export default function StandupPage() {
     <div className="space-y-5 sm:space-y-6 max-w-[1600px]">
       {/* Header */}
       <div className="animate-fade-in-up">
+        <button
+          onClick={goBack}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 mb-3 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
         <div className="flex items-center gap-3 mb-1">
           <div
             className="h-10 w-10 rounded-xl flex items-center justify-center"

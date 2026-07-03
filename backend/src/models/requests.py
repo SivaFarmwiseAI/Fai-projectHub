@@ -32,6 +32,7 @@ class UpdateUserRequest(BaseModel):
     role_type: Optional[str] = None
     department: Optional[str] = None
     avatar_color: Optional[str] = None
+    manager_id: Optional[UUID] = None
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
@@ -266,6 +267,7 @@ class UpdateLeaveRequest(BaseModel):
     status: str
     cover_person_id: Optional[UUID] = None
     coverage_plan: Optional[str] = None
+    rejection_reason: Optional[str] = None
 
 
 # ── Standup ───────────────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ const features = [
 const demoUsers = [
   { label: "CEO",       name: "Anand V",          email: "anand.vetrivel@farmwiseai.com",          password: "FarmwiseAI@2026", color: "#1e40af", initials: "AV" },
   { label: "Team Lead", name: "Siva Vignesh",      email: "sivavignesh.sivanandam@farmwiseai.com",  password: "FarmwiseAI@2026", color: "#10b981", initials: "SV" },
-  { label: "Member",    name: "Mani Bharathi",     email: "manibharathi@farmwiseai.com",            password: "FarmwiseAI@2026", color: "#059669", initials: "MB" },
+  { label: "Member",    name: "Ponmani Vasanthan M", email: "ponmani.vasanthan@farmwiseai.com",       password: "FarmwiseAI@2026", color: "#059669", initials: "PV" },
   { label: "Data",      name: "Vishwanathan",      email: "vishwanathan.m@farmwiseai.com",          password: "FarmwiseAI@2026", color: "#a855f7", initials: "VM" },
 ];
 

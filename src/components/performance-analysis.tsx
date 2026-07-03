@@ -25,6 +25,7 @@ import {
   type PerformanceAssessment,
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { PerfLoader } from "@/components/performance-loader";
 
 // ── Display maps (mirror the assessment form) ────────────────────────────────
 const BAND_COLOR: Record<string, string> = {
@@ -108,7 +109,7 @@ export function PerformanceAnalysis() {
     return () => { alive = false; };
   }, []);
 
-  if (loading) return <AnalysisSkeleton />;
+  if (loading) return <PerfLoader label="Loading analysis…" />;
 
   if (error) {
     return (
@@ -168,7 +169,7 @@ export function PerformanceAnalysis() {
                 <div className="flex-1 h-6 bg-slate-100 rounded-lg overflow-hidden">
                   <div className="h-full rounded-lg progress-animate flex items-center justify-end pr-2"
                     style={{ width: `${Math.max(pct, 6)}%`, background: `linear-gradient(90deg, ${color}, ${color}cc)` }}>
-                    <span className="text-[11px] font-bold text-white">{b.count}</span>
+                    <span className="text-[13px] font-bold text-white">{b.count}</span>
                   </div>
                 </div>
               </div>
@@ -202,7 +203,7 @@ export function PerformanceAnalysis() {
         <div className="divide-y divide-slate-100">
           {data!.recent.map((row, i) => (
             <button key={row.id} onClick={() => setSelected(row)}
-              className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors animate-fade-in-up"
+              className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 transition-colors animate-fade-in-up"
               style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
               <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
                 style={{ backgroundColor: row.employee_color || "#3b82f6" }}>
@@ -212,12 +213,12 @@ export function PerformanceAnalysis() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-900 truncate">{row.employee_name}</p>
                   {row.severity !== "none" && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[12px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full shrink-0">
                       <ShieldAlert className="h-2.5 w-2.5" /> {row.severity}
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 font-medium truncate">
+                <p className="text-[13px] text-slate-400 font-medium truncate">
                   {row.designation || "—"}
                   {row.review_period ? ` · ${row.review_period}` : ""}
                   {` · ${row.filled_by === "self" ? "Self" : "Reviewer"}`}
@@ -252,7 +253,7 @@ function KpiCard({ icon, color, value, label, sub, stagger }: {
       <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">{label}</p>
       <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-        <span className="text-[11px] font-medium text-slate-400">{sub}</span>
+        <span className="text-[13px] font-medium text-slate-400">{sub}</span>
       </div>
     </div>
   );
@@ -272,7 +273,7 @@ function BreakdownCard({ title, icon, rows, stagger }: {
             <div key={r.label} className="flex items-center justify-between gap-3 py-1.5 border-b border-slate-50 last:border-0">
               <span className="text-[13px] font-medium text-slate-700 truncate">{r.label}</span>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-[11px] font-semibold text-slate-400">{r.count} {r.count === 1 ? "entry" : "entries"}</span>
+                <span className="text-[13px] font-semibold text-slate-400">{r.count} {r.count === 1 ? "entry" : "entries"}</span>
                 <span className="stat-number text-sm font-bold text-slate-900 w-10 text-right">{fmtScore(r.avg)}</span>
               </div>
             </div>
@@ -286,25 +287,10 @@ function BreakdownCard({ title, icon, rows, stagger }: {
 function BandBadge({ band, capped }: { band?: string | null; capped?: boolean }) {
   const color = bandColor(band);
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+    <span className="inline-flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}40` }}>
       {band || "Unrated"}{capped ? " ▾" : ""}
     </span>
-  );
-}
-
-function AnalysisSkeleton() {
-  return (
-    <div className="space-y-5 animate-pulse">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[0, 1, 2, 3].map((i) => <div key={i} className="h-32 bg-slate-100 rounded-2xl" />)}
-      </div>
-      <div className="h-56 bg-slate-100 rounded-2xl" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="h-44 bg-slate-100 rounded-2xl" />
-        <div className="h-44 bg-slate-100 rounded-2xl" />
-      </div>
-    </div>
   );
 }
 
@@ -380,7 +366,7 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
         <div className="px-5 py-4 flex items-center gap-4 flex-wrap border-b border-slate-100" style={{ background: `${color}0d` }}>
           <div>
             <div className="stat-number text-3xl font-extrabold text-slate-900 leading-none">{fmtScore(row.total_score)}</div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">weighted / 5.0</div>
+            <div className="text-[13px] text-slate-400 font-medium mt-1">weighted / 5.0</div>
           </div>
           <BandBadge band={row.rating_band} capped={row.capped} />
           <div className="flex items-center gap-3 text-xs text-slate-500 ml-auto">
@@ -402,7 +388,7 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
               {full?.role_areas && full.role_areas.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {full.role_areas.map((k) => (
-                    <span key={k} className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
+                    <span key={k} className="text-[13px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
                       {roleLabel(k)}
                     </span>
                   ))}
@@ -416,11 +402,11 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
                       <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-[13px] font-bold text-slate-800">{c.title || `Contribution #${i + 1}`}</p>
-                          <span className="text-[11px] font-semibold text-slate-500 shrink-0">{ratingLabel(c.self)}</span>
+                          <span className="text-[13px] font-semibold text-slate-500 shrink-0">{ratingLabel(c.self)}</span>
                         </div>
-                        {c.area && <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{roleLabel(c.area)}</p>}
+                        {c.area && <p className="text-[13px] text-indigo-600 font-medium mt-0.5">{roleLabel(c.area)}</p>}
                         {(c.value || c.changed) && (
-                          <p className="text-[12px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">{c.value || c.changed}</p>
+                          <p className="text-[13.5px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">{c.value || c.changed}</p>
                         )}
                       </div>
                     ))}
@@ -437,12 +423,12 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
                 <Section title="Culture & discipline">
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(snap.cultRatings).map(([k, v]) => (
-                      <span key={k} className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
+                      <span key={k} className="text-[13px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
                         {k}: <b className="text-slate-900">{v}</b>
                       </span>
                     ))}
                   </div>
-                  {snap.cultComment && <p className="text-[12px] text-slate-500 mt-2 leading-relaxed">{snap.cultComment}</p>}
+                  {snap.cultComment && <p className="text-[13.5px] text-slate-500 mt-2 leading-relaxed">{snap.cultComment}</p>}
                 </Section>
               )}
 
@@ -453,12 +439,12 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
                     {row.capped && <span className="font-semibold">· rating capped one band</span>}
                   </div>
                   {(snap.gateFlags?.length ?? 0) > 0 && (
-                    <p className="text-[12px] text-red-600 mt-1.5">{snap.gateFlags!.join(" · ")}</p>
+                    <p className="text-[13.5px] text-red-600 mt-1.5">{snap.gateFlags!.join(" · ")}</p>
                   )}
                 </div>
               )}
 
-              <p className="text-[11px] text-slate-400 pt-1">
+              <p className="text-[13px] text-slate-400 pt-1">
                 Submitted {fmtDate(row.created_at)}{row.submitted_by_name ? ` by ${row.submitted_by_name}` : ""}.
               </p>
             </div>
@@ -473,7 +459,7 @@ function ScorePill({ label, value }: { label: string; value?: number | null }) {
   return (
     <span className="flex flex-col items-center">
       <span className="stat-number text-sm font-bold text-slate-800">{fmtScore(value)}</span>
-      <span className="text-[9px] uppercase tracking-wide text-slate-400 font-semibold">{label}</span>
+      <span className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">{label}</span>
     </span>
   );
 }
@@ -481,7 +467,7 @@ function ScorePill({ label, value }: { label: string; value?: number | null }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">{title}</h4>
+      <h4 className="text-[13px] font-bold uppercase tracking-wide text-slate-400 mb-2">{title}</h4>
       {children}
     </div>
   );
@@ -493,7 +479,7 @@ function EntrySection({ title, entries }: { title: string; entries?: Entry[] }) 
       {(entries ?? []).length === 0 ? <Muted>None recorded.</Muted> : (
         <div className="space-y-1.5">
           {entries!.map((e, i) => (
-            <div key={i} className="flex items-start gap-2 text-[12px]">
+            <div key={i} className="flex items-start gap-2 text-[13.5px]">
               <span className="font-bold text-slate-700 shrink-0">{ratingLabel(e.rating)}</span>
               <span className="text-slate-500 line-clamp-2">{e.text || "—"}</span>
             </div>
@@ -505,5 +491,5 @@ function EntrySection({ title, entries }: { title: string; entries?: Entry[] }) 
 }
 
 function Muted({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] text-slate-400">{children}</p>;
+  return <p className="text-[13.5px] text-slate-400">{children}</p>;
 }

@@ -15,6 +15,8 @@ export type MenuItemConfig = {
   badgeKey?: "reviews" | "capture";
   /** Locked items cannot be toggled in the menu access admin UI */
   locked?: boolean;
+  /** Disabled items still render in the sidebar but are not clickable */
+  disabled?: boolean;
 };
 
 export const SECTION_ORDER = [
@@ -120,6 +122,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     section: "Work",
     defaultRoles: "all",
     allowedRoles: [...ALL_ROLES],
+    disabled: true,
   },
   {
     key: "review-queue",
@@ -129,6 +132,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     defaultRoles: ["Admin", "CEO", "Team Lead"],
     allowedRoles: ["Admin", "CEO", "Team Lead"],
     badgeKey: "reviews",
+    disabled: true,
   },
   {
     key: "commitments",
@@ -137,6 +141,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     section: "Work",
     defaultRoles: "all",
     allowedRoles: [...ALL_ROLES],
+    disabled: true,
   },
   {
     key: "meetings",
@@ -177,8 +182,8 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     label: "Leave & Availability",
     href: "/team/availability",
     section: "Team",
-    defaultRoles: ["Admin", "CEO", "Team Lead"],
-    allowedRoles: ["Admin", "CEO", "Team Lead"],
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
   },
   {
     key: "performance-assessment",

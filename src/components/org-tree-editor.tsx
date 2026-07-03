@@ -10,27 +10,36 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Network, Loader2, Search, Check, List, GitFork, ChevronRight, ChevronDown, Users } from "lucide-react";
+import { Network, Loader2, Search, Check, List, GitFork, ChevronRight, ChevronDown, Users, RefreshCw, AlertTriangle } from "lucide-react";
 import { performanceAssessments, type OrgTreeNode } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { PerfLoader } from "@/components/performance-loader";
 
 type Mode = "list" | "tree";
+
+// Only these roles are eligible to be a reporting manager — Members are excluded.
+const MANAGER_ROLES = new Set(["CEO", "Admin", "Team Lead"]);
 
 export function OrgTreeEditor() {
   const [tree, setTree] = useState<OrgTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [mode, setMode] = useState<Mode>("tree");
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [pending, setPending] = useState<
+    { userId: string; managerId: string; userName: string; managerName: string } | null
+  >(null);
 
   const load = useCallback(() => {
-    performanceAssessments.orgTree().then((r) => setTree(r.tree || [])).catch(() => {}).finally(() => setLoading(false));
+    setError(false);
+    performanceAssessments.orgTree().then((r) => setTree(r.tree || [])).catch(() => setError(true)).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     let alive = true;
-    performanceAssessments.orgTree().then((r) => { if (alive) setTree(r.tree || []); }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
+    performanceAssessments.orgTree().then((r) => { if (alive) setTree(r.tree || []); }).catch(() => { if (alive) setError(true); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
 
@@ -69,21 +78,41 @@ export function OrgTreeEditor() {
   }, [tree]);
 
   const filtered = useMemo(
-    () => tree.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())),
+    () =>
+      tree.filter(
+        (u) =>
+          // The CEO is the top of the org and reports to no one — omit from the
+          // editable list (they still appear as a root in the Tree view).
+          u.role_type !== "CEO" &&
+          u.name.toLowerCase().includes(search.toLowerCase()),
+      ),
     [tree, search],
   );
 
   if (loading) {
-    return <div className="space-y-2 animate-pulse">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-14 bg-slate-100 rounded-xl" />)}</div>;
+    return <PerfLoader label="Loading the org tree…" />;
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl border p-10 shadow-card text-center" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+        <div className="h-12 w-12 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-3 ring-1 ring-amber-100"><AlertTriangle className="h-6 w-6 text-amber-500" /></div>
+        <h3 className="text-base font-bold text-slate-900">Couldn&apos;t load the reporting tree</h3>
+        <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">The service is unreachable — the backend may not be deployed yet, or your session expired.</p>
+        <button onClick={() => { setLoading(true); load(); }} className="mt-5 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-4 py-2 text-sm font-semibold shadow-glow-blue">
+          <RefreshCw className="h-4 w-4" /> Retry
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Network className="h-4 w-4 text-blue-500" />
-          <h3 className="text-sm font-bold text-slate-900">Reporting tree</h3>
-          <span className="text-xs text-slate-400 font-medium">· {tree.length} people</span>
+          <Network className="h-5 w-5 text-blue-500" />
+          <h3 className="text-base font-bold text-slate-900">Reporting tree</h3>
+          <span className="text-sm text-slate-400 font-medium">· {tree.length} people</span>
         </div>
         <div className="flex items-center gap-2">
           {mode === "list" && (
@@ -112,21 +141,42 @@ export function OrgTreeEditor() {
             <div key={u.id} className="px-4 py-3 flex items-center gap-3">
               <Avatar node={u} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900 truncate">{u.name}</p>
-                <p className="text-[11px] text-slate-400 font-medium truncate">{u.role || u.role_type}{u.department ? ` · ${u.department}` : ""}</p>
+                <p className="text-base font-semibold text-slate-900 truncate">{u.name}</p>
+                <p className="text-[13px] text-slate-500 font-medium truncate">{u.role || u.role_type}{u.department ? ` · ${u.department}` : ""}</p>
               </div>
-              <label className="text-[11px] text-slate-400 font-medium hidden sm:block">Reports to</label>
-              <div className="relative flex items-center gap-2 shrink-0">
-                <select
-                  value={u.manager_id || ""}
-                  onChange={(e) => setManager(u.id, e.target.value)}
-                  disabled={saving === u.id}
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm w-44 sm:w-52 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
-                  <option value="">— No manager —</option>
-                  {tree.filter((m) => m.id !== u.id).map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}{m.role_type ? ` (${m.role_type})` : ""}</option>
-                  ))}
-                </select>
+              <label className="text-[13px] text-slate-500 font-medium hidden sm:block">Reports to</label>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="relative">
+                  <select
+                    value={u.manager_id || ""}
+                    onChange={(e) => {
+                      const managerId = e.target.value;
+                      setPending({
+                        userId: u.id,
+                        managerId,
+                        userName: u.name,
+                        managerName: managerId
+                          ? (tree.find((m) => m.id === managerId)?.name ?? "")
+                          : "",
+                      });
+                    }}
+                    disabled={saving === u.id}
+                    className="h-9 rounded-lg border border-slate-200 bg-white pl-2.5 pr-8 text-sm w-52 sm:w-64 appearance-none focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:opacity-60 disabled:cursor-not-allowed">
+                    <option value="">— No manager —</option>
+                    {tree
+                      .filter(
+                        (m) =>
+                          m.id !== u.id &&
+                          // eligible roles, plus the currently-assigned manager so a
+                          // pre-existing (e.g. legacy Member) assignment still shows.
+                          (MANAGER_ROLES.has(m.role_type) || m.id === u.manager_id),
+                      )
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}{m.role_type ? ` (${m.role_type})` : ""}</option>
+                      ))}
+                  </select>
+                  <ChevronDown className="h-4 w-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
                 {saving === u.id ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                   : saved === u.id ? <Check className="h-4 w-4 text-emerald-500" />
                   : <span className="w-4" />}
@@ -147,8 +197,55 @@ export function OrgTreeEditor() {
             </div>
           )}
           {childrenOf.size === 0 && roots.length > 0 && (
-            <p className="text-[11px] text-slate-400 mt-3 px-1">Everyone is a top-level node — set managers in List view to build the hierarchy.</p>
+            <p className="text-[13px] text-slate-400 mt-3 px-1">Everyone is a top-level node — set managers in List view to build the hierarchy.</p>
           )}
+        </div>
+      )}
+
+      {/* Confirm before changing a reporting relationship. */}
+      {pending && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={() => setPending(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-slate-900">Update reporting manager?</h3>
+            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+              {pending.managerId ? (
+                <>
+                  Set <b className="text-slate-900">{pending.managerName}</b> as{" "}
+                  <b className="text-slate-900">{pending.userName}</b>&apos;s reporting
+                  manager?
+                </>
+              ) : (
+                <>
+                  Remove <b className="text-slate-900">{pending.userName}</b>&apos;s
+                  reporting manager?
+                </>
+              )}
+            </p>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setPending(null)}
+                className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setManager(pending.userId, pending.managerId);
+                  setPending(null);
+                }}
+                className="rounded-xl btn-gradient text-white px-4 py-2 text-sm font-semibold shadow-glow-blue"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -178,14 +275,14 @@ function TreeBranch({ node, childrenOf, visited }: {
         <Avatar node={node} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-slate-900 truncate">{node.name}</p>
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{node.role_type}</span>
+            <p className="text-base font-semibold text-slate-900 truncate">{node.name}</p>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{node.role_type}</span>
           </div>
-          <p className="text-[11px] text-slate-400 font-medium truncate">{node.role || ""}{node.department ? ` · ${node.department}` : ""}</p>
+          <p className="text-[13px] text-slate-500 font-medium truncate">{node.role || ""}{node.department ? ` · ${node.department}` : ""}</p>
         </div>
         {safeKids.length > 0 && (
-          <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full shrink-0">
-            <Users className="h-2.5 w-2.5" /> {safeKids.length}
+          <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full shrink-0">
+            <Users className="h-3 w-3" /> {safeKids.length}
           </span>
         )}
       </div>
