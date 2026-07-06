@@ -453,7 +453,7 @@ export const performanceAssessments = {
   list:     (params?: { kind?: string; status?: string; cycle_id?: string; career_level?: string; rating_band?: string }) =>
     get<{ assessments: PerformanceAssessmentRow[] }>(`/performance-assessments${_qs(params)}`),
   create:   (data: CreatePerformanceAssessmentPayload) =>
-    post<{ assessment: PerformanceAssessment; nominated: number }>("/performance-assessments", data),
+    post<{ assessment: PerformanceAssessment; nominated: number; manager_assigned: boolean }>("/performance-assessments", data),
   get:      (id: string) => get<{ assessment: PerformanceAssessment }>(`/performance-assessments/${id}`),
   update:   (id: string, data: UpdatePerformanceAssessmentPayload) =>
     patch<{ assessment: PerformanceAssessment }>(`/performance-assessments/${id}`, data),
@@ -1427,6 +1427,8 @@ export interface ReviewCycle {
   self_count?: number;
   peer_count?: number;
   peer_pending?: number;
+  manager_count?: number;
+  manager_pending?: number;
   created_at: string;
   updated_at?: string;
 }
@@ -1442,9 +1444,10 @@ export interface OrgTreeNode {
   manager_name?: string | null;
 }
 
-/** A peer review assigned to me (I'm a nominated reviewer). */
+/** A peer or manager review assigned to me. `kind` distinguishes them. */
 export interface PeerReviewAssignment {
   id: string;
+  kind?: string;                   // peer | manager
   status: string;                  // pending | submitted
   cycle_id?: string | null;
   cycle_name?: string | null;
@@ -1461,9 +1464,10 @@ export interface PeerReviewAssignment {
   submitted_at?: string | null;
 }
 
-/** A peer review written about me. */
+/** A peer or manager review written about me. */
 export interface ReviewReceived {
   id: string;
+  kind?: string;                   // peer | manager
   status: string;
   total_score?: number | null;
   rating_band?: string | null;
@@ -1488,6 +1492,7 @@ export interface TeamReportRow {
   self_status?: string | null;
   peer_done: number;
   peer_total: number;
+  manager_status?: string | null;  // submitted | pending | null (not yet assigned)
 }
 
 export interface EmployeeReportPeer {
@@ -1495,6 +1500,7 @@ export interface EmployeeReportPeer {
   status: string;
   author_name?: string | null;
   author_color?: string | null;
+  author_role?: string | null;
   total_score?: number | null;
   rating_band?: string | null;
   data: Record<string, unknown>;
@@ -1530,6 +1536,8 @@ export interface EmployeeReport {
     created_at?: string;
   } | null;
   peers: EmployeeReportPeer[];
+  /** The authoritative manager review (null until the manager submits). */
+  manager: EmployeeReportPeer | null;
 }
 
 // Payload types

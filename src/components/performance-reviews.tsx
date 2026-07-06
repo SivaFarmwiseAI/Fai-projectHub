@@ -7,13 +7,25 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil } from "lucide-react";
+import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil, Crown } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
 import { bandColor, bandForScore, fmtScore, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 import { cn } from "@/lib/utils";
 import { PerfLoader } from "@/components/performance-loader";
 
 interface PeerData { competencies?: Record<string, number>; strengths?: string; improvements?: string; comment?: string }
+
+const isManagerKind = (k?: string | null) => k === "manager";
+
+/** A small chip marking a review as a manager (authoritative) review. */
+function KindChip({ kind }: { kind?: string | null }) {
+  if (!isManagerKind(kind)) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+      <Crown className="h-3 w-3" /> Manager
+    </span>
+  );
+}
 
 export function PerformanceReviews() {
   const [reviews, setReviews] = useState<PeerReviewAssignment[]>([]);
@@ -78,16 +90,20 @@ export function PerformanceReviews() {
               <div key={r.id} className="bg-white rounded-2xl border p-4 shadow-card flex items-center gap-3 animate-fade-in-up" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
                 <Avatar name={r.subject_name} color={r.subject_color} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{r.subject_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{r.subject_name}</p>
+                    <KindChip kind={r.kind} />
+                  </div>
                   <p className="text-[13px] text-slate-400 font-medium truncate">
-                    {r.subject_role || "—"}{r.subject_department ? ` · ${r.subject_department}` : ""}
+                    {isManagerKind(r.kind) ? "Reports to you" : r.subject_role || "—"}
+                    {!isManagerKind(r.kind) && r.subject_department ? ` · ${r.subject_department}` : ""}
                     {r.cycle_name ? ` · ${r.cycle_name}` : ""}
-                    {r.nominated_by_name ? ` · asked by ${r.nominated_by_name}` : ""}
+                    {!isManagerKind(r.kind) && r.nominated_by_name ? ` · asked by ${r.nominated_by_name}` : ""}
                   </p>
                 </div>
                 <button onClick={() => openWrite(r)}
                   className="shrink-0 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-4 py-2.5 text-sm font-semibold shadow-glow-blue">
-                  <PenLine className="h-4 w-4" /> Write review
+                  <PenLine className="h-4 w-4" /> {isManagerKind(r.kind) ? "Write manager review" : "Write review"}
                 </button>
               </div>
             ))}
@@ -107,7 +123,10 @@ export function PerformanceReviews() {
               <div key={r.id} className="bg-white rounded-xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
                 <Avatar name={r.subject_name} color={r.subject_color} small />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold text-slate-800 truncate">{r.subject_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[13px] font-semibold text-slate-800 truncate">{r.subject_name}</p>
+                    <KindChip kind={r.kind} />
+                  </div>
                   <p className="text-[12px] text-slate-400">Submitted {fmtDate(r.submitted_at || r.created_at)}</p>
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
@@ -134,7 +153,10 @@ export function PerformanceReviews() {
               <div key={r.id} className="bg-white rounded-xl border px-5 py-4 flex items-center gap-4" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
                 <Avatar name={r.author_name} color={r.author_color} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold text-slate-800 truncate">{r.author_name || "Peer reviewer"}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-semibold text-slate-800 truncate">{r.author_name || (isManagerKind(r.kind) ? "Your manager" : "Peer reviewer")}</p>
+                    <KindChip kind={r.kind} />
+                  </div>
                   <p className="text-[13px] text-slate-400">{r.status === "submitted" ? `Submitted ${fmtDate(r.submitted_at || r.created_at)}` : "Pending"}</p>
                 </div>
                 {r.status === "submitted" ? (r.rating_band && <Band band={r.rating_band} />) : (
@@ -160,6 +182,7 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const isManager = isManagerKind(assignment.kind);
   const rated = PEER_COMPETENCIES.filter((c) => ratings[c.key] != null);
   const avg = rated.length ? rated.reduce((s, c) => s + ratings[c.key], 0) / rated.length : null;
   const complete = rated.length === PEER_COMPETENCIES.length && strengths.trim().length > 0;
@@ -190,8 +213,13 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
           <div className="flex items-center gap-3 min-w-0">
             <Avatar name={assignment.subject_name} color={assignment.subject_color} />
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 truncate">Peer review · {assignment.subject_name}</h2>
-              <p className="text-xs text-slate-500 truncate">{assignment.subject_role || ""}{assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}</p>
+              <h2 className="text-base font-extrabold text-slate-900 truncate">
+                {isManager ? "Manager review" : "Peer review"} · {assignment.subject_name}
+              </h2>
+              <p className="text-xs text-slate-500 truncate">
+                {isManager ? "Your authoritative review as reporting manager" : assignment.subject_role || ""}
+                {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
