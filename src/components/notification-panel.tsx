@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell, X, CheckCheck, AlertTriangle, Clock, Users,
   MessageSquare, CalendarDays, ClipboardCheck, Flag,
@@ -19,6 +19,8 @@ const TYPE_LINKS: Record<string, string> = {
   blocker_flagged:      "/",
   standup_missing:      "/standup",
   leave_approved:       "/team/availability",
+  leave_rejected:       "/team/availability",
+  leave_request:        "/team/availability",
   extension_requested:  "/",
   discussion_mention:   "/discussions",
   milestone_reached:    "/projects",
@@ -32,6 +34,8 @@ const TYPE_PRIORITY: Record<string, NotifPriority> = {
   project_at_risk:      "critical",
   standup_missing:      "medium",
   leave_approved:       "low",
+  leave_rejected:       "medium",
+  leave_request:        "high",
   extension_requested:  "high",
   discussion_mention:   "medium",
   milestone_reached:    "low",
@@ -51,12 +55,14 @@ function mapApiNotif(n: ApiNotif): Notification {
 }
 
 /* ── Icon per notification type ─────────────────────────── */
-const TYPE_ICONS: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
+const TYPE_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   review_requested:     { icon: ClipboardCheck, color: "#ef4444", bg: "#fef2f2" },
   deadline_approaching: { icon: Clock,          color: "#f97316", bg: "#fff7ed" },
   blocker_flagged:      { icon: AlertTriangle,  color: "#ef4444", bg: "#fef2f2" },
   standup_missing:      { icon: Users,          color: "#f59e0b", bg: "#fffbeb" },
   leave_approved:       { icon: CalendarDays,   color: "#10b981", bg: "#f0fdf4" },
+  leave_rejected:       { icon: CalendarDays,   color: "#ef4444", bg: "#fef2f2" },
+  leave_request:        { icon: CalendarDays,   color: "#f59e0b", bg: "#fffbeb" },
   extension_requested:  { icon: Flag,           color: "#8b5cf6", bg: "#f5f3ff" },
   discussion_mention:   { icon: MessageSquare,  color: "#3b82f6", bg: "#eff6ff" },
   milestone_reached:    { icon: Sparkles,       color: "#10b981", bg: "#f0fdf4" },
@@ -68,7 +74,7 @@ const PRIORITY_DOT: Record<string, string> = {
 };
 
 /* ── Notification Item ───────────────────────────────────── */
-function NotifItem({ notif, onRead }: { notif: Notification; onRead: (id: string) => void }) {
+function NotifItem({ notif, onSelect }: { notif: Notification; onSelect: (n: Notification) => void }) {
   const cfg = TYPE_ICONS[notif.type] ?? TYPE_ICONS.review_requested;
   const Icon = cfg.icon;
 
@@ -78,7 +84,7 @@ function NotifItem({ notif, onRead }: { notif: Notification; onRead: (id: string
         "flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer relative",
         !notif.read && "bg-blue-50/40"
       )}
-      onClick={() => onRead(notif.id)}
+      onClick={() => onSelect(notif)}
     >
       {/* Unread dot */}
       {!notif.read && (
@@ -103,12 +109,11 @@ function NotifItem({ notif, onRead }: { notif: Notification; onRead: (id: string
         <p className="text-[10px] text-slate-400 mt-1">{notif.time}</p>
       </div>
 
-      {/* Link arrow */}
+      {/* Link affordance — the whole row navigates */}
       {notif.link && (
-        <Link href={notif.link} onClick={e => e.stopPropagation()}
-          className="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all shrink-0 mt-1">
+        <span className="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 shrink-0 mt-1">
           <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
+        </span>
       )}
     </div>
   );
@@ -119,12 +124,14 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
   const [open, setOpen]     = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const panelRef            = useRef<HTMLDivElement>(null);
+  const router              = useRouter();
 
+  // Refetch on mount and each time the panel opens so counts stay fresh.
   useEffect(() => {
     analytics.notifications()
       .then(r => setNotifs(r.notifications.map(mapApiNotif)))
       .catch(() => setNotifs([]));
-  }, []);
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
@@ -142,10 +149,19 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
 
   function markRead(id: string) {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    analytics.markRead(id).catch(() => {});   // persist; ignore transient failures
   }
 
   function markAllRead() {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    analytics.markAllRead().catch(() => {});
+  }
+
+  // Clicking a notification: mark it read, close the panel, and jump to its page.
+  function handleSelect(notif: Notification) {
+    if (!notif.read) markRead(notif.id);
+    setOpen(false);
+    if (notif.link) router.push(notif.link);
   }
 
   return (
@@ -212,7 +228,7 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
                 <p className="text-sm text-slate-500 font-medium">All caught up!</p>
               </div>
             ) : (
-              notifs.map(n => <NotifItem key={n.id} notif={n} onRead={markRead} />)
+              notifs.map(n => <NotifItem key={n.id} notif={n} onSelect={handleSelect} />)
             )}
           </div>
 

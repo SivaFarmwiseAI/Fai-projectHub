@@ -32,7 +32,7 @@ type AuthContextType = {
   /** CEO / Admin / HR / Leadership — org-wide performance visibility. */
   hasFullPerformanceAccess: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const STORAGE_KEY = "projecthub_session";

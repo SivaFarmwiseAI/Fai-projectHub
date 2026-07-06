@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Users,
   Eye,
+  EyeOff,
   Plane,
   Thermometer,
   Home,
@@ -208,14 +209,10 @@ export default function LeaveAvailabilityPage() {
 
   async function handleReject(lr: LeaveRequest) {
     const reason = rejectReason.trim();
-    if (!reason) {
-      showToast.error("Reason required", "A rejection reason is mandatory.");
-      return;
-    }
     try {
-      await leaveApi.update(lr.id, { status: "rejected", rejection_reason: reason });
-      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "rejected", rejection_reason: reason } : r));
-      showToast.info("Leave rejected", `${userMap[lr.user_id]?.name ?? lr.user_name} has been notified with your reason.`);
+      await leaveApi.update(lr.id, { status: "rejected", rejection_reason: reason || undefined });
+      setLeaveRequests(prev => prev.map(r => r.id === lr.id ? { ...r, status: "rejected", rejection_reason: reason || undefined } : r));
+      showToast.info("Leave rejected", `${userMap[lr.user_id]?.name ?? lr.user_name} has been notified.`);
       setRejectingId(null);
       setRejectReason("");
     } catch (e) {
@@ -411,7 +408,9 @@ export default function LeaveAvailabilityPage() {
           </h3>
           {shownPending.map(lr => {
             const user = userMap[lr.user_id];
-            const coverPerson = lr.cover_person_id ? userMap[lr.cover_person_id] : null;
+            const coverNames = lr.cover_person_names?.length
+              ? lr.cover_person_names.join(", ")
+              : (lr.cover_person_id ? userMap[lr.cover_person_id]?.name : null);
 
             return (
               <Card key={lr.id} className="border-amber-200">
@@ -431,11 +430,11 @@ export default function LeaveAvailabilityPage() {
                         onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
                         className={`ml-1 p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
                             ? "bg-violet-100 text-violet-600"
-                            : "text-gray-400 hover:bg-violet-50 hover:text-violet-500"
+                            : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                           }`}
-                        title={`View leave analytics for ${user?.name}`}
+                        title={analyticsUserId === lr.user_id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        {analyticsUserId === lr.user_id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{formatDate(lr.created_at)}</span>
@@ -463,7 +462,7 @@ export default function LeaveAvailabilityPage() {
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5">
                       <h5 className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-1 flex items-center gap-1">
                         <UserCheck className="h-3 w-3" /> Coverage Plan
-                        {coverPerson && <span className="normal-case font-normal"> — {coverPerson.name}</span>}
+                        {coverNames && <span className="normal-case font-normal"> — {coverNames}</span>}
                       </h5>
                       <p className="text-xs text-muted-foreground">{lr.coverage_plan}</p>
                     </div>
@@ -484,19 +483,15 @@ export default function LeaveAvailabilityPage() {
                           <div className="space-y-2">
                             <Textarea
                               autoFocus
-                              placeholder="Reason for rejection (required)…"
+                              placeholder="Reason for rejection (optional)…"
                               className="text-xs min-h-[60px] border-red-200 focus-visible:ring-red-200"
                               value={rejectReason}
                               onChange={e => setRejectReason(e.target.value)}
                             />
-                            {!rejectReason.trim() && (
-                              <p className="text-[10px] text-red-500">A rejection reason is mandatory.</p>
-                            )}
                             <div className="flex items-center gap-2 flex-wrap">
                               <Button
                                 size="sm"
-                                className="bg-red-600 hover:bg-red-700 text-white gap-1 disabled:opacity-50"
-                                disabled={!rejectReason.trim()}
+                                className="bg-red-600 hover:bg-red-700 text-white gap-1"
                                 onClick={() => handleReject(lr)}
                               >
                                 <ShieldX className="h-3.5 w-3.5" /> Confirm Reject
@@ -545,7 +540,9 @@ export default function LeaveAvailabilityPage() {
             .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
             .map(lr => {
               const user = userMap[lr.user_id];
-              const coverPerson = lr.cover_person_id ? userMap[lr.cover_person_id] : null;
+              const coverNames = lr.cover_person_names?.length
+                ? lr.cover_person_names.join(", ")
+                : (lr.cover_person_id ? userMap[lr.cover_person_id]?.name : null);
               const isPast = new Date(lr.end_date).getTime() < Date.now();
 
               return (
@@ -560,9 +557,9 @@ export default function LeaveAvailabilityPage() {
                       <span className="text-xs text-muted-foreground">
                         {formatShortDate(lr.start_date)}{lr.days > 1 ? ` — ${formatShortDate(lr.end_date)}` : ""} ({lr.days}d)
                       </span>
-                      {coverPerson && (
+                      {coverNames && (
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1 ml-auto">
-                          <UserCheck className="h-3 w-3" /> Cover: {coverPerson.name}
+                          <UserCheck className="h-3 w-3" /> Cover: {coverNames}
                         </span>
                       )}
                       {isPast && (
@@ -572,11 +569,11 @@ export default function LeaveAvailabilityPage() {
                         onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
                         className={`p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
                             ? "bg-violet-100 text-violet-600"
-                            : "text-gray-400 hover:bg-violet-50 hover:text-violet-500"
+                            : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                           }`}
-                        title={`View leave analytics for ${user?.name}`}
+                        title={analyticsUserId === lr.user_id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        {analyticsUserId === lr.user_id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                       </button>
                       {(authUser?.id === lr.user_id || isAdmin || isCEO) && (
                         <button
