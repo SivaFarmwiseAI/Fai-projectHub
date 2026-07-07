@@ -110,7 +110,9 @@ def _list_leave(event, origin):
     rows = fetchall(f"""
         SELECT
           lr.*, u.name AS user_name, u.department, u.avatar_color,
-          ab.name AS approved_by_name, cv.name AS cover_person_name
+          ab.name AS approved_by_name, cv.name AS cover_person_name,
+          (SELECT array_agg(cu.name ORDER BY cu.name)
+             FROM users cu WHERE cu.id = ANY(lr.cover_person_ids)) AS cover_person_names
         FROM leave_requests lr
         JOIN users u ON u.id = lr.user_id
         LEFT JOIN users ab ON ab.id = lr.approved_by
@@ -127,15 +129,21 @@ def _create_leave(event, origin):
     days = _calc_working_days(body.start_date, body.end_date)
     if body.type == "half_day":
         days = Decimal("0.5")
+    # Cover people: accept a list; keep the single cover_person_id as the
+    # "primary" (first) for backward-compatible displays.
+    cover_ids = [str(x) for x in body.cover_person_ids]
+    if body.cover_person_id and str(body.cover_person_id) not in cover_ids:
+        cover_ids.insert(0, str(body.cover_person_id))
+    primary_cover = cover_ids[0] if cover_ids else None
     leave = execute_returning("""
         INSERT INTO leave_requests
           (user_id, type, start_date, end_date, days, reason,
-           cover_person_id, coverage_plan, contingency_note, is_planned)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+           cover_person_id, cover_person_ids, coverage_plan, contingency_note, is_planned)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s::uuid[],%s,%s,%s) RETURNING *
     """, (
         current_user["id"], body.type, body.start_date, body.end_date, days,
         body.reason,
-        str(body.cover_person_id) if body.cover_person_id else None,
+        primary_cover, cover_ids,
         body.coverage_plan, body.contingency_note, body.is_planned,
     ))
     auto_request(
@@ -167,7 +175,9 @@ def _get_leave(event, origin, leave_id):
     get_current_user(event)
     leave = fetchone("""
         SELECT lr.*, u.name AS user_name, u.department,
-               ab.name AS approved_by_name, cv.name AS cover_person_name
+               ab.name AS approved_by_name, cv.name AS cover_person_name,
+               (SELECT array_agg(cu.name ORDER BY cu.name)
+                  FROM users cu WHERE cu.id = ANY(lr.cover_person_ids)) AS cover_person_names
         FROM leave_requests lr
         JOIN users u ON u.id = lr.user_id
         LEFT JOIN users ab ON ab.id = lr.approved_by
@@ -194,12 +204,10 @@ def _update_leave(event, origin, leave_id):
             raise HTTPError(403, "You can only act on leave from your direct reports")
 
     body = UpdateLeaveRequest(**get_body(event))
-    # Rejection must carry a reason so it can be shown back to the member.
+    # A rejection reason is optional; when given it's shown back to the member.
     reason = (body.rejection_reason or "").strip()
-    if body.status == "rejected" and not reason:
-        raise HTTPError(400, "A rejection reason is required.")
     # Only persist a reason on rejection; clear it on any other transition.
-    rejection_reason = reason if body.status == "rejected" else None
+    rejection_reason = reason if (body.status == "rejected" and reason) else None
 
     with get_conn() as conn:
         cur = conn.cursor()
@@ -235,10 +243,12 @@ def _update_leave(event, origin, leave_id):
             "leave", leave_id,
         )
     elif body.status == "rejected":
+        msg = f"Your {leave['type']} leave was rejected by {decider}."
+        if reason:
+            msg += f" Reason: {reason}"
         notify(
             str(leave["user_id"]), "leave_rejected", "Leave rejected",
-            f"Your {leave['type']} leave was rejected by {decider}. Reason: {reason}",
-            "leave", leave_id,
+            msg, "leave", leave_id,
         )
 
     updated = fetchone("SELECT * FROM leave_requests WHERE id = %s", (leave_id,))

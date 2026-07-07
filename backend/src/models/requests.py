@@ -258,6 +258,7 @@ class CreateLeaveRequest(BaseModel):
     end_date: date
     reason: str = ""
     cover_person_id: Optional[UUID] = None
+    cover_person_ids: List[UUID] = Field(default_factory=list)
     coverage_plan: Optional[str] = None
     contingency_note: Optional[str] = None
     is_planned: bool = True

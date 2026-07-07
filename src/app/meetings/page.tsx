@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import {
   CalendarDays,
@@ -587,6 +587,9 @@ function MeetingFormDialog({
   users: User[];
   onSaved: () => void;
 }) {
+  const { user: authUser } = useAuth();
+  const creatorId = authUser?.id ?? null;   // the host — always attends, can't be removed
+
   const [title, setTitle] = useState("");
   const [scope, setScope] = useState<"general" | "project">("general");
   const [projectId, setProjectId] = useState("");
@@ -598,6 +601,7 @@ function MeetingFormDialog({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [attendeeSearch, setAttendeeSearch] = useState("");
+  const attendeeSearchRef = useRef<HTMLInputElement>(null);
   const [projectMembers, setProjectMembers] = useState<User[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
@@ -611,7 +615,11 @@ function MeetingFormDialog({
       setDuration(editing.duration_minutes ?? 30);
       setAgenda(editing.agenda ?? "");
       setLocation(editing.location ?? "");
-      setAttendeeIds(editing.attendees.map((a) => a.id));
+      // Keep existing attendees; guarantee the host is present.
+      setAttendeeIds(() => {
+        const ids = editing.attendees.map((a) => a.id);
+        return creatorId && !ids.includes(creatorId) ? [creatorId, ...ids] : ids;
+      });
     } else {
       setTitle("");
       setScope("general");
@@ -623,12 +631,13 @@ function MeetingFormDialog({
       setDuration(30);
       setAgenda("");
       setLocation("");
-      setAttendeeIds([]);
+      // The creator is always an attendee (the host) — pre-selected & locked.
+      setAttendeeIds(creatorId ? [creatorId] : []);
     }
     setErrors({});
     setAttendeeSearch("");
     setProjectMembers([]);
-  }, [open, editing]);
+  }, [open, editing, creatorId]);
 
   // Fetch project members when a project is selected, enriched with full user data
   useEffect(() => {
@@ -655,9 +664,14 @@ function MeetingFormDialog({
     scope === "project" && projectId ? projectMembers : users;
 
   const toggleAttendee = (id: string) => {
+    if (id === creatorId) return;   // host can't be removed
     setAttendeeIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+    // Clear the search and refocus so the user can type the next attendee
+    // without deleting the previous query.
+    setAttendeeSearch("");
+    attendeeSearchRef.current?.focus();
   };
 
   const submit = async () => {
@@ -667,6 +681,8 @@ function MeetingFormDialog({
     if (scope === "project" && !projectId)
       errs.project = "Select a project or switch to General";
     if (!location.trim()) errs.location = "Location / link is required";
+    if (attendeeIds.filter((id) => id !== creatorId).length === 0)
+      errs.attendees = "Add at least one attendee besides yourself";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -912,6 +928,7 @@ function MeetingFormDialog({
                 <path strokeLinecap="round" d="m21 21-4.35-4.35" />
               </svg>
               <Input
+                ref={attendeeSearchRef}
                 value={attendeeSearch}
                 onChange={(e) => setAttendeeSearch(e.target.value)}
                 placeholder="Search attendees…"
@@ -958,32 +975,43 @@ function MeetingFormDialog({
                           : "No users available."}
                       </p>
                     );
-                  return visible.map((u) => (
-                    <label
-                      key={u.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={attendeeIds.includes(u.id)}
-                        onCheckedChange={() => toggleAttendee(u.id)}
-                      />
-                      <div
-                        className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                        style={{ backgroundColor: u.avatar_color }}
+                  return visible.map((u) => {
+                    const isCreator = u.id === creatorId;
+                    return (
+                      <label
+                        key={u.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent ${isCreator ? "cursor-default opacity-90" : "cursor-pointer"}`}
                       >
-                        {u.name[0]}
-                      </div>
-                      <span className="text-sm">{u.name}</span>
-                      {u.role_type && (
-                        <span className="text-xs text-muted-foreground">
-                          — {u.role_type}
-                        </span>
-                      )}
-                    </label>
-                  ));
+                        <Checkbox
+                          checked={attendeeIds.includes(u.id)}
+                          disabled={isCreator}
+                          onCheckedChange={() => toggleAttendee(u.id)}
+                        />
+                        <div
+                          className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                          style={{ backgroundColor: u.avatar_color }}
+                        >
+                          {u.name[0]}
+                        </div>
+                        <span className="text-sm">{u.name}</span>
+                        {isCreator ? (
+                          <span className="text-xs font-medium text-blue-600">— you · host</span>
+                        ) : (
+                          u.role_type && (
+                            <span className="text-xs text-muted-foreground">
+                              — {u.role_type}
+                            </span>
+                          )
+                        )}
+                      </label>
+                    );
+                  });
                 })()
               )}
             </div>
+            {errors.attendees && (
+              <p className="text-xs text-destructive">{errors.attendees}</p>
+            )}
           </div>
         </div>
 

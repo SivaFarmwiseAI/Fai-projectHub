@@ -446,6 +446,8 @@ export const analytics = {
   briefing:    () => get<{ stats: DashboardStats; critical_projects: Project[]; insights: AiInsight[] }>("/analytics/briefing"),
   notifications:(unread?: boolean) =>
     get<{ notifications: Notification[] }>(`/analytics/notifications${unread ? "?unread_only=true" : ""}`),
+  markRead:     (id: string) => post<{ ok: boolean }>(`/analytics/notifications/${id}/read`, {}),
+  markAllRead:  () => post<{ ok: boolean }>("/analytics/notifications/read-all", {}),
 };
 
 // ── Performance Assessments (Keka-style 360°) ───────────────────────────────
@@ -796,6 +798,8 @@ export interface LeaveRequest {
   approved_at?: string;
   cover_person_id?: string;
   cover_person_name?: string;
+  cover_person_ids?: string[];
+  cover_person_names?: string[];
   coverage_plan?: string;
   rejection_reason?: string;
   is_planned: boolean;
@@ -1556,6 +1560,6 @@ export interface CreateStepPayload { task_id: string; description: string; expec
 export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; assignee_id?: string; target_day?: number; estimated_hours?: number; order_index?: number; }
 export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }
 export interface CreateSubmissionPayload { phase_id?: string; project_id: string; title: string; type: string; description?: string; link?: string; is_key_milestone?: boolean }
-export interface CreateLeavePayload { type: string; start_date: string; end_date: string; reason?: string; cover_person_id?: string; coverage_plan?: string; is_planned?: boolean }
+export interface CreateLeavePayload { type: string; start_date: string; end_date: string; reason?: string; cover_person_id?: string; cover_person_ids?: string[]; coverage_plan?: string; is_planned?: boolean }
 export interface CreateReviewPayload { title: string; description?: string; type: string; assignee_id?: string; project_id?: string; task_id?: string; submission_id?: string; priority?: string; due_date?: string }
 export interface CreateUpdatePayload { type?: string; title: string; description?: string; what_was_done?: string; blockers?: string; next_steps?: string }

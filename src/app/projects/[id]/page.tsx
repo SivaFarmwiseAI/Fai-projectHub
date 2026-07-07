@@ -1309,8 +1309,9 @@ function MilestoneSection({
   const [showMilestoneReviewTask, setShowMilestoneReviewTask] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // ── Unified "Update progress" panel: status + timing + attachments + note ──
+  // ── Unified "Update progress" panel: title + status + timing + attachments + note ──
   const [showUpdate, setShowUpdate] = useState(false);
+  const [updTitle, setUpdTitle] = useState<string>(milestone.title);
   const [updStatus, setUpdStatus] = useState<string>(milestone.status);
   const [updEst, setUpdEst] = useState<number | "">(milestone.estimated_hours ?? "");
   const [updAct, setUpdAct] = useState<number | "">(milestone.actual_hours ?? "");
@@ -1322,6 +1323,7 @@ function MilestoneSection({
 
   // Local mirror of milestone values so the summary line updates immediately after save
   // without waiting for the parent refreshTasks() to complete.
+  const [localTitle, setLocalTitle] = useState<string>(milestone.title);
   const [localStatus, setLocalStatus] = useState<string>(milestone.status);
   const [localEstHours, setLocalEstHours] = useState<number | null>(milestone.estimated_hours ?? null);
   const [localActHours, setLocalActHours] = useState<number | null>(milestone.actual_hours ?? null);
@@ -1338,6 +1340,7 @@ function MilestoneSection({
   const totalDeliverables = (milestone.deliverables ?? []).length;
 
   const openUpdate = () => {
+    setUpdTitle(localTitle);
     setUpdStatus(localStatus);
     setUpdEst(localEstHours ?? "");
     setUpdAct(localActHours ?? "");
@@ -1347,17 +1350,24 @@ function MilestoneSection({
   };
 
   const submitUpdate = async () => {
+    const trimmedTitle = updTitle.trim();
+    if (!trimmedTitle) {
+      showToast.error("Title required", "Milestone name can't be empty.");
+      return;
+    }
     setSavingUpdate(true);
     try {
       const estVal = updEst !== "" ? updEst : undefined;
       const actVal = updAct !== "" ? updAct : undefined;
+      const titleChanged = trimmedTitle !== localTitle;
       const statusChanged = updStatus !== localStatus;
       const hoursChanged =
         (estVal ?? null) !== localEstHours ||
         (actVal ?? null) !== localActHours;
 
-      // 1. Apply status + timing to the milestone itself.
+      // 1. Apply title + status + timing to the milestone itself.
       await tasksApi.updateMilestone(taskId, milestone.id, {
+        title: trimmedTitle,
         status: updStatus,
         estimated_hours: estVal,
         actual_hours: actVal,
@@ -1368,12 +1378,15 @@ function MilestoneSection({
       //    status/hours update above is the primary action and must stand even
       //    if the history write fails (e.g. revision tables not yet migrated).
       if (
+        titleChanged ||
         statusChanged ||
         hoursChanged ||
         updNote.trim() ||
         updAttachments.length
       ) {
         const parts: string[] = [];
+        if (titleChanged)
+          parts.push(`Renamed to “${trimmedTitle}”`);
         if (statusChanged)
           parts.push(`Status → ${MILESTONE_STATUS_LABELS[updStatus] ?? updStatus}`);
         if (hoursChanged)
@@ -1402,6 +1415,7 @@ function MilestoneSection({
         fireMilestoneCelebration();
       // Update local mirror immediately so the summary line reflects new values
       // without waiting for the parent refreshTasks() async call.
+      setLocalTitle(trimmedTitle);
       setLocalStatus(updStatus);
       setLocalEstHours(estVal ?? null);
       setLocalActHours(actVal ?? null);
@@ -1515,7 +1529,7 @@ function MilestoneSection({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">
-              {milestone.title}
+              {localTitle}
             </span>
             <Badge
               variant="outline"
@@ -1634,6 +1648,19 @@ function MilestoneSection({
           {/* Update progress panel — status + timing + attachments + note */}
           {showUpdate && (
             <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3 space-y-3">
+              {/* Title */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                  Milestone title
+                </label>
+                <Input
+                  value={updTitle}
+                  onChange={(e) => setUpdTitle(e.target.value)}
+                  placeholder="Milestone name"
+                  className="h-8 text-[12px]"
+                />
+              </div>
+
               {/* Status */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">

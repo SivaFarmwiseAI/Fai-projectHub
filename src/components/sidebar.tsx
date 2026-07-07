@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -91,7 +91,6 @@ export const useSidebar = () => useContext(SidebarContext);
 /* ── Main component ─────────────────────────────────────────── */
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, logout, isCEO, isLead, isAdmin } = useAuth();
   const { menuItems } = useMenuAccess();
   const { mobileOpen, setMobileOpen, collapsed, setCollapsed } = useSidebar();
@@ -170,10 +169,15 @@ export function Sidebar() {
     return () => document.removeEventListener("click", handler);
   }, [userMenuOpen]);
 
-  function handleLogout() {
+  async function handleLogout() {
     showToast.info("Signed out", "See you next time!");
-    logout();
-    router.replace("/login");
+    // Await so auth state (cookie + user) is fully cleared BEFORE we leave —
+    // otherwise the login page's "redirect if authenticated" guard bounces
+    // back to "/" and the app ping-pongs between pages while logging out.
+    await logout();
+    // Hard redirect: tears down the SPA, cancels any in-flight requests, and
+    // lands on a clean /login with no guard race.
+    window.location.replace("/login");
   }
 
   /* Role badge for user profile */
