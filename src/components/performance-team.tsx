@@ -86,6 +86,17 @@ export function PerformanceTeam() {
                 Peers {r.peer_done}/{r.peer_total}
               </span>
 
+              {/* Manager review status */}
+              <span className={`hidden lg:inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${
+                r.manager_status === "submitted"
+                  ? "text-indigo-700 bg-indigo-50 border border-indigo-200"
+                  : r.manager_status === "pending"
+                  ? "text-amber-700 bg-amber-50 border border-amber-200"
+                  : "text-slate-400 bg-slate-100"}`}>
+                {r.manager_status === "submitted" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                Manager {r.manager_status === "submitted" ? "done" : r.manager_status === "pending" ? "pending" : "—"}
+              </span>
+
               {/* Band + score */}
               {submitted && r.rating_band ? (
                 <span className="inline-flex items-center text-[12px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
