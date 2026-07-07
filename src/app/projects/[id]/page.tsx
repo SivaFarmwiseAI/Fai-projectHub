@@ -1243,6 +1243,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
   const [milestoneDeliverableType, setMilestoneDeliverableType] = useState("document");
   const [milestoneTargetDay, setMilestoneTargetDay] = useState<number>(5);
   const [milestoneSuccessCriteria, setMilestoneSuccessCriteria] = useState<string[]>([]);
+  const [milestoneAssigneeId, setMilestoneAssigneeId] = useState("");
   const [newCriteria, setNewCriteria] = useState("");
 
   useEffect(() => {
@@ -1252,6 +1253,7 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
       setMilestoneDeliverableType("document");
       setMilestoneTargetDay(5);
       setMilestoneSuccessCriteria([]);
+      setMilestoneAssigneeId("");
       setNewCriteria("");
     }
   }, [showAddMilestoneForm, task]);
@@ -1922,6 +1924,26 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
                     </div>
                   </div>
 
+                  {/* Assignee */}
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
+                    <select
+                      value={milestoneAssigneeId}
+                      onChange={(e) => setMilestoneAssigneeId(e.target.value)}
+                      className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+                    >
+                      <option value="">Unassigned</option>
+                      {Object.values(_userMap)
+                        .filter((u) => u.is_active !== false)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}{u.role ? ` — ${u.role}` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
                   {/* Success Criteria List */}
                   <div>
                     <label className="text-[10px] font-medium text-gray-500 mb-1 block">Success Criteria</label>
@@ -1983,12 +2005,14 @@ function TaskCard({ task, projectId, projectTitle, viewRole, onReviewUpdate, pha
                           deliverable_type: milestoneDeliverableType,
                           target_day: milestoneTargetDay || undefined,
                           success_criteria: milestoneSuccessCriteria.length > 0 ? milestoneSuccessCriteria : undefined,
+                          assignee_id: milestoneAssigneeId || undefined,
                         }).then(() => {
                           setMilestoneTitle("");
                           setMilestoneDesc("");
                           setMilestoneDeliverableType("document");
                           setMilestoneTargetDay(5);
                           setMilestoneSuccessCriteria([]);
+                          setMilestoneAssigneeId("");
                           setShowAddMilestoneForm(false);
                           onReviewUpdate?.();
                         }).catch(() => { });
