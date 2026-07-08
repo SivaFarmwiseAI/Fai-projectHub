@@ -115,6 +115,14 @@ def _create_task(event, origin):
           body.order_index, current_user["id"]))
 
     for uid in all_ids:
+        # Auto-add the assignee to the project (so "Add People" can pull in a
+        # user who isn't a member yet), then assign them to the task. Both
+        # inserts are dedup-safe via ON CONFLICT, so existing members are a no-op.
+        execute(
+            "INSERT INTO project_assignees (project_id, user_id) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (str(body.project_id), uid),
+        )
         execute(
             "INSERT INTO task_assignees (task_id, user_id, added_by) "
             "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
@@ -135,10 +143,18 @@ def _add_task_assignee(event, origin, task_id):
     user_id = body.get("user_id")
     if not user_id:
         raise HTTPError(400, "user_id is required")
-    if not fetchone("SELECT 1 FROM tasks WHERE id = %s", (task_id,)):
+    task_row = fetchone("SELECT project_id FROM tasks WHERE id = %s", (task_id,))
+    if not task_row:
         raise HTTPError(404, "Task not found")
     if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
         raise HTTPError(404, "User not found")
+    # "Add People" can assign a user who isn't a project member yet — auto-add
+    # them to the project first (dedup-safe), then assign them to the task.
+    execute(
+        "INSERT INTO project_assignees (project_id, user_id) "
+        "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (task_row["project_id"], user_id),
+    )
     execute(
         "INSERT INTO task_assignees (task_id, user_id, added_by) "
         "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
@@ -206,6 +222,11 @@ def _update_task(event, origin, task_id):
     updated = execute_returning(f"UPDATE tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Task not found")
+    # If the user switched hours back to "auto" (not overridden), immediately
+    # re-derive the totals from the milestones so the response is consistent.
+    if fields.get("hours_overridden") is False:
+        _rollup_task_hours(task_id)
+        updated = fetchone("SELECT * FROM tasks WHERE id = %s", (task_id,))
     return resp({"task": updated}, origin=origin)
 
 
@@ -363,6 +384,18 @@ def _add_task_attachment(event, origin, task_id):
 
 # ── Milestones ────────────────────────────────────────────────────────────────
 
+def _rollup_task_hours(task_id):
+    """Recompute the parent task's estimated/actual hours as the sum of its
+    milestones — unless the task is manually overridden (handled in SQL).
+
+    Best-effort: a missing function (migration 019 not yet applied) or any other
+    rollup error must NOT fail the milestone create/update/delete it follows."""
+    try:
+        execute("SELECT fn_rollup_task_hours(%s)", (task_id,))
+    except Exception as e:
+        log.warning("Task hours rollup skipped for %s: %s", task_id, e)
+
+
 def _create_milestone(event, origin, task_id):
     get_current_user(event)
     body = CreateMilestoneRequest(**get_body(event))
@@ -374,6 +407,7 @@ def _create_milestone(event, origin, task_id):
     """, (task_id, body.title, body.description, body.deliverable_type, json.dumps(body.success_criteria),
           str(body.assignee_id) if body.assignee_id else None, body.target_day,
           body.estimated_hours, body.order_index))
+    _rollup_task_hours(task_id)
     return resp({"milestone": ms}, 201, origin)
 
 
@@ -395,6 +429,7 @@ def _update_milestone(event, origin, task_id, ms_id):
     updated = execute_returning(f"UPDATE task_milestones SET {set_clause} WHERE id = %s AND task_id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Milestone not found")
+    _rollup_task_hours(task_id)
     return resp({"milestone": updated}, origin=origin)
 
 
@@ -406,6 +441,7 @@ def _delete_milestone(event, origin, task_id, ms_id):
     )
     if not deleted:
         raise HTTPError(404, "Milestone not found")
+    _rollup_task_hours(task_id)
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 

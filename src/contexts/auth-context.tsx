@@ -2,7 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-export type UserRoleType = "CEO" | "Team Lead" | "Member" | "Admin";
+export type UserRoleType = "CEO" | "Team Lead" | "Member" | "Admin" | "HR" | "Leadership";
+
+/** Roles with organisation-wide performance visibility (see everyone's reviews). */
+export const FULL_ACCESS_ROLES: UserRoleType[] = ["CEO", "Admin", "HR", "Leadership"];
 
 export type AuthUser = {
   id: string;
@@ -24,8 +27,12 @@ type AuthContextType = {
   isMember: boolean;
   /** Admin has full access to every menu, dashboard, and analytics view */
   isAdmin: boolean;
+  isHR: boolean;
+  isLeadership: boolean;
+  /** CEO / Admin / HR / Leadership — org-wide performance visibility. */
+  hasFullPerformanceAccess: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const STORAGE_KEY = "projecthub_session";
@@ -135,6 +142,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLead: user?.roleType === "Team Lead",
         isMember: user?.roleType === "Member",
         isAdmin: user?.roleType === "Admin",
+        isHR: user?.roleType === "HR",
+        isLeadership: user?.roleType === "Leadership",
+        hasFullPerformanceAccess: !!user && FULL_ACCESS_ROLES.includes(user.roleType),
         login,
         logout,
       }}

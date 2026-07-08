@@ -156,6 +156,37 @@ function SearchableDropdown({
 }
 
 const ROLE_TYPES = ["Member", "Team Lead", "Admin", "CEO"];
+// Only these roles are eligible to have members assigned to them as a team lead.
+const MANAGER_ROLES = new Set(["Team Lead", "CEO", "Admin"]);
+
+function ManagerSelect({
+  managers,
+  value,
+  onChange,
+  excludeId,
+}: {
+  managers: User[];
+  value: string;
+  onChange: (id: string) => void;
+  excludeId?: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="flex items-center w-full h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-gray-50 transition-colors"
+    >
+      <option value="">— No team lead —</option>
+      {managers
+        .filter((m) => m.id !== excludeId)
+        .map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name} ({m.role_type})
+          </option>
+        ))}
+    </select>
+  );
+}
 
 export default function ManageTeamPage() {
   const { isCEO, isAdmin } = useAuth();
@@ -168,8 +199,9 @@ export default function ManageTeamPage() {
   const roles = roleObjects.map(r => r.name);
   const departments = deptObjects.map(d => d.name);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", role: "", role_type: "", department: "", email: "" });
+  const [editForm, setEditForm] = useState({ name: "", role: "", role_type: "", department: "", email: "", manager_id: "" });
   const [, forceUpdate] = useState(0);
+  const managers = members.filter((m) => MANAGER_ROLES.has(m.role_type));
 
   function addRole(name: string) {
     if (roles.includes(name)) return;
@@ -245,7 +277,14 @@ export default function ManageTeamPage() {
   // --- Edit handlers ---
   function startEditing(user: User) {
     setEditingId(user.id);
-    setEditForm({ name: user.name, role: user.role ?? "", role_type: user.role_type ?? "Member", department: user.department ?? "", email: user.email });
+    setEditForm({
+      name: user.name,
+      role: user.role ?? "",
+      role_type: user.role_type ?? "Member",
+      department: user.department ?? "",
+      email: user.email,
+      manager_id: user.manager_id ?? "",
+    });
   }
 
   function cancelEditing() {
@@ -254,12 +293,20 @@ export default function ManageTeamPage() {
 
   function saveEditing(id: string) {
     const payload: Partial<User> = { name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email };
-    if (canManageRoleType) payload.role_type = editForm.role_type;
+    if (canManageRoleType) {
+      payload.role_type = editForm.role_type;
+      // Note: the update endpoint only applies non-null fields, so clearing a
+      // team lead assignment back to "none" isn't supported here yet.
+      if (editForm.manager_id) payload.manager_id = editForm.manager_id;
+    }
     usersApi.update(id, payload).catch(() => { });
+    const managerName = editForm.manager_id
+      ? members.find((m) => m.id === editForm.manager_id)?.name
+      : undefined;
     setMembers((prev) =>
       prev.map((m) =>
         m.id === id
-          ? { ...m, ...payload }
+          ? { ...m, ...payload, manager_name: managerName ?? m.manager_name }
           : m
       )
     );
@@ -573,7 +620,7 @@ export default function ManageTeamPage() {
                 {isEditing ? (
                   /* Inline edit mode */
                   <div className="flex-1 space-y-2">
-                    <div className={`grid gap-2 ${canManageRoleType ? "grid-cols-5" : "grid-cols-4"}`}>
+                    <div className={`grid gap-2 ${canManageRoleType ? "grid-cols-6" : "grid-cols-4"}`}>
                       <Input
                         value={editForm.name}
                         onChange={(e) =>
@@ -615,6 +662,14 @@ export default function ManageTeamPage() {
                         placeholder="Email"
                         className="h-8 text-sm"
                       />
+                      {canManageRoleType && (
+                        <ManagerSelect
+                          managers={managers}
+                          value={editForm.manager_id}
+                          onChange={(id) => setEditForm({ ...editForm, manager_id: id })}
+                          excludeId={user.id}
+                        />
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -633,6 +688,11 @@ export default function ManageTeamPage() {
                       {user.role_type && user.role_type !== "Member" && (
                         <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
                           {user.role_type}
+                        </Badge>
+                      )}
+                      {user.manager_name && (
+                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                          Reports to {user.manager_name}
                         </Badge>
                       )}
                     </div>

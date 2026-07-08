@@ -32,6 +32,7 @@ class UpdateUserRequest(BaseModel):
     role_type: Optional[str] = None
     department: Optional[str] = None
     avatar_color: Optional[str] = None
+    manager_id: Optional[UUID] = None
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
@@ -135,6 +136,9 @@ class UpdateTaskRequest(BaseModel):
     approach: Optional[str] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
+    # When True, task hours are entered manually and NOT auto-summed from
+    # milestones. When False, the task hours roll up from its milestones.
+    hours_overridden: Optional[bool] = None
     plan_status: Optional[str] = None
     review_status: Optional[str] = None
     success_criteria: Optional[List[str]] = None
@@ -254,6 +258,7 @@ class CreateLeaveRequest(BaseModel):
     end_date: date
     reason: str = ""
     cover_person_id: Optional[UUID] = None
+    cover_person_ids: List[UUID] = Field(default_factory=list)
     coverage_plan: Optional[str] = None
     contingency_note: Optional[str] = None
     is_planned: bool = True
@@ -263,6 +268,7 @@ class UpdateLeaveRequest(BaseModel):
     status: str
     cover_person_id: Optional[UUID] = None
     coverage_plan: Optional[str] = None
+    rejection_reason: Optional[str] = None
 
 
 # ── Standup ───────────────────────────────────────────────────────────────────
@@ -292,7 +298,7 @@ class CreateReviewTaskRequest(BaseModel):
     title: str
     description: str = ""
     type: str = "document"
-    assignee_id: Optional[UUID] = None
+    assignee_ids: List[UUID] = Field(default_factory=list)
     project_id: Optional[UUID] = None
     task_id: Optional[UUID] = None
     submission_id: Optional[UUID] = None
@@ -303,7 +309,8 @@ class CreateReviewTaskRequest(BaseModel):
 class UpdateReviewTaskRequest(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
-    assignee_id: Optional[UUID] = None
+    assignee_ids: Optional[List[UUID]] = None
+    project_id: Optional[UUID] = None
     due_date: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
@@ -421,3 +428,72 @@ class MultipartCompleteRequest(BaseModel):
     key: str
     upload_id: str
     parts: List[MultipartPart]
+
+
+# ── Performance Assessments ───────────────────────────────────────────────────
+
+class CreatePerformanceAssessmentRequest(BaseModel):
+    """POST /api/performance-assessments — a submitted assessment + computed scores.
+
+    For a self-assessment, `reviewer_ids` nominates the peer reviewers (the
+    handler creates a pending peer review row for each)."""
+    employee_name: str
+    employee_user_id: Optional[UUID] = None
+    subject_user_id: Optional[UUID] = None
+    designation: Optional[str] = None
+    review_period: Optional[str] = None
+    career_level: str = "mid"          # junior | mid | senior
+    filled_by: str = "self"            # self | rev
+    kind: str = "self"                 # self | peer
+    cycle_id: Optional[UUID] = None
+    reviewer_ids: List[UUID] = Field(default_factory=list)
+    reviewer_name: Optional[str] = None
+    reviewer_user_id: Optional[UUID] = None
+    role_areas: List[str] = Field(default_factory=list)
+    individual_score: Optional[float] = None
+    team_score: Optional[float] = None
+    org_score: Optional[float] = None
+    culture_score: Optional[float] = None
+    total_score: Optional[float] = None
+    rating_band: Optional[str] = None
+    severity: str = "none"             # none | concern | serious
+    capped: bool = False
+    data: dict = Field(default_factory=dict)
+
+
+class UpdatePerformanceAssessmentRequest(BaseModel):
+    """PATCH /api/performance-assessments/<id> — a nominated reviewer filling in
+    (or revising) their assigned peer review."""
+    role_areas: Optional[List[str]] = None
+    individual_score: Optional[float] = None
+    team_score: Optional[float] = None
+    org_score: Optional[float] = None
+    culture_score: Optional[float] = None
+    total_score: Optional[float] = None
+    rating_band: Optional[str] = None
+    severity: Optional[str] = None
+    capped: Optional[bool] = None
+    data: Optional[dict] = None
+    status: Optional[str] = None        # pending | submitted
+
+
+class CreateReviewCycleRequest(BaseModel):
+    """POST /api/performance-assessments/cycles — HR opens a review cycle."""
+    name: str
+    status: str = "draft"               # draft | open | closed
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class UpdateReviewCycleRequest(BaseModel):
+    """PATCH /api/performance-assessments/cycles/<id>."""
+    name: Optional[str] = None
+    status: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class SetManagerRequest(BaseModel):
+    """PATCH /api/performance-assessments/org/manager — set a user's reporting manager."""
+    user_id: UUID
+    manager_id: Optional[UUID] = None

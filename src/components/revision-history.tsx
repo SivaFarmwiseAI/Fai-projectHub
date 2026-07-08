@@ -127,10 +127,13 @@ export function RevisionHistory({
           This will permanently remove the entry
           {rev.summary ? (
             <>
-              {" "}<span className="font-medium text-slate-900">&ldquo;{rev.summary}&rdquo;</span>
+              {" "}
+              <span className="font-medium text-slate-900">
+                &ldquo;{rev.summary}&rdquo;
+              </span>
             </>
-          ) : null}
-          {" "}and any attachments tied to it. This action cannot be undone.
+          ) : null}{" "}
+          and any attachments tied to it. This action cannot be undone.
         </span>
       ),
       confirmLabel: "Delete revision",
@@ -142,11 +145,17 @@ export function RevisionHistory({
       if (entity === "phase") {
         await phasesApi.deleteRevision(entityId, rev.id);
       } else if (entity === "milestone") {
-        await tasksApi.deleteMilestoneRevision(parentId ?? "", entityId, rev.id);
+        await tasksApi.deleteMilestoneRevision(
+          parentId ?? "",
+          entityId,
+          rev.id,
+        );
       } else {
         await tasksApi.deleteRevision(entityId, rev.id);
       }
-      setRevisions((prev) => (prev ? prev.filter((r) => r.id !== rev.id) : prev));
+      setRevisions((prev) =>
+        prev ? prev.filter((r) => r.id !== rev.id) : prev,
+      );
       showToast.success("Revision deleted");
     } catch (err) {
       showToast.error(
@@ -180,7 +189,12 @@ export function RevisionHistory({
               </SheetTitle>
               {entityLabel && (
                 <p className="text-xs text-slate-500 truncate">
-                  {entity === "phase" ? "Phase" : entity === "milestone" ? "Milestone" : "Task"} · {entityLabel}
+                  {entity === "phase"
+                    ? "Phase"
+                    : entity === "milestone"
+                      ? "Milestone"
+                      : "Task"}{" "}
+                  · {entityLabel}
                 </p>
               )}
             </SheetHeader>
@@ -345,8 +359,8 @@ export function RevisionHistory({
                   onClick={openDrawer}
                   className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
                 >
-                  + {(revisions?.length ?? 0) - recent.length} earlier
-                  revision{(revisions?.length ?? 0) - recent.length === 1 ? "" : "s"}
+                  + {(revisions?.length ?? 0) - recent.length} earlier revision
+                  {(revisions?.length ?? 0) - recent.length === 1 ? "" : "s"}
                 </button>
               </li>
             )}
@@ -382,7 +396,7 @@ function EmptyState({
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-3 py-4 text-center">
       <p className="text-xs text-slate-500">{message}</p>
-      {onAdd && (
+      {/* {onAdd && (
         <Button
           size="sm"
           variant="ghost"
@@ -392,7 +406,7 @@ function EmptyState({
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add the first revision
         </Button>
-      )}
+      )} */}
     </div>
   );
 }
@@ -445,7 +459,9 @@ function RevisionRow({
             >
               {authorInitial}
             </span>
-            <span className="font-medium text-slate-700">{rev.author_name}</span>
+            <span className="font-medium text-slate-700">
+              {rev.author_name}
+            </span>
             <span className="text-slate-300">·</span>
           </>
         )}
@@ -492,11 +508,11 @@ function RevisionRow({
 
 function ChangeTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    revision:         { label: "Revision",   cls: "bg-indigo-100 text-indigo-700" },
-    status_change:    { label: "Status",     cls: "bg-amber-100 text-amber-800" },
-    closure:          { label: "Closure",    cls: "bg-emerald-100 text-emerald-800" },
-    description_edit: { label: "Edit",       cls: "bg-sky-100 text-sky-800" },
-    note:             { label: "Note",       cls: "bg-slate-100 text-slate-700" },
+    revision: { label: "Revision", cls: "bg-indigo-100 text-indigo-700" },
+    status_change: { label: "Status", cls: "bg-amber-100 text-amber-800" },
+    closure: { label: "Closure", cls: "bg-emerald-100 text-emerald-800" },
+    description_edit: { label: "Edit", cls: "bg-sky-100 text-sky-800" },
+    note: { label: "Note", cls: "bg-slate-100 text-slate-700" },
   };
   const m = map[type] ?? { label: type, cls: "bg-slate-100 text-slate-700" };
   return (
@@ -521,7 +537,12 @@ function AttachmentChip({ att }: { att: RevisionAttachment }) {
   );
   if (!href) return inner;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-block max-w-full">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block max-w-full"
+    >
       {inner}
     </a>
   );

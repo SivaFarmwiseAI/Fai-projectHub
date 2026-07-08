@@ -1,9 +1,9 @@
-export type RoleType = "CEO" | "Team Lead" | "Member" | "Admin";
+export type RoleType = "CEO" | "Team Lead" | "Member" | "Admin" | "HR" | "Leadership";
 
 /**
  * ALL_ROLES — Admin is listed first so it appears first in the admin UI matrix.
  */
-export const ALL_ROLES: RoleType[] = ["Admin", "CEO", "Team Lead", "Member"];
+export const ALL_ROLES: RoleType[] = ["Admin", "CEO", "HR", "Leadership", "Team Lead", "Member"];
 
 export type MenuItemConfig = {
   key: string;
@@ -15,9 +15,18 @@ export type MenuItemConfig = {
   badgeKey?: "reviews" | "capture";
   /** Locked items cannot be toggled in the menu access admin UI */
   locked?: boolean;
+  /** Disabled items still render in the sidebar but are not clickable */
+  disabled?: boolean;
 };
 
-export const SECTION_ORDER = ["Overview", "Projects", "Work", "Team", "AI", "Settings"] as const;
+export const SECTION_ORDER = [
+  "Overview",
+  "Projects",
+  "Work",
+  "Team",
+  "AI",
+  "Settings",
+] as const;
 
 export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
   // ── Overview ─────────────────────────────────────────────────────────
@@ -113,6 +122,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     section: "Work",
     defaultRoles: "all",
     allowedRoles: [...ALL_ROLES],
+    disabled: true,
   },
   {
     key: "review-queue",
@@ -122,6 +132,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     defaultRoles: ["Admin", "CEO", "Team Lead"],
     allowedRoles: ["Admin", "CEO", "Team Lead"],
     badgeKey: "reviews",
+    disabled: true,
   },
   {
     key: "commitments",
@@ -130,6 +141,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     section: "Work",
     defaultRoles: "all",
     allowedRoles: [...ALL_ROLES],
+    disabled: true,
   },
   {
     key: "meetings",
@@ -170,8 +182,16 @@ export const DEFAULT_MENU_ITEMS: MenuItemConfig[] = [
     label: "Leave & Availability",
     href: "/team/availability",
     section: "Team",
-    defaultRoles: ["Admin", "CEO", "Team Lead"],
-    allowedRoles: ["Admin", "CEO", "Team Lead"],
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
+  },
+  {
+    key: "performance-assessment",
+    label: "Performance Assessment",
+    href: "/performance-assessment",
+    section: "Team",
+    defaultRoles: "all",
+    allowedRoles: [...ALL_ROLES],
   },
 
   // ── AI ───────────────────────────────────────────────────────────────

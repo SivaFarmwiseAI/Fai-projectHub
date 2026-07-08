@@ -28,6 +28,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/discussions": "Discussions",
   "/settings": "Settings",
   "/settings/menu-access": "Menu Access",
+  "/performance-assessment": "Performance Assessment",
 };
 
 function getPageTitle(pathname: string): string {
@@ -52,10 +53,13 @@ function MobileTopBar({
   const totalBadge = reviewCount + captureCount;
 
   useEffect(() => {
-    analyticsApi.dashboard().then(r => {
-      setReviewCount(r.stats.pending_reviews);
-      setCaptureCount(r.stats.pending_captures);
-    }).catch(() => { });
+    analyticsApi
+      .dashboard()
+      .then((r) => {
+        setReviewCount(r.stats.pending_reviews);
+        setCaptureCount(r.stats.pending_captures);
+      })
+      .catch(() => {});
   }, []);
   const title = getPageTitle(pathname);
 
@@ -131,7 +135,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileOpen]);
 
   if (isPublicRoute) return <>{children}</>;
@@ -148,7 +154,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex flex-col items-center gap-1.5">
             <p className="text-[15px] font-bold text-slate-800">ProjectHub</p>
-            <p className="text-sm text-slate-400 animate-pulse">Loading your command center…</p>
+            <p className="text-sm text-slate-400 animate-pulse">
+              Loading your command center…
+            </p>
           </div>
           <div className="flex gap-1.5">
             {[0, 1, 2].map((i) => (
@@ -167,7 +175,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <SidebarContext.Provider value={{ mobileOpen, setMobileOpen, collapsed: sidebarCollapsed, setCollapsed: setSidebarCollapsed }}>
+    <SidebarContext.Provider
+      value={{
+        mobileOpen,
+        setMobileOpen,
+        collapsed: sidebarCollapsed,
+        setCollapsed: setSidebarCollapsed,
+      }}
+    >
       <TooltipProvider>
         <Sidebar />
 
@@ -175,7 +190,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div
           className={cn(
             "flex flex-col flex-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            pathname === "/projects/timeline" ? "h-screen overflow-hidden" : "min-h-screen",
+            pathname === "/projects/timeline"
+              ? "h-screen overflow-hidden"
+              : "min-h-screen",
             /* Desktop: leave room for fixed sidebar */
             sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-64",
           )}
@@ -184,14 +201,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <MobileTopBar onMenuClick={() => setMobileOpen(true)} />
 
           {/* Page content */}
-          <main className={cn(
-            "flex-1 bg-grid-pattern flex flex-col min-h-0",
-            pathname === "/projects/timeline" ? "overflow-hidden" : "overflow-auto"
-          )}>
-            <div className={cn(
-              "mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0 w-full max-w-none",
-              pathname === "/projects/timeline" ? "py-0 pb-0" : "py-6 pb-10"
-            )}>
+          <main
+            className={cn(
+              "flex-1 bg-grid-pattern flex flex-col min-h-0",
+              pathname === "/projects/timeline"
+                ? "overflow-hidden"
+                : "overflow-auto",
+            )}
+          >
+            <div
+              className={cn(
+                "mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0 w-full max-w-none",
+                pathname === "/projects/timeline" ? "py-0 pb-0" : "py-6 pb-10",
+              )}
+            >
               <ErrorBoundary>{children}</ErrorBoundary>
             </div>
           </main>

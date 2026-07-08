@@ -5,7 +5,10 @@
  */
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -36,7 +39,7 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ): Promise<T> {
   const url = `/api${path}`;
   const res = await fetch(url, {
@@ -59,33 +62,38 @@ async function request<T>(
   return res.json();
 }
 
-const get  = <T>(path: string)              => request<T>("GET",    path);
-const post = <T>(path: string, body: unknown) => request<T>("POST",   path, body);
-const patch = <T>(path: string, body: unknown) => request<T>("PATCH", path, body);
-const del  = <T>(path: string)              => request<T>("DELETE", path);
+const get = <T>(path: string) => request<T>("GET", path);
+const post = <T>(path: string, body: unknown) => request<T>("POST", path, body);
+const patch = <T>(path: string, body: unknown) =>
+  request<T>("PATCH", path, body);
+const del = <T>(path: string) => request<T>("DELETE", path);
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const auth = {
-  login:          (email: string, password: string) =>
+  login: (email: string, password: string) =>
     post<{ user: User }>("/auth/login", { email, password }),
-  logout:         () => post<void>("/auth/logout", {}),
-  me:             () => get<{ user: User }>("/auth/me"),
-  register:       (data: CreateUserPayload) => post<{ user: User }>("/auth/register", data),
+  logout: () => post<void>("/auth/logout", {}),
+  me: () => get<{ user: User }>("/auth/me"),
+  register: (data: CreateUserPayload) =>
+    post<{ user: User }>("/auth/register", data),
   changePassword: (old_password: string, new_password: string) =>
     post<void>("/auth/change-password", { old_password, new_password }),
 };
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const users = {
-  list:   (params?: { department?: string; role_type?: string }) =>
+  list: (params?: { department?: string; role_type?: string }) =>
     get<{ users: User[] }>(`/users${_qs(params)}`),
   create: (data: CreateUserPayload) => post<{ user: User }>("/users", data),
-  get:    (id: string) => get<{ user: User }>(`/users/${id}`),
-  update: (id: string, data: Partial<User>) => patch<{ user: User }>(`/users/${id}`, data),
+  get: (id: string) => get<{ user: User }>(`/users/${id}`),
+  update: (id: string, data: Partial<User>) =>
+    patch<{ user: User }>(`/users/${id}`, data),
   delete: (id: string) => del<void>(`/users/${id}`),
-  tasks:  (id: string, status?: string) =>
-    get<{ tasks: Task[] }>(`/users/${id}/tasks${status ? `?status=${status}` : ""}`),
-  leave:  (id: string) => get<{ leave: LeaveRequest[] }>(`/users/${id}/leave`),
+  tasks: (id: string, status?: string) =>
+    get<{ tasks: Task[] }>(
+      `/users/${id}/tasks${status ? `?status=${status}` : ""}`,
+    ),
+  leave: (id: string) => get<{ leave: LeaveRequest[] }>(`/users/${id}/leave`),
 };
 
 // ── Departments & Roles ───────────────────────────────────────────────────────
@@ -113,15 +121,22 @@ export interface Role {
 }
 
 export const departments = {
-  list:   () => get<{ departments: Department[] }>("/departments"),
-  create: (data: { name: string; description?: string; color?: string; head_id?: string }) =>
-    post<{ department: Department }>("/departments", data),
+  list: () => get<{ departments: Department[] }>("/departments"),
+  create: (data: {
+    name: string;
+    description?: string;
+    color?: string;
+    head_id?: string;
+  }) => post<{ department: Department }>("/departments", data),
 };
 
 export const roles = {
-  list:   () => get<{ roles: Role[] }>("/roles"),
-  create: (data: { name: string; description?: string; department_id?: string }) =>
-    post<{ role: Role }>("/roles", data),
+  list: () => get<{ roles: Role[] }>("/roles"),
+  create: (data: {
+    name: string;
+    description?: string;
+    department_id?: string;
+  }) => post<{ role: Role }>("/roles", data),
 };
 
 // ── Uploads ───────────────────────────────────────────────────────────────────
@@ -153,11 +168,25 @@ export const uploads = {
       data: dataB64,
     }),
   multipartStart: (filename: string, contentType: string, fileSize: number) =>
-    get<{ upload_id: string; key: string; part_urls: string[]; part_size: number; cloudfront_url: string }>(
-      `/projects/upload/multipart/start?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}&file_size=${fileSize}`
+    get<{
+      upload_id: string;
+      key: string;
+      part_urls: string[];
+      part_size: number;
+      cloudfront_url: string;
+    }>(
+      `/projects/upload/multipart/start?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}&file_size=${fileSize}`,
     ),
-  multipartComplete: (key: string, uploadId: string, parts: { part_number: number; etag: string }[]) =>
-    post<{ cloudfront_url: string }>("/projects/upload/multipart/complete", { key, upload_id: uploadId, parts }),
+  multipartComplete: (
+    key: string,
+    uploadId: string,
+    parts: { part_number: number; etag: string }[],
+  ) =>
+    post<{ cloudfront_url: string }>("/projects/upload/multipart/complete", {
+      key,
+      upload_id: uploadId,
+      parts,
+    }),
 
   /**
    * Upload a file and return its public CloudFront URL, transparently choosing
@@ -173,7 +202,11 @@ export const uploads = {
     const contentType = file.type || "application/octet-stream";
 
     if (file.size <= SINGLE_SHOT_MAX_BYTES) {
-      const { url } = await uploads.uploadFile(file.name, contentType, await fileToBase64(file));
+      const { url } = await uploads.uploadFile(
+        file.name,
+        contentType,
+        await fileToBase64(file),
+      );
       return url;
     }
 
@@ -186,7 +219,10 @@ export const uploads = {
       const blob = file.slice(start, Math.min(start + part_size, file.size));
       const res = await fetch(part_urls[i], { method: "PUT", body: blob });
       if (!res.ok) {
-        throw new ApiError(res.status, "Storage rejected an upload part — please try again.");
+        throw new ApiError(
+          res.status,
+          "Storage rejected an upload part — please try again.",
+        );
       }
       // S3 returns the part's entity tag (quoted MD5) in the ETag header; the
       // browser can only read it when the bucket CORS exposes ETag.
@@ -200,7 +236,11 @@ export const uploads = {
       parts.push({ part_number: i + 1, etag });
     }
 
-    const { cloudfront_url: completed } = await uploads.multipartComplete(key, upload_id, parts);
+    const { cloudfront_url: completed } = await uploads.multipartComplete(
+      key,
+      upload_id,
+      parts,
+    );
     return completed || cloudfront_url;
   },
 };
@@ -208,55 +248,74 @@ export const uploads = {
 // ── Projects ──────────────────────────────────────────────────────────────────
 export const projects = {
   list: (params?: {
-    status?: string; type?: string; priority?: string;
-    owner_id?: string; assignee_id?: string; search?: string;
-    limit?: number; offset?: number;
+    status?: string;
+    type?: string;
+    priority?: string;
+    owner_id?: string;
+    assignee_id?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
   }) => get<{ projects: Project[]; total: number }>(`/projects${_qs(params)}`),
 
   create: (data: CreateProjectPayload) =>
     post<{ project: Project }>("/projects", data),
 
-  get: (id: string) =>
-    get<{ project: Project }>(`/projects/${id}`),
+  get: (id: string) => get<{ project: Project }>(`/projects/${id}`),
 
   update: (id: string, data: Partial<Project>) =>
     patch<{ project: Project }>(`/projects/${id}`, data),
 
   delete: (id: string) => del<void>(`/projects/${id}`),
 
-  tasks:    (id: string) => get<{ tasks: Task[] }>(`/projects/${id}/tasks`),
-  updates:  (id: string) => get<{ updates: ProjectUpdate[] }>(`/projects/${id}/updates`),
-  addUpdate:(id: string, data: CreateUpdatePayload) =>
+  tasks: (id: string) => get<{ tasks: Task[] }>(`/projects/${id}/tasks`),
+  updates: (id: string) =>
+    get<{ updates: ProjectUpdate[] }>(`/projects/${id}/updates`),
+  addUpdate: (id: string, data: CreateUpdatePayload) =>
     post<{ update: ProjectUpdate }>(`/projects/${id}/updates`, data),
-  documents:(id: string) => get<{ documents: ProjectDocument[] }>(`/projects/${id}/documents`),
-  deleteDocument:(projectId: string, docId: string) =>
+  documents: (id: string) =>
+    get<{ documents: ProjectDocument[] }>(`/projects/${id}/documents`),
+  deleteDocument: (projectId: string, docId: string) =>
     del<void>(`/projects/${projectId}/documents/${docId}`),
-  insights: (id: string) => get<{ insights: AiInsight[] }>(`/projects/${id}/insights`),
-  checkpoints:(id: string) => get<{ checkpoints: Checkpoint[] }>(`/projects/${id}/checkpoints`),
+  insights: (id: string) =>
+    get<{ insights: AiInsight[] }>(`/projects/${id}/insights`),
+  checkpoints: (id: string) =>
+    get<{ checkpoints: Checkpoint[] }>(`/projects/${id}/checkpoints`),
   timeline: () => get<{ projects: Project[] }>("/projects/timeline/all"),
 
   // Team management
-  addAssignee:    (id: string, user_id: string) =>
-    post<{ project_id: string; user_id: string; role: string }>(`/projects/${id}/assignees`, { user_id }),
+  addAssignee: (id: string, user_id: string) =>
+    post<{ project_id: string; user_id: string; role: string }>(
+      `/projects/${id}/assignees`,
+      { user_id },
+    ),
   removeAssignee: (id: string, user_id: string) =>
     del<void>(`/projects/${id}/assignees/${user_id}`),
-  addCoOwner:     (id: string, user_id: string) =>
-    post<{ project_id: string; user_id: string; role: string }>(`/projects/${id}/co-owners`, { user_id }),
-  removeCoOwner:  (id: string, user_id: string) =>
+  addCoOwner: (id: string, user_id: string) =>
+    post<{ project_id: string; user_id: string; role: string }>(
+      `/projects/${id}/co-owners`,
+      { user_id },
+    ),
+  removeCoOwner: (id: string, user_id: string) =>
     del<void>(`/projects/${id}/co-owners/${user_id}`),
 };
 
 // ── Phases ────────────────────────────────────────────────────────────────────
 export const phases = {
-  get:     (id: string) => get<{ phase: Phase }>(`/phases/${id}`),
-  update:  (id: string, data: Partial<Phase>) => patch<{ phase: Phase }>(`/phases/${id}`, data),
-  create:  (data: CreatePhasePayload) => post<{ phase: Phase }>("/phases", data),
+  get: (id: string) => get<{ phase: Phase }>(`/phases/${id}`),
+  update: (id: string, data: Partial<Phase>) =>
+    patch<{ phase: Phase }>(`/phases/${id}`, data),
+  create: (data: CreatePhasePayload) => post<{ phase: Phase }>("/phases", data),
   signOff: (id: string) => post<{ phase: Phase }>(`/phases/${id}/sign-off`, {}),
-  attachments: (id: string) => get<{ attachments: PhaseAttachment[] }>(`/phases/${id}/attachments`),
-  addAttachment: (id: string, data: { title: string; type?: string; url?: string }) =>
-    post<{ attachment: PhaseAttachment }>(`/phases/${id}/attachments`, data),
-  revisions:    (id: string) => get<{ revisions: PhaseRevision[] }>(`/phases/${id}/revisions`),
-  addRevision:  (id: string, data: CreateRevisionPayload) =>
+  attachments: (id: string) =>
+    get<{ attachments: PhaseAttachment[] }>(`/phases/${id}/attachments`),
+  addAttachment: (
+    id: string,
+    data: { title: string; type?: string; url?: string },
+  ) => post<{ attachment: PhaseAttachment }>(`/phases/${id}/attachments`, data),
+  revisions: (id: string) =>
+    get<{ revisions: PhaseRevision[] }>(`/phases/${id}/revisions`),
+  addRevision: (id: string, data: CreateRevisionPayload) =>
     post<{ revision: PhaseRevision }>(`/phases/${id}/revisions`, data),
   deleteRevision: (phaseId: string, revisionId: string) =>
     del<void>(`/phases/${phaseId}/revisions/${revisionId}`),
@@ -265,151 +324,246 @@ export const phases = {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 export const tasks = {
-  list: (params?: { project_id?: string; assignee_id?: string; status?: string; priority?: string }) =>
-    get<{ tasks: Task[] }>(`/tasks${_qs(params)}`),
-  create:  (data: CreateTaskPayload) => post<{ task: Task }>("/tasks", data),
-  get:     (id: string) => get<{ task: Task }>(`/tasks/${id}`),
-  update:  (id: string, data: Partial<Task>) => patch<{ task: Task }>(`/tasks/${id}`, data),
-  delete:  (id: string) => del<void>(`/tasks/${id}`),
+  list: (params?: {
+    project_id?: string;
+    assignee_id?: string;
+    status?: string;
+    priority?: string;
+  }) => get<{ tasks: Task[] }>(`/tasks${_qs(params)}`),
+  create: (data: CreateTaskPayload) => post<{ task: Task }>("/tasks", data),
+  get: (id: string) => get<{ task: Task }>(`/tasks/${id}`),
+  update: (id: string, data: Partial<Task>) =>
+    patch<{ task: Task }>(`/tasks/${id}`, data),
+  delete: (id: string) => del<void>(`/tasks/${id}`),
 
-  addStep:    (id: string, data: CreateStepPayload) =>
+  addStep: (id: string, data: CreateStepPayload) =>
     post<{ step: TaskStep }>(`/tasks/${id}/steps`, data),
   updateStep: (taskId: string, stepId: string, data: Partial<TaskStep>) =>
     patch<{ step: TaskStep }>(`/tasks/${taskId}/steps/${stepId}`, data),
 
-  addUpdate:    (id: string, data: { message: string; revised_estimate?: number }) =>
-    post<{ update: TaskUpdateEntry }>(`/tasks/${id}/updates`, data),
+  addUpdate: (
+    id: string,
+    data: { message: string; revised_estimate?: number },
+  ) => post<{ update: TaskUpdateEntry }>(`/tasks/${id}/updates`, data),
 
-  addMilestone:    (id: string, data: CreateMilestonePayload) =>
+  addMilestone: (id: string, data: CreateMilestonePayload) =>
     post<{ milestone: TaskMilestone }>(`/tasks/${id}/milestones`, data),
-  updateMilestone: (taskId: string, msId: string, data: Partial<TaskMilestone>) =>
-    patch<{ milestone: TaskMilestone }>(`/tasks/${taskId}/milestones/${msId}`, data),
+  updateMilestone: (
+    taskId: string,
+    msId: string,
+    data: Partial<TaskMilestone>,
+  ) =>
+    patch<{ milestone: TaskMilestone }>(
+      `/tasks/${taskId}/milestones/${msId}`,
+      data,
+    ),
   deleteMilestone: (taskId: string, msId: string) =>
     del<void>(`/tasks/${taskId}/milestones/${msId}`),
 
   // Milestone revisions (history) — mirrors task revisions
   milestoneRevisions: (taskId: string, msId: string) =>
-    get<{ revisions: MilestoneRevision[] }>(`/tasks/${taskId}/milestones/${msId}/revisions`),
-  addMilestoneRevision: (taskId: string, msId: string, data: CreateRevisionPayload) =>
-    post<{ revision: MilestoneRevision }>(`/tasks/${taskId}/milestones/${msId}/revisions`, data),
+    get<{ revisions: MilestoneRevision[] }>(
+      `/tasks/${taskId}/milestones/${msId}/revisions`,
+    ),
+  addMilestoneRevision: (
+    taskId: string,
+    msId: string,
+    data: CreateRevisionPayload,
+  ) =>
+    post<{ revision: MilestoneRevision }>(
+      `/tasks/${taskId}/milestones/${msId}/revisions`,
+      data,
+    ),
   deleteMilestoneRevision: (taskId: string, msId: string, revisionId: string) =>
     del<void>(`/tasks/${taskId}/milestones/${msId}/revisions/${revisionId}`),
 
   requestExtension: (data: CreateExtensionPayload) =>
     post<{ extension: DeadlineExtension }>("/tasks/deadline-extensions", data),
-  updateExtension: (id: string, data: { status: string; ceo_comment?: string; action_taken?: string }) =>
-    patch<{ extension: DeadlineExtension }>(`/tasks/deadline-extensions/${id}`, data),
+  updateExtension: (
+    id: string,
+    data: { status: string; ceo_comment?: string; action_taken?: string },
+  ) =>
+    patch<{ extension: DeadlineExtension }>(
+      `/tasks/deadline-extensions/${id}`,
+      data,
+    ),
 
   // Multi-assignee management
-  addAssignee:    (taskId: string, userId: string) =>
-    post<{ task_id: string; assignees: TaskAssignee[] }>(`/tasks/${taskId}/assignees`, { user_id: userId }),
+  addAssignee: (taskId: string, userId: string) =>
+    post<{ task_id: string; assignees: TaskAssignee[] }>(
+      `/tasks/${taskId}/assignees`,
+      { user_id: userId },
+    ),
   removeAssignee: (taskId: string, userId: string) =>
     del<void>(`/tasks/${taskId}/assignees/${userId}`),
 
   // Revisions (history) + standalone attachments
-  revisions:     (id: string) => get<{ revisions: TaskRevision[] }>(`/tasks/${id}/revisions`),
-  addRevision:   (id: string, data: CreateRevisionPayload) =>
+  revisions: (id: string) =>
+    get<{ revisions: TaskRevision[] }>(`/tasks/${id}/revisions`),
+  addRevision: (id: string, data: CreateRevisionPayload) =>
     post<{ revision: TaskRevision }>(`/tasks/${id}/revisions`, data),
   deleteRevision: (taskId: string, revisionId: string) =>
     del<void>(`/tasks/${taskId}/revisions/${revisionId}`),
-  attachments:   (id: string) => get<{ attachments: TaskAttachment[] }>(`/tasks/${id}/attachments`),
-  addAttachment: (id: string, data: { title: string; type?: string; url?: string; content?: string }) =>
-    post<{ attachment: TaskAttachment }>(`/tasks/${id}/attachments`, data),
+  attachments: (id: string) =>
+    get<{ attachments: TaskAttachment[] }>(`/tasks/${id}/attachments`),
+  addAttachment: (
+    id: string,
+    data: { title: string; type?: string; url?: string; content?: string },
+  ) => post<{ attachment: TaskAttachment }>(`/tasks/${id}/attachments`, data),
 };
 
 // ── Submissions ───────────────────────────────────────────────────────────────
 export const submissions = {
-  list:   (params?: { project_id?: string; phase_id?: string; status?: string; pending?: boolean }) =>
-    get<{ submissions: Submission[] }>(`/submissions${_qs(params)}`),
+  list: (params?: {
+    project_id?: string;
+    phase_id?: string;
+    status?: string;
+    pending?: boolean;
+  }) => get<{ submissions: Submission[] }>(`/submissions${_qs(params)}`),
   create: (data: CreateSubmissionPayload) =>
     post<{ submission: Submission }>("/submissions", data),
-  get:    (id: string) => get<{ submission: Submission }>(`/submissions/${id}`),
+  get: (id: string) => get<{ submission: Submission }>(`/submissions/${id}`),
   update: (id: string, data: { status?: string; reviewed_by?: string }) =>
     patch<{ submission: Submission }>(`/submissions/${id}`, data),
 };
 
 // ── Feedback ──────────────────────────────────────────────────────────────────
 export const feedback = {
-  create: (data: { submission_id: string; text: string; is_ai?: boolean; action_items?: string[] }) =>
-    post<{ feedback: Feedback }>("/feedback", data),
+  create: (data: {
+    submission_id: string;
+    text: string;
+    is_ai?: boolean;
+    action_items?: string[];
+  }) => post<{ feedback: Feedback }>("/feedback", data),
 };
 
 // ── Checkpoints ───────────────────────────────────────────────────────────────
 export const checkpoints = {
-  create: (data: { project_id: string; decision: string; notes?: string; action_items?: string[] }) =>
-    post<{ checkpoint: Checkpoint }>("/checkpoints", data),
+  create: (data: {
+    project_id: string;
+    decision: string;
+    notes?: string;
+    action_items?: string[];
+  }) => post<{ checkpoint: Checkpoint }>("/checkpoints", data),
 };
 
 // ── Leave ─────────────────────────────────────────────────────────────────────
 export const leave = {
-  list:   (params?: { user_id?: string; status?: string; start_date?: string; end_date?: string }) =>
-    get<{ leave: LeaveRequest[] }>(`/leave${_qs(params)}`),
+  list: (params?: {
+    user_id?: string;
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => get<{ leave: LeaveRequest[] }>(`/leave${_qs(params)}`),
   create: (data: CreateLeavePayload) =>
     post<{ leave: LeaveRequest }>("/leave", data),
-  get:    (id: string) => get<{ leave: LeaveRequest }>(`/leave/${id}`),
-  update: (id: string, data: { status: string; cover_person_id?: string; coverage_plan?: string }) =>
-    patch<{ leave: LeaveRequest }>(`/leave/${id}`, data),
+  get: (id: string) => get<{ leave: LeaveRequest }>(`/leave/${id}`),
+  update: (
+    id: string,
+    data: { status: string; cover_person_id?: string; coverage_plan?: string },
+  ) => patch<{ leave: LeaveRequest }>(`/leave/${id}`, data),
   cancel: (id: string) =>
     patch<{ leave: LeaveRequest }>(`/leave/${id}`, { status: "cancelled" }),
   delete: (id: string) => del<void>(`/leave/${id}`),
   availability: (start_date: string, end_date: string) =>
-    get<{ availability: TeamAvailability[] }>(`/leave/availability/team?start_date=${start_date}&end_date=${end_date}`),
-  analytics: () => get<{ analytics: LeaveAnalytics[] }>("/leave/analytics/summary"),
+    get<{ availability: TeamAvailability[] }>(
+      `/leave/availability/team?start_date=${start_date}&end_date=${end_date}`,
+    ),
+  analytics: () =>
+    get<{ analytics: LeaveAnalytics[] }>("/leave/analytics/summary"),
 };
 
 // ── Capture ───────────────────────────────────────────────────────────────────
 export const capture = {
-  list:          (params?: { status?: string; type?: string }) =>
+  list: (params?: { status?: string; type?: string }) =>
     get<{ items: CaptureItem[] }>(`/capture${_qs(params)}`),
   createSession: (raw_text: string) =>
-    post<{ session: CaptureSession; items: CaptureItem[] }>("/capture/sessions", { raw_text }),
-  updateItem:    (id: string, data: { status: string; converted_to_task_id?: string }) =>
-    patch<{ item: CaptureItem }>(`/capture/items/${id}`, data),
-  stats:         () => get<{ stats: CaptureStats }>("/capture/stats"),
+    post<{ session: CaptureSession; items: CaptureItem[] }>(
+      "/capture/sessions",
+      { raw_text },
+    ),
+  updateItem: (
+    id: string,
+    data: { status: string; converted_to_task_id?: string },
+  ) => patch<{ item: CaptureItem }>(`/capture/items/${id}`, data),
+  stats: () => get<{ stats: CaptureStats }>("/capture/stats"),
 };
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
 export const reviews = {
-  list:   (params?: { assignee_id?: string; status?: string; priority?: string; project_id?: string }) =>
-    get<{ reviews: ReviewTask[] }>(`/reviews${_qs(params)}`),
+  list: (params?: {
+    assignee_id?: string;
+    status?: string;
+    priority?: string;
+    project_id?: string;
+  }) => get<{ reviews: ReviewTask[] }>(`/reviews${_qs(params)}`),
   create: (data: CreateReviewPayload) =>
     post<{ review: ReviewTask }>("/reviews", data),
-  get:    (id: string) => get<{ review: ReviewTask }>(`/reviews/${id}`),
-  update: (id: string, data: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string; due_date?: string; feedback_text?: string }) =>
-    patch<{ review: ReviewTask }>(`/reviews/${id}`, data),
+  get: (id: string) => get<{ review: ReviewTask }>(`/reviews/${id}`),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      description?: string;
+      status?: string;
+      priority?: string;
+      assignee_id?: string;
+      due_date?: string;
+      feedback_text?: string;
+    },
+  ) => patch<{ review: ReviewTask }>(`/reviews/${id}`, data),
   delete: (id: string) => del<void>(`/reviews/${id}`),
-  stats:  () => get<{ stats: ReviewStats }>("/reviews/stats/summary"),
+  stats: () => get<{ stats: ReviewStats }>("/reviews/stats/summary"),
 };
 
 // ── Meetings ──────────────────────────────────────────────────────────────────
 export const meetings = {
-  list:   (params?: { project_id?: string; scope?: "general" | "project"; status?: string }) =>
-    get<{ meetings: Meeting[] }>(`/meetings${_qs(params)}`),
-  create: (data: CreateMeetingPayload) => post<{ meeting: Meeting }>("/meetings", data),
-  get:    (id: string) => get<{ meeting: Meeting }>(`/meetings/${id}`),
-  update: (id: string, data: Partial<CreateMeetingPayload> & { status?: string }) =>
-    patch<{ meeting: Meeting }>(`/meetings/${id}`, data),
+  list: (params?: {
+    project_id?: string;
+    scope?: "general" | "project";
+    status?: string;
+  }) => get<{ meetings: Meeting[] }>(`/meetings${_qs(params)}`),
+  create: (data: CreateMeetingPayload) =>
+    post<{ meeting: Meeting }>("/meetings", data),
+  get: (id: string) => get<{ meeting: Meeting }>(`/meetings/${id}`),
+  update: (
+    id: string,
+    data: Partial<CreateMeetingPayload> & { status?: string },
+  ) => patch<{ meeting: Meeting }>(`/meetings/${id}`, data),
   delete: (id: string) => del<void>(`/meetings/${id}`),
 };
 
 // ── Schedule Requests (CEO approval inbox) ────────────────────────────────────
 export const scheduleRequests = {
-  list:   (params?: { status?: string; entity_type?: string }) =>
+  list: (params?: { status?: string; entity_type?: string }) =>
     get<{ requests: ScheduleRequestRow[] }>(`/schedule-requests${_qs(params)}`),
-  get:    (id: string) => get<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}`),
+  get: (id: string) =>
+    get<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}`),
   accept: (id: string, data?: { rescheduled_to?: string; ceo_note?: string }) =>
-    post<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}/accept`, data ?? {}),
+    post<{ request: ScheduleRequestRow }>(
+      `/schedule-requests/${id}/accept`,
+      data ?? {},
+    ),
   reject: (id: string, data?: { ceo_note?: string }) =>
-    post<{ request: ScheduleRequestRow }>(`/schedule-requests/${id}/reject`, data ?? {}),
+    post<{ request: ScheduleRequestRow }>(
+      `/schedule-requests/${id}/reject`,
+      data ?? {},
+    ),
 };
 
 // ── Commitments ───────────────────────────────────────────────────────────────
 export const commitments = {
-  list:   (params?: { status?: string; priority?: string; assignee_id?: string; project_id?: string; from_date?: string; to_date?: string }) =>
-    get<{ commitments: Commitment[] }>(`/commitments${_qs(params)}`),
+  list: (params?: {
+    status?: string;
+    priority?: string;
+    assignee_id?: string;
+    project_id?: string;
+    from_date?: string;
+    to_date?: string;
+  }) => get<{ commitments: Commitment[] }>(`/commitments${_qs(params)}`),
   create: (data: CreateCommitmentPayload) =>
     post<{ commitment: Commitment }>("/commitments", data),
-  get:    (id: string) => get<{ commitment: Commitment }>(`/commitments/${id}`),
+  get: (id: string) => get<{ commitment: Commitment }>(`/commitments/${id}`),
   update: (id: string, data: Partial<CreateCommitmentPayload>) =>
     patch<{ commitment: Commitment }>(`/commitments/${id}`, data),
   delete: (id: string) => del<void>(`/commitments/${id}`),
@@ -417,83 +571,159 @@ export const commitments = {
 
 // ── Discussions ───────────────────────────────────────────────────────────────
 export const discussions = {
-  list:    (params?: { project_id?: string; phase_id?: string; is_resolved?: boolean }) =>
-    get<{ discussions: Discussion[] }>(`/discussions${_qs(params)}`),
-  create:  (data: { project_id?: string; phase_id?: string; title: string; scheduled_at?: string }) =>
-    post<{ discussion: Discussion }>("/discussions", data),
-  get:     (id: string) => get<{ discussion: Discussion }>(`/discussions/${id}`),
-  addMsg:  (id: string, content: string, parent_id?: string) =>
-    post<{ message: DiscussionMessage }>(`/discussions/${id}/messages`, { discussion_id: id, content, parent_id }),
+  list: (params?: {
+    project_id?: string;
+    phase_id?: string;
+    is_resolved?: boolean;
+  }) => get<{ discussions: Discussion[] }>(`/discussions${_qs(params)}`),
+  create: (data: {
+    project_id?: string;
+    phase_id?: string;
+    title: string;
+    scheduled_at?: string;
+  }) => post<{ discussion: Discussion }>("/discussions", data),
+  get: (id: string) => get<{ discussion: Discussion }>(`/discussions/${id}`),
+  addMsg: (id: string, content: string, parent_id?: string) =>
+    post<{ message: DiscussionMessage }>(`/discussions/${id}/messages`, {
+      discussion_id: id,
+      content,
+      parent_id,
+    }),
   resolve: (id: string) =>
     patch<{ discussion: Discussion }>(`/discussions/${id}/resolve`, {}),
-  update:  (id: string, data: { title?: string; project_id?: string | null; phase_id?: string | null; scheduled_at?: string | null; is_resolved?: boolean }) =>
-    patch<{ discussion: Discussion }>(`/discussions/${id}`, data),
-  delete:  (id: string) => del<void>(`/discussions/${id}`),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      project_id?: string | null;
+      phase_id?: string | null;
+      scheduled_at?: string | null;
+      is_resolved?: boolean;
+    },
+  ) => patch<{ discussion: Discussion }>(`/discussions/${id}`, data),
+  delete: (id: string) => del<void>(`/discussions/${id}`),
 };
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 export const analytics = {
-  dashboard:   () => get<{ stats: DashboardStats }>("/analytics/dashboard"),
-  teamHealth:  () => get<{ team_health: TeamHealthRow[] }>("/analytics/team-health"),
-  velocity:    (days?: number) =>
-    get<{ velocity: VelocityRow[] }>(`/analytics/velocity${days ? `?days=${days}` : ""}`),
-  workload:    () => get<{ workload: WorkloadRow[] }>("/analytics/workload"),
-  briefing:    () => get<{ stats: DashboardStats; critical_projects: Project[]; insights: AiInsight[] }>("/analytics/briefing"),
-  notifications:(unread?: boolean) =>
-    get<{ notifications: Notification[] }>(`/analytics/notifications${unread ? "?unread_only=true" : ""}`),
+  dashboard: () => get<{ stats: DashboardStats }>("/analytics/dashboard"),
+  teamHealth: () =>
+    get<{ team_health: TeamHealthRow[] }>("/analytics/team-health"),
+  velocity: (days?: number) =>
+    get<{ velocity: VelocityRow[] }>(
+      `/analytics/velocity${days ? `?days=${days}` : ""}`,
+    ),
+  workload: () => get<{ workload: WorkloadRow[] }>("/analytics/workload"),
+  briefing: () =>
+    get<{
+      stats: DashboardStats;
+      critical_projects: Project[];
+      insights: AiInsight[];
+    }>("/analytics/briefing"),
+  notifications: (unread?: boolean) =>
+    get<{ notifications: Notification[] }>(
+      `/analytics/notifications${unread ? "?unread_only=true" : ""}`,
+    ),
 };
 
 // ── Standup ───────────────────────────────────────────────────────────────────
 export const standup = {
-  today:   (date?: string) =>
-    get<{ date: string; entries: StandupEntry[] }>(`/standup${date ? `?date=${date}` : ""}`),
-  submit:  (data: { yesterday?: string; today?: string; blockers?: string; mood?: number }) =>
-    post<{ entry: StandupEntry }>("/standup", data),
+  today: (date?: string) =>
+    get<{ date: string; entries: StandupEntry[] }>(
+      `/standup${date ? `?date=${date}` : ""}`,
+    ),
+  submit: (data: {
+    yesterday?: string;
+    today?: string;
+    blockers?: string;
+    mood?: number;
+  }) => post<{ entry: StandupEntry }>("/standup", data),
   history: (userId: string, days?: number) =>
-    get<{ entries: StandupEntry[] }>(`/standup/history/${userId}${days ? `?days=${days}` : ""}`),
+    get<{ entries: StandupEntry[] }>(
+      `/standup/history/${userId}${days ? `?days=${days}` : ""}`,
+    ),
 };
 
 // ── AI ────────────────────────────────────────────────────────────────────────
-export interface ProductivityPerson { name: string; severity: string; assessment: string; action_items: string[] }
-export interface ProductivityAssessment { summary: string; people: ProductivityPerson[] }
-export interface LeaveFinding { name: string; kind: string; severity: string; assessment: string; action_items: string[] }
-export interface LeaveAssessment { summary: string; findings: LeaveFinding[] }
+export interface ProductivityPerson {
+  name: string;
+  severity: string;
+  assessment: string;
+  action_items: string[];
+}
+export interface ProductivityAssessment {
+  summary: string;
+  people: ProductivityPerson[];
+}
+export interface LeaveFinding {
+  name: string;
+  kind: string;
+  severity: string;
+  assessment: string;
+  action_items: string[];
+}
+export interface LeaveAssessment {
+  summary: string;
+  findings: LeaveFinding[];
+}
 
 export const ai = {
-  generatePlan: (data: { requirement: string; objective?: string; project_type: string; timebox_days: number; tech_stack?: string[] }) =>
-    post<{ plan: AiPlan }>("/ai/generate-plan", data),
+  generatePlan: (data: {
+    requirement: string;
+    objective?: string;
+    project_type: string;
+    timebox_days: number;
+    tech_stack?: string[];
+  }) => post<{ plan: AiPlan }>("/ai/generate-plan", data),
   extractDocument: (document_url: string) =>
-    post<{ extracted: ExtractedDocument }>("/ai/extract-document", { document_url }),
-  review:       (data: { content: string; content_type?: string; context?: string }) =>
-    post<{ review: AiReview }>("/ai/review", data),
+    post<{ extracted: ExtractedDocument }>("/ai/extract-document", {
+      document_url,
+    }),
+  review: (data: {
+    content: string;
+    content_type?: string;
+    context?: string;
+  }) => post<{ review: AiReview }>("/ai/review", data),
   suggestStack: (data: { requirement: string; project_type: string }) =>
     post<{ stack: string[]; rationale: string }>("/ai/suggest-stack", data),
 
   // Context-grounded intelligence (Gemini). POST = (re)generate via the LLM and
   // cache into ai_insights; GET = read the cached insights instantly.
-  generateInsights:  () => post<{ insights: AiInsight[] }>(`/ai/insights/generate?scope=org`, {}),
+  generateInsights: () =>
+    post<{ insights: AiInsight[] }>(`/ai/insights/generate?scope=org`, {}),
   generateProjectInsights: (project_id: string) =>
-    post<{ insights: AiInsight[] }>(`/ai/insights/generate?scope=project&project_id=${project_id}`, {}),
-  briefing:          () => post<{ briefing: string }>("/ai/briefing", {}),
-  assessProductivity:(user_id?: string) =>
-    post<ProductivityAssessment>("/ai/productivity", user_id ? { user_id } : {}),
-  getProductivity:   (user_id?: string) =>
-    get<{ insights: AiInsight[] }>(`/ai/productivity${user_id ? `?user_id=${user_id}` : ""}`),
-  assessLeave:       () => post<LeaveAssessment>("/ai/leave-assessment", {}),
-  getLeaveInsights:  () => get<{ insights: AiInsight[] }>("/ai/leave-assessment"),
+    post<{ insights: AiInsight[] }>(
+      `/ai/insights/generate?scope=project&project_id=${project_id}`,
+      {},
+    ),
+  briefing: () => post<{ briefing: string }>("/ai/briefing", {}),
+  assessProductivity: (user_id?: string) =>
+    post<ProductivityAssessment>(
+      "/ai/productivity",
+      user_id ? { user_id } : {},
+    ),
+  getProductivity: (user_id?: string) =>
+    get<{ insights: AiInsight[] }>(
+      `/ai/productivity${user_id ? `?user_id=${user_id}` : ""}`,
+    ),
+  assessLeave: () => post<LeaveAssessment>("/ai/leave-assessment", {}),
+  getLeaveInsights: () =>
+    get<{ insights: AiInsight[] }>("/ai/leave-assessment"),
 };
 
-
 // ── Query string helper ───────────────────────────────────────────────────────
-function _qs(params?: Record<string, string | number | boolean | undefined | null>): string {
+function _qs(
+  params?: Record<string, string | number | boolean | undefined | null>,
+): string {
   if (!params) return "";
   const q = Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .map(
+      ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
+    )
     .join("&");
   return q ? `?${q}` : "";
 }
-
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 // Mirror the Python Pydantic models returned by the Lambda backend.
@@ -851,7 +1081,13 @@ export interface Meeting {
 
 export interface ScheduleRequestRow {
   id: string;
-  entity_type: "meeting" | "review" | "commitment" | "discussion" | "leave" | "follow_up";
+  entity_type:
+    | "meeting"
+    | "review"
+    | "commitment"
+    | "discussion"
+    | "leave"
+    | "follow_up";
   entity_id: string;
   status: "pending" | "accepted" | "rejected";
   title?: string;
@@ -938,7 +1174,13 @@ export interface PhaseAttachment {
   created_at: string;
 }
 
-export type RevisionAttachmentType = "url" | "repo" | "figma" | "design" | "document" | "code";
+export type RevisionAttachmentType =
+  | "url"
+  | "repo"
+  | "figma"
+  | "design"
+  | "document"
+  | "code";
 
 export interface RevisionAttachment {
   id: string;
@@ -1157,9 +1399,44 @@ export interface Notification {
 }
 
 // Payload types
-export interface CreateUserPayload { name: string; email: string; password: string; role: string; role_type?: string; department?: string; avatar_color?: string }
-export interface CreateProjectPayload { title: string; type: string; requirement: string; objective?: string; outcome_type?: string; outcome_description?: string; priority?: string; status?: string; owner_id: string; assignee_ids?: string[]; co_owner_ids?: string[]; timebox_days?: number; start_date?: string; end_date?: string; tech_stack?: string[]; ai_plan?: AiPlan; document_url?: string }
-export interface CreateCommitmentPayload { title: string; description?: string; from_date: string; to_date: string; priority?: string; status?: string; assignee_id?: string; project_id?: string }
+export interface CreateUserPayload {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  role_type?: string;
+  department?: string;
+  avatar_color?: string;
+}
+export interface CreateProjectPayload {
+  title: string;
+  type: string;
+  requirement: string;
+  objective?: string;
+  outcome_type?: string;
+  outcome_description?: string;
+  priority?: string;
+  status?: string;
+  owner_id: string;
+  assignee_ids?: string[];
+  co_owner_ids?: string[];
+  timebox_days?: number;
+  start_date?: string;
+  end_date?: string;
+  tech_stack?: string[];
+  ai_plan?: AiPlan;
+  document_url?: string;
+}
+export interface CreateCommitmentPayload {
+  title: string;
+  description?: string;
+  from_date: string;
+  to_date: string;
+  priority?: string;
+  status?: string;
+  assignee_id?: string;
+  project_id?: string;
+}
 
 export interface ExtractedDocument {
   title?: string;
@@ -1174,12 +1451,93 @@ export interface ExtractedDocument {
   priority?: string;
   timebox_days?: number;
 }
-export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
-export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
-export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
-export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; assignee_id?: string; target_day?: number; estimated_hours?: number }
-export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }
-export interface CreateSubmissionPayload { phase_id?: string; project_id: string; title: string; type: string; description?: string; link?: string; is_key_milestone?: boolean }
-export interface CreateLeavePayload { type: string; start_date: string; end_date: string; reason?: string; cover_person_id?: string; coverage_plan?: string; is_planned?: boolean }
-export interface CreateReviewPayload { title: string; description?: string; type: string; assignee_id?: string; project_id?: string; task_id?: string; submission_id?: string; priority?: string; due_date?: string }
-export interface CreateUpdatePayload { type?: string; title: string; description?: string; what_was_done?: string; blockers?: string; next_steps?: string }
+export interface CreatePhasePayload {
+  project_id: string;
+  phase_name: string;
+  description?: string;
+  order_index?: number;
+  sign_off_required?: boolean;
+  checklist?: { item: string; done: boolean }[];
+  estimated_duration?: string;
+  start_date?: string;
+  end_date?: string;
+}
+export interface CreateTaskPayload {
+  project_id: string;
+  phase_id?: string;
+  title: string;
+  description?: string;
+  assignee_id?: string;
+  assignee_ids?: string[];
+  approach?: string;
+  priority?: string;
+  estimated_hours?: number;
+  success_criteria?: string[];
+  kill_criteria?: string[];
+}
+export interface CreateStepPayload {
+  task_id: string;
+  description: string;
+  expected_outcome?: string;
+  category?: string;
+  estimated_hours?: number;
+  assignee_id?: string;
+  order_index?: number;
+}
+export interface CreateMilestonePayload {
+  task_id: string;
+  title: string;
+  description?: string;
+  deliverable_type?: string;
+  success_criteria?: string[];
+  assignee_id?: string;
+  target_day?: number;
+  estimated_hours?: number;
+}
+export interface CreateExtensionPayload {
+  project_id: string;
+  task_id?: string;
+  milestone_id?: string;
+  original_deadline?: string;
+  requested_deadline: string;
+  reason: string;
+  reason_detail: string;
+  impact?: string;
+}
+export interface CreateSubmissionPayload {
+  phase_id?: string;
+  project_id: string;
+  title: string;
+  type: string;
+  description?: string;
+  link?: string;
+  is_key_milestone?: boolean;
+}
+export interface CreateLeavePayload {
+  type: string;
+  start_date: string;
+  end_date: string;
+  reason?: string;
+  cover_person_id?: string;
+  coverage_plan?: string;
+  is_planned?: boolean;
+}
+export interface CreateReviewPayload {
+  title: string;
+  description?: string;
+  type: string;
+  assignee_id?: string;
+  project_id?: string;
+  task_id?: string;
+  submission_id?: string;
+  priority?: string;
+  due_date?: string;
+}
+export interface CreateUpdatePayload {
+  type?: string;
+  title: string;
+  description?: string;
+  what_was_done?: string;
+  blockers?: string;
+  next_steps?: string;
+}

@@ -109,7 +109,7 @@ export function BriefingClient() {
         setStats(r.stats);
         setCriticalProjects(r.critical_projects);
         setInsights(r.insights);
-      }),
+      }).catch(() => {}),
       standupApi.today().then(r => setTodayEntries(r.entries)).catch(() => {}),
       standupApi.today(yesterdayStr).then(r => setYesterdayEntries(r.entries)).catch(() => {}),
       submissionsApi.list().then(r => setPendingSubmissions(r.submissions.filter(s => s.status === "pending"))).catch(() => {}),

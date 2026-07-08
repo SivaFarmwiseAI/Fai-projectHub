@@ -308,7 +308,7 @@ export default function ProjectsPage() {
                       </div>
 
                       {/* Owner + Co-owners */}
-                      <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {project.owner_name && (
                           <div className="flex items-center gap-1.5">
                             <div
@@ -321,20 +321,20 @@ export default function ProjectsPage() {
                           </div>
                         )}
                         {project.co_owners && project.co_owners.length > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground">Co-owner:</span>
+                          <>
+                            <span className="text-muted-foreground text-[10px]">·</span>
                             {project.co_owners.map((co) => (
-                              <div key={co.id} className="flex items-center gap-1">
+                              <div key={co.id} className="flex items-center gap-1.5">
                                 <div
-                                  className="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                                  className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
                                   style={{ backgroundColor: co.avatar_color }}
                                 >
                                   {co.name[0]}
                                 </div>
-                                <span className="text-[11px] text-gray-600">{co.name}</span>
+                                <span className="text-xs font-medium text-gray-700">{co.name}</span>
                               </div>
                             ))}
-                          </div>
+                          </>
                         )}
                       </div>
 

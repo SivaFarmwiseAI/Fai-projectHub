@@ -101,7 +101,7 @@ export function EditDiscussionDialog({ open, onOpenChange, discussion, onSaved }
 
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Title</Label>
+            <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
             <Input
               className="h-9 text-sm mt-1"
               value={title}
@@ -113,7 +113,9 @@ export function EditDiscussionDialog({ open, onOpenChange, discussion, onSaved }
             <Label className="text-xs">Project</Label>
             <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
               <SelectTrigger className="h-9 text-sm mt-1">
-                <SelectValue placeholder="General" />
+                <SelectValue placeholder="General">
+                  {projectId ? (projects.find(p => p.id === projectId)?.title ?? "General") : "General"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects.map(p => (

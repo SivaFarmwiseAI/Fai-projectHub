@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { LeaveAnalytics } from "@/components/leave-analytics";
 import { AiProductivityPanel } from "@/components/ai-productivity-panel";
+import { WorkHistory } from "@/components/work-history";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1061,7 +1062,7 @@ export default function TeamMemberPage({
   const aiInsight = AI_INSIGHTS[user.id];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
+    <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
       {/* Back link */}
       <Link href="/team">
         <Button variant="ghost" size="sm">
@@ -1219,6 +1220,19 @@ export default function TeamMemberPage({
 
       {/* ===== Deliverable Timeline ===== */}
       <DeliverableTimeline userTasks={userTasks} userId={user.id} />
+
+      {/* ===== Work History & Activity (objective task/milestone history) ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-600" />
+            Work History &amp; Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <WorkHistory subjectId={user.id} />
+        </CardContent>
+      </Card>
 
       {/* ===== Section 3: Tasks Across All Projects ===== */}
       <div>

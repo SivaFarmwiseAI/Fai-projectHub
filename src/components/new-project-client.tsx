@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { showToast } from "@/lib/toast";
 import {
@@ -33,7 +33,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { projects as projectsApi, ai as aiApi, type User, type AiPlan } from "@/lib/api-client";
+import { projects as projectsApi, ai as aiApi, auth as authApi, users as usersApi, type User, type AiPlan } from "@/lib/api-client";
 
 const CATEGORY_LABELS: Record<string, string> = {
   engineering: "Engineering",
@@ -92,8 +92,12 @@ function diffDays(fromLocal: string, toLocal: string): number {
   return Math.max(1, Math.ceil(ms / 86_400_000));
 }
 
-export function NewProjectClient({ users }: { users: User[] }) {
+export function NewProjectClient({ users: initialUsers }: { users: User[] }) {
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>(
+    initialUsers.filter(u => u.role_type === "Team Lead" || u.role_type === "CEO")
+  );
   const [title, setTitle] = useState("");
   const [type, setType] = useState<string>("engineering");
   const [outcomeType, setOutcomeType] = useState<string>("product");
@@ -119,10 +123,45 @@ export function NewProjectClient({ users }: { users: User[] }) {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"details" | "plan" | "review">("details");
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
 
   const timeboxDays = diffDays(fromDateTime, toDateTime);
 
+  useEffect(() => {
+    Promise.all([
+      authApi.me().catch(() => ({ user: null })),
+      usersApi.list().catch(() => ({ users: [] as User[] })),
+    ]).then(([meRes, usersRes]) => {
+      const me = (meRes as { user: User | null }).user;
+      setCurrentUser(me);
+      const eligible = (usersRes as { users: User[] }).users.filter(
+        u => u.role_type === "Team Lead" || u.role_type === "CEO"
+      );
+      setUsers(eligible);
+      if (me && me.role_type === "Team Lead") {
+        setSelectedUsers([me.id]);
+      }
+    });
+  }, []);
+
+  const toggleUser = (id: string) => {
+    if (currentUser?.role_type === "Team Lead" && id === currentUser.id) return;
+    setSelectedUsers(prev =>
+      prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]
+    );
+  };
+
+  function validateDetailsStep(): boolean {
+    const errs: Record<string, string> = {};
+    if (!title.trim()) errs.title = "Please enter Project Title";
+    if (!requirement.trim()) errs.requirement = "Please enter Requirement";
+    if (selectedUsers.length === 0) errs.members = "Please assign at least one team member";
+    setDetailErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function generatePlan() {
+    if (!validateDetailsStep()) return;
     setGenerating(true);
     setPlanMode("ai");
     try {
@@ -137,6 +176,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
   }
 
   function startManualPlan() {
+    if (!validateDetailsStep()) return;
     setPlanMode("manual");
     setAiPlan(null);
     setStep("plan");
@@ -204,13 +244,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
     }
   }
 
-  function toggleUser(userId: string) {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
-  }
+
 
   const severityColors: Record<string, string> = {
     low: "text-green-400",
@@ -285,18 +319,20 @@ export function NewProjectClient({ users }: { users: User[] }) {
           </div>
           <div className="p-6 space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title">Project Title</Label>
+              <Label htmlFor="title">Project Title <span className="text-red-500">*</span></Label>
               <Input
                 id="title"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => { setTitle(e.target.value); if (detailErrors.title) setDetailErrors((p) => ({ ...p, title: "" })); }}
                 placeholder="e.g., Customer Churn Prediction System"
+                className={detailErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
               />
+              {detailErrors.title && <p className="text-xs text-red-500">{detailErrors.title}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Project Type</Label>
+                <Label>Project Type <span className="text-red-500">*</span></Label>
                 <Select
                   value={type}
                   onValueChange={(v) => {
@@ -309,7 +345,9 @@ export function NewProjectClient({ users }: { users: User[] }) {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {CATEGORY_LABELS[type] ?? type}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {Object.keys(CATEGORY_LABELS).map((cat) => (
@@ -321,10 +359,12 @@ export function NewProjectClient({ users }: { users: User[] }) {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Priority</Label>
+                <Label>Priority <span className="text-red-500">*</span></Label>
                 <Select value={priority} onValueChange={(v) => v && setPriority(v)}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {({ low: "Low", medium: "Medium", high: "High", critical: "Critical" } as Record<string, string>)[priority] ?? priority}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Low</SelectItem>
@@ -389,27 +429,31 @@ export function NewProjectClient({ users }: { users: User[] }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="requirement">Requirement</Label>
+              <Label htmlFor="requirement">Requirement <span className="text-red-500">*</span></Label>
               <Textarea
                 id="requirement"
                 value={requirement}
-                onChange={(e) => setRequirement(e.target.value)}
+                onChange={(e) => { setRequirement(e.target.value); if (detailErrors.requirement) setDetailErrors((p) => ({ ...p, requirement: "" })); }}
                 placeholder="Describe what you need built or researched in plain English..."
-                className="min-h-[120px] rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-colors resize-none"
+                className={`min-h-[120px] rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-colors resize-none${detailErrors.requirement ? " border-red-400" : ""}`}
               />
+              {detailErrors.requirement && <p className="text-xs text-red-500">{detailErrors.requirement}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label>Assign Team Members</Label>
+              <Label>Assign Team Members <span className="text-red-500">*</span></Label>
               <div className="space-y-2">
-                {users.map((user) => (
+                {users.map((user) => {
+                  const isLocked = currentUser?.role_type === "Team Lead" && user.id === currentUser.id;
+                  return (
                   <label
                     key={user.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent cursor-pointer"
+                    className={`flex items-center gap-3 p-2 rounded-lg ${isLocked ? "cursor-not-allowed opacity-80 bg-blue-50" : "hover:bg-accent cursor-pointer"}`}
                   >
                     <Checkbox
                       checked={selectedUsers.includes(user.id)}
-                      onCheckedChange={() => toggleUser(user.id)}
+                      disabled={isLocked}
+                      onCheckedChange={() => { if (!isLocked) { toggleUser(user.id); if (detailErrors.members) setDetailErrors((p) => ({ ...p, members: "" })); } }}
                     />
                     <div
                       className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
@@ -420,17 +464,19 @@ export function NewProjectClient({ users }: { users: User[] }) {
                     <div>
                       <span className="text-sm font-medium">{user.name}</span>
                       <span className="text-xs text-muted-foreground ml-2">
-                        {user.role_type}
+                        {user.role_type}{isLocked && " (you)"}
                       </span>
                     </div>
                   </label>
-                ))}
+                  );
+                })}
                 {users.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No team members yet. Add them in the Team section.
                   </p>
                 )}
               </div>
+              {detailErrors.members && <p className="text-xs text-red-500">{detailErrors.members}</p>}
             </div>
 
             {selectedUsers.length > 0 && (
@@ -503,7 +549,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
             <div className="flex gap-3 pt-2 flex-wrap">
               <Button
                 onClick={generatePlan}
-                disabled={!title || !requirement || generating}
+                disabled={generating}
                 className="gap-2 btn-gradient text-white border-0 shadow-glow-blue rounded-xl disabled:opacity-50 disabled:shadow-none disabled:transform-none"
               >
                 {generating ? (
@@ -516,7 +562,6 @@ export function NewProjectClient({ users }: { users: User[] }) {
               <Button
                 variant="outline"
                 onClick={startManualPlan}
-                disabled={!title || !requirement}
                 className="gap-2 rounded-xl border-gray-200"
               >
                 <PenLine className="h-4 w-4" />
@@ -524,8 +569,7 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => { setAiPlan(null); setStep("review"); }}
-                disabled={!title || !requirement}
+                onClick={() => { if (!validateDetailsStep()) return; setAiPlan(null); setStep("review"); }}
                 className="gap-2 rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                 title="Skip AI plan generation and review project details"
               >
@@ -533,8 +577,8 @@ export function NewProjectClient({ users }: { users: User[] }) {
                 Skip AI — Review &amp; Create
               </Button>
               <Button
-                onClick={() => { setAiPlan(null); submitProject("planning"); }}
-                disabled={!title || !requirement || creating}
+                onClick={() => { if (!validateDetailsStep()) return; setAiPlan(null); submitProject("planning"); }}
+                disabled={creating}
                 className="gap-2 rounded-xl btn-gradient text-white"
                 title="Create project immediately without a plan"
               >
@@ -543,8 +587,8 @@ export function NewProjectClient({ users }: { users: User[] }) {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => submitProject("draft")}
-                disabled={!title || !requirement || saving}
+                onClick={() => { if (!validateDetailsStep()) return; submitProject("draft"); }}
+                disabled={saving}
                 className="gap-2 rounded-xl border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plane, ClipboardCheck, MessageSquare, CalendarDays, Loader2, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plane, ClipboardCheck, MessageSquare, CalendarDays, Loader2, Send, ChevronDown, Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +30,17 @@ import {
   type User,
 } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { useAuth } from "@/contexts/auth-context";
 import { refreshScheduleRequests } from "@/lib/scheduling-requests";
+import { REVIEW_TYPE_LABELS } from "@/lib/labels";
 
 export type ScheduleTab = "leave" | "review" | "discussion";
+
+// Local YYYY-MM-DD — used as the date-picker `min` so past dates can't be picked.
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 type Props = {
   open: boolean;
@@ -76,7 +84,7 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[760px] p-0">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-blue-600" />
@@ -120,6 +128,144 @@ export function ScheduleDialog({
   );
 }
 
+/* ───────── Multi-select cover-person picker ───────── */
+function CoverPersonSelect({
+  users,
+  selected,
+  onChange,
+}: {
+  users: User[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // After picking a person, clear the query and refocus so the user can
+  // immediately type the next name without deleting the previous search.
+  const pick = (id: string) => {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+    setQ("");
+    searchRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const term = q.trim().toLowerCase();
+  const filtered = users.filter(
+    u => !term || u.name.toLowerCase().includes(term) || (u.role ?? "").toLowerCase().includes(term),
+  );
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+
+  const label =
+    selected.length === 0
+      ? "Optional"
+      : selected.length === 1
+        ? (users.find(u => u.id === selected[0])?.name ?? "1 selected")
+        : `${selected.length} people selected`;
+
+  return (
+    <div className="relative mt-1" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="h-9 w-full flex items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className={`truncate ${selected.length ? "" : "text-muted-foreground"}`}>{label}</span>
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 bottom-full mb-1 w-full rounded-md border bg-popover text-popover-foreground shadow-lg">
+          {/* Search box */}
+          <div className="p-2 border-b">
+            <input
+              ref={searchRef}
+              autoFocus
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Search people…"
+              className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          {/* Scrollable list (native scrollbar, no arrow buttons) */}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-muted-foreground text-center">No people match.</p>
+            ) : (
+              filtered.map(u => {
+                const on = selected.includes(u.id);
+                return (
+                  <button
+                    type="button"
+                    key={u.id}
+                    onClick={() => pick(u.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-accent"
+                  >
+                    <span
+                      className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                        on ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                      }`}
+                    >
+                      {on && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {u.name} <span className="text-muted-foreground">— {u.role}</span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {selected.length > 0 && (
+            <div className="flex items-center justify-between border-t px-3 py-1.5">
+              <span className="text-[11px] text-muted-foreground">{selected.length} selected</span>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-[11px] text-blue-600 hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {selected.map(id => {
+            const u = users.find(x => x.id === id);
+            if (!u) return null;
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] px-2 py-0.5"
+              >
+                {u.name}
+                <button type="button" onClick={() => toggle(id)} className="hover:text-blue-900">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───────── Leave form ───────── */
 function LeaveForm({
   users,
@@ -130,11 +276,20 @@ function LeaveForm({
   onClose: () => void;
   onSuccess: (msg: string, detail?: string) => void;
 }) {
+  const { user: authUser } = useAuth();
+  // A person can't cover their own work while on leave, and the CEO/CTO
+  // (top leadership) shouldn't appear as a cover option.
+  const coverCandidates = users.filter(
+    u => u.id !== authUser?.id && u.role_type !== "CEO",
+  );
+
   const [type, setType] = useState("planned");
+  const [duration, setDuration] = useState<"full" | "half">("full");
+  const [halfPeriod, setHalfPeriod] = useState<"first" | "second">("first");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
-  const [coverPerson, setCoverPerson] = useState("");
+  const [coverPersons, setCoverPersons] = useState<string[]>([]);
   const [coveragePlan, setCoveragePlan] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -149,12 +304,22 @@ function LeaveForm({
     }
     setSubmitting(true);
     try {
+      // The backend records a half-day as type "half_day" (0.5-day calc);
+      // full-day leave keeps the chosen category (planned/sick/…).
+      const effectiveType = duration === "half" ? "half_day" : type;
+      // The leave API has no half-period field, so note it in the reason.
+      const halfLabel = halfPeriod === "first" ? "First half" : "Second half";
+      const effectiveReason =
+        duration === "half"
+          ? reason ? `${halfLabel} — ${reason}` : halfLabel
+          : reason;
       await leaveApi.create({
-        type,
+        type: effectiveType,
         start_date: startDate,
         end_date: endDate,
-        reason,
-        cover_person_id: coverPerson || undefined,
+        reason: effectiveReason,
+        cover_person_id: coverPersons[0] || undefined,
+        cover_person_ids: coverPersons.length ? coverPersons : undefined,
         coverage_plan: coveragePlan || undefined,
         is_planned: type === "planned",
       });
@@ -168,40 +333,104 @@ function LeaveForm({
     }
   }
 
+  const todayStr = todayISO();
+  const invalidRange = !!(startDate && endDate && endDate < startDate);
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">Type <span className="text-red-500">*</span></Label>
           <Select value={type} onValueChange={v => v && setType(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {({ planned: "Planned", sick: "Sick", personal: "Personal", wfh: "Work from Home" } as Record<string, string>)[type] ?? type}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="planned">Planned</SelectItem>
               <SelectItem value="sick">Sick</SelectItem>
               <SelectItem value="personal">Personal</SelectItem>
               <SelectItem value="wfh">Work from Home</SelectItem>
-              <SelectItem value="half_day">Half Day</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Start</Label>
+          <Label className="text-xs">Start <span className="text-red-500">*</span></Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            min={todayStr}
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
         <div>
-          <Label className="text-xs">End</Label>
+          <Label className="text-xs">End <span className="text-red-500">*</span></Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            min={startDate || todayStr}
+            className={`h-9 text-sm mt-1 cursor-pointer${invalidRange ? " border-red-400 focus-visible:ring-red-200" : ""}`}
             value={endDate}
             onChange={e => setEndDate(e.target.value)}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
+      </div>
+
+      {invalidRange && (
+        <p className="text-xs font-medium text-red-600">
+          End date cannot be earlier than the start date. Please select a valid date range.
+        </p>
+      )}
+
+      <div>
+        <Label className="text-xs">Duration <span className="text-red-500">*</span></Label>
+        <div className="flex items-center gap-3 mt-1.5">
+          {([
+            { value: "full", label: "Full Day" },
+            { value: "half", label: "Half Day" },
+          ] as const).map(opt => (
+            <label
+              key={opt.value}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium cursor-pointer transition-colors ${
+                duration === opt.value
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 text-slate-600 hover:border-gray-300"
+              }`}
+            >
+              <input
+                type="radio"
+                name="leave-duration"
+                value={opt.value}
+                checked={duration === opt.value}
+                onChange={() => {
+                  setDuration(opt.value);
+                  if (opt.value === "half") setHalfPeriod("first");
+                }}
+                className="h-4 w-4 accent-blue-600 cursor-pointer"
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+
+        {duration === "half" && (
+          <div className="mt-2.5 max-w-[220px] animate-fade-in-up">
+            <Select value={halfPeriod} onValueChange={v => v && setHalfPeriod(v as "first" | "second")}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue>
+                  {halfPeriod === "first" ? "First Half" : "Second Half"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="first">First Half</SelectItem>
+                <SelectItem value="second">Second Half</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div>
@@ -209,6 +438,8 @@ function LeaveForm({
         <Input
           className="h-9 text-sm mt-1"
           placeholder="Why do you need this leave?"
+          name="leave-reason"
+          autoComplete="off"
           value={reason}
           onChange={e => setReason(e.target.value)}
         />
@@ -216,19 +447,8 @@ function LeaveForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label className="text-xs">Cover Person</Label>
-          <Select value={coverPerson} onValueChange={v => setCoverPerson(v ?? "")}>
-            <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="Optional" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map(u => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.name} — {u.role}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Cover Person(s)</Label>
+          <CoverPersonSelect users={coverCandidates} selected={coverPersons} onChange={setCoverPersons} />
         </div>
         <div>
           <Label className="text-xs">Coverage Plan</Label>
@@ -243,7 +463,7 @@ function LeaveForm({
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={submitting} className="gap-1.5">
+        <Button size="sm" onClick={submit} disabled={submitting || invalidRange} className="gap-1.5">
           {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           Submit Request
         </Button>
@@ -302,7 +522,7 @@ function ReviewForm({
   return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Title</Label>
+        <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
         <Input
           className="h-9 text-sm mt-1"
           placeholder="What needs reviewing?"
@@ -323,9 +543,13 @@ function ReviewForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">Type <span className="text-red-500">*</span></Label>
           <Select value={type} onValueChange={v => v && setType(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {REVIEW_TYPE_LABELS[type] ?? type}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="document">Document</SelectItem>
               <SelectItem value="code">Code</SelectItem>
@@ -337,9 +561,13 @@ function ReviewForm({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Priority</Label>
+          <Label className="text-xs">Priority <span className="text-red-500">*</span></Label>
           <Select value={priority} onValueChange={v => v && setPriority(v)}>
-            <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-sm mt-1">
+              <SelectValue>
+                {({ low: "Low", medium: "Medium", high: "High" } as Record<string, string>)[priority] ?? priority}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
@@ -351,9 +579,11 @@ function ReviewForm({
           <Label className="text-xs">Due Date</Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            min={todayISO()}
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={dueDate}
             onChange={e => setDueDate(e.target.value)}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
       </div>
@@ -363,7 +593,9 @@ function ReviewForm({
           <Label className="text-xs">Assignee</Label>
           <Select value={assigneeId} onValueChange={v => setAssigneeId(v ?? "")}>
             <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="Pick a reviewer" />
+              <SelectValue placeholder="Pick a reviewer">
+                {assigneeId ? (users.find(u => u.id === assigneeId)?.name ?? "Pick a reviewer") : "Pick a reviewer"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {users.map(u => (
@@ -378,7 +610,9 @@ function ReviewForm({
           <Label className="text-xs">Project (optional)</Label>
           <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
             <SelectTrigger className="h-9 text-sm mt-1">
-              <SelectValue placeholder="No project" />
+              <SelectValue placeholder="No project">
+                {projectId ? (projects.find(p => p.id === projectId)?.title ?? "No project") : "No project"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {projects.map(p => (
@@ -449,7 +683,7 @@ function DiscussionForm({
   return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Title</Label>
+        <Label className="text-xs">Title <span className="text-red-500">*</span></Label>
         <Input
           className="h-9 text-sm mt-1"
           placeholder="What do we need to discuss?"
@@ -462,7 +696,9 @@ function DiscussionForm({
         <Label className="text-xs">Project (optional)</Label>
         <Select value={projectId} onValueChange={v => setProjectId(v ?? "")}>
           <SelectTrigger className="h-9 text-sm mt-1">
-            <SelectValue placeholder="General" />
+            <SelectValue placeholder="General">
+              {projectId ? (projects.find(p => p.id === projectId)?.title ?? "General") : "General"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {projects.map(p => (
@@ -477,19 +713,22 @@ function DiscussionForm({
           <Label className="text-xs">Scheduled Date (optional)</Label>
           <Input
             type="date"
-            className="h-9 text-sm mt-1"
+            min={todayISO()}
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
+            onMouseDown={e => { e.preventDefault(); (e.currentTarget as HTMLInputElement).showPicker?.(); }}
           />
         </div>
         <div>
           <Label className="text-xs">Time</Label>
           <Input
             type="time"
-            className="h-9 text-sm mt-1"
+            className="h-9 text-sm mt-1 cursor-pointer"
             value={scheduledTime}
             onChange={e => setScheduledTime(e.target.value)}
             disabled={!scheduledDate}
+            onClick={e => !scheduledDate ? undefined : (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
         </div>
       </div>

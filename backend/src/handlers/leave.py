@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ._approval import auto_request
+from ._notify import notify
 from ..auth import get_current_user, require_auth
 from ..database import execute_returning, fetchall, fetchone, get_conn
 from ..exceptions import HTTPError
@@ -87,19 +88,31 @@ def _leave_analytics(event, origin):
 def _list_leave(event, origin):
     current_user = get_current_user(event)
     p = get_query(event)
-    user_id = p.get("user_id")
-    if current_user["role_type"] not in ("CEO", "Admin", "Team Lead"):
-        user_id = current_user["id"]
+    role = current_user["role_type"]
+    uid = current_user["id"]
     conds = ["1=1"]
     params: list = []
-    if user_id:               conds.append("lr.user_id = %s");       params.append(user_id)
+    # Role-based visibility (enforced server-side):
+    #   CEO / Admin / Leadership → everyone (optional explicit user_id filter)
+    #   Team Lead                → own leave + direct reports (users.manager_id = lead)
+    #   Member                   → own leave only
+    if role in ("CEO", "Admin", "Leadership"):
+        if p.get("user_id"):  conds.append("lr.user_id = %s");       params.append(p["user_id"])
+    elif role == "Team Lead":
+        conds.append("(lr.user_id = %s OR u.manager_id = %s)")
+        params.extend([uid, uid])
+        if p.get("user_id"):  conds.append("lr.user_id = %s");       params.append(p["user_id"])
+    else:
+        conds.append("lr.user_id = %s");  params.append(uid)
     if p.get("status"):       conds.append("lr.status = %s");        params.append(p["status"])
     if p.get("start_date"):   conds.append("lr.end_date >= %s");     params.append(p["start_date"])
     if p.get("end_date"):     conds.append("lr.start_date <= %s");   params.append(p["end_date"])
     rows = fetchall(f"""
         SELECT
           lr.*, u.name AS user_name, u.department, u.avatar_color,
-          ab.name AS approved_by_name, cv.name AS cover_person_name
+          ab.name AS approved_by_name, cv.name AS cover_person_name,
+          (SELECT array_agg(cu.name ORDER BY cu.name)
+             FROM users cu WHERE cu.id = ANY(lr.cover_person_ids)) AS cover_person_names
         FROM leave_requests lr
         JOIN users u ON u.id = lr.user_id
         LEFT JOIN users ab ON ab.id = lr.approved_by
@@ -116,15 +129,21 @@ def _create_leave(event, origin):
     days = _calc_working_days(body.start_date, body.end_date)
     if body.type == "half_day":
         days = Decimal("0.5")
+    # Cover people: accept a list; keep the single cover_person_id as the
+    # "primary" (first) for backward-compatible displays.
+    cover_ids = [str(x) for x in body.cover_person_ids]
+    if body.cover_person_id and str(body.cover_person_id) not in cover_ids:
+        cover_ids.insert(0, str(body.cover_person_id))
+    primary_cover = cover_ids[0] if cover_ids else None
     leave = execute_returning("""
         INSERT INTO leave_requests
           (user_id, type, start_date, end_date, days, reason,
-           cover_person_id, coverage_plan, contingency_note, is_planned)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+           cover_person_id, cover_person_ids, coverage_plan, contingency_note, is_planned)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s::uuid[],%s,%s,%s) RETURNING *
     """, (
         current_user["id"], body.type, body.start_date, body.end_date, days,
         body.reason,
-        str(body.cover_person_id) if body.cover_person_id else None,
+        primary_cover, cover_ids,
         body.coverage_plan, body.contingency_note, body.is_planned,
     ))
     auto_request(
@@ -135,6 +154,18 @@ def _create_leave(event, origin):
         description=body.reason,
         proposed_at=f"{body.start_date}T09:00:00Z",
     )
+    # Route the pending request to the requester's Team Lead (manager).
+    mgr = fetchone("SELECT manager_id FROM users WHERE id = %s", (current_user["id"],))
+    if mgr and mgr.get("manager_id"):
+        notify(
+            str(mgr["manager_id"]),
+            "leave_request",
+            "New leave request",
+            f"{current_user.get('name', 'A team member')} requested "
+            f"{body.type} leave ({body.start_date} → {body.end_date}).",
+            "leave",
+            str(leave["id"]),
+        )
     return resp({"leave": leave}, 201, origin)
 
 
@@ -144,7 +175,9 @@ def _get_leave(event, origin, leave_id):
     get_current_user(event)
     leave = fetchone("""
         SELECT lr.*, u.name AS user_name, u.department,
-               ab.name AS approved_by_name, cv.name AS cover_person_name
+               ab.name AS approved_by_name, cv.name AS cover_person_name,
+               (SELECT array_agg(cu.name ORDER BY cu.name)
+                  FROM users cu WHERE cu.id = ANY(lr.cover_person_ids)) AS cover_person_names
         FROM leave_requests lr
         JOIN users u ON u.id = lr.user_id
         LEFT JOIN users ab ON ab.id = lr.approved_by
@@ -158,23 +191,36 @@ def _get_leave(event, origin, leave_id):
 
 def _update_leave(event, origin, leave_id):
     current_user = get_current_user(event)
-    if current_user["role_type"] not in ("CEO", "Admin", "Team Lead"):
+    role = current_user["role_type"]
+    if role not in ("CEO", "Admin", "Leadership", "Team Lead"):
         raise HTTPError(403, "Only leads can approve leave")
     leave = fetchone("SELECT * FROM leave_requests WHERE id = %s", (leave_id,))
     if not leave:
         raise HTTPError(404, "Leave request not found")
+    # A Team Lead may only act on leave from their own direct reports.
+    if role == "Team Lead":
+        subj = fetchone("SELECT manager_id FROM users WHERE id = %s", (leave["user_id"],))
+        if not subj or str(subj.get("manager_id")) != str(current_user["id"]):
+            raise HTTPError(403, "You can only act on leave from your direct reports")
+
     body = UpdateLeaveRequest(**get_body(event))
+    # A rejection reason is optional; when given it's shown back to the member.
+    reason = (body.rejection_reason or "").strip()
+    # Only persist a reason on rejection; clear it on any other transition.
+    rejection_reason = reason if (body.status == "rejected" and reason) else None
+
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
             UPDATE leave_requests
             SET status = %s, approved_by = %s, approved_at = NOW(),
+                rejection_reason = %s,
                 cover_person_id = COALESCE(%s, cover_person_id),
                 coverage_plan = COALESCE(%s, coverage_plan),
                 updated_at = NOW()
             WHERE id = %s
         """, (
-            body.status, current_user["id"],
+            body.status, current_user["id"], rejection_reason,
             str(body.cover_person_id) if body.cover_person_id else None,
             body.coverage_plan, leave_id,
         ))
@@ -186,6 +232,25 @@ def _update_leave(event, origin, leave_id):
                 "DELETE FROM team_availability WHERE leave_request_id = %s",
                 (leave_id,),
             )
+
+    # Notify the requesting member of the decision.
+    decider = current_user.get("name", "Your manager")
+    if body.status == "approved":
+        notify(
+            str(leave["user_id"]), "leave_approved", "Leave approved",
+            f"Your {leave['type']} leave ({leave['start_date']} → {leave['end_date']}) "
+            f"was approved by {decider}.",
+            "leave", leave_id,
+        )
+    elif body.status == "rejected":
+        msg = f"Your {leave['type']} leave was rejected by {decider}."
+        if reason:
+            msg += f" Reason: {reason}"
+        notify(
+            str(leave["user_id"]), "leave_rejected", "Leave rejected",
+            msg, "leave", leave_id,
+        )
+
     updated = fetchone("SELECT * FROM leave_requests WHERE id = %s", (leave_id,))
     return resp({"leave": updated}, origin=origin)
 

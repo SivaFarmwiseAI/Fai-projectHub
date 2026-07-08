@@ -1,24 +1,43 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import {
-  CalendarDays, Plus, Pencil, Trash2, Loader2, Search, FolderKanban, Globe2,
-  Clock, CheckCircle2, AlertCircle, XCircle, Send, Hourglass,
+  CalendarDays,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Search,
+  FolderKanban,
+  Globe2,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Send,
+  Hourglass,
 } from "lucide-react";
-import {
-  Card, CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -66,9 +85,13 @@ export default function MeetingsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [filter, setFilter] = useState<"all" | "upcoming" | "past" | "pending" | "accepted">("upcoming");
+  const [filter, setFilter] = useState<
+    "all" | "upcoming" | "past" | "pending" | "accepted"
+  >("all");
   const [search, setSearch] = useState("");
-  const [scopeFilter, setScopeFilter] = useState<"all" | "project" | "general">("all");
+  const [scopeFilter, setScopeFilter] = useState<"all" | "project" | "general">(
+    "all",
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Meeting | null>(null);
@@ -81,14 +104,25 @@ export default function MeetingsPage() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      meetingsApi.list().then((r) => r.meetings).catch(() => [] as Meeting[]),
-      projectsApi.list({ limit: 100 }).then((r) => r.projects).catch(() => [] as Project[]),
-      usersApi.list().then((r) => r.users).catch(() => [] as User[]),
-    ]).then(([ms, ps, us]) => {
-      setMeetings(ms);
-      setProjects(ps);
-      setUsers(us);
-    }).finally(() => setLoading(false));
+      meetingsApi
+        .list()
+        .then((r) => r.meetings)
+        .catch(() => [] as Meeting[]),
+      projectsApi
+        .list({ limit: 100 })
+        .then((r) => r.projects)
+        .catch(() => [] as Project[]),
+      usersApi
+        .list()
+        .then((r) => r.users)
+        .catch(() => [] as User[]),
+    ])
+      .then(([ms, ps, us]) => {
+        setMeetings(ms);
+        setProjects(ps);
+        setUsers(us);
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -99,27 +133,45 @@ export default function MeetingsPage() {
   const filtered = useMemo(() => {
     const now = new Date();
     const q = search.trim().toLowerCase();
-    return meetings.filter((m) => {
-      if (q && !m.title.toLowerCase().includes(q) && !(m.project_title ?? "").toLowerCase().includes(q)) return false;
-      if (scopeFilter === "project" && !m.project_id) return false;
-      if (scopeFilter === "general" && m.project_id) return false;
-      const effectiveWhen = m.rescheduled_to ?? m.scheduled_at;
-      const whenDate = effectiveWhen ? new Date(effectiveWhen) : null;
-      if (filter === "upcoming" && whenDate && isBefore(whenDate, now)) return false;
-      if (filter === "past" && whenDate && isAfter(whenDate, now)) return false;
-      if (filter === "pending" && m.approval_status !== "pending") return false;
-      if (filter === "accepted" && m.approval_status && m.approval_status !== "accepted") return false;
-      return true;
-    }).sort((a, b) => {
-      const aWhen = a.rescheduled_to ?? a.scheduled_at;
-      const bWhen = b.rescheduled_to ?? b.scheduled_at;
-      return aWhen.localeCompare(bWhen);
-    });
+    return meetings
+      .filter((m) => {
+        if (
+          q &&
+          !m.title.toLowerCase().includes(q) &&
+          !(m.project_title ?? "").toLowerCase().includes(q)
+        )
+          return false;
+        if (scopeFilter === "project" && !m.project_id) return false;
+        if (scopeFilter === "general" && m.project_id) return false;
+        const effectiveWhen = m.rescheduled_to ?? m.scheduled_at;
+        const whenDate = effectiveWhen ? new Date(effectiveWhen) : null;
+        if (filter === "upcoming" && whenDate && isBefore(whenDate, now))
+          return false;
+        if (filter === "past" && whenDate && isAfter(whenDate, now))
+          return false;
+        if (filter === "pending" && m.approval_status !== "pending")
+          return false;
+        if (
+          filter === "accepted" &&
+          m.approval_status &&
+          m.approval_status !== "accepted"
+        )
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const aWhen = a.rescheduled_to ?? a.scheduled_at;
+        const bWhen = b.rescheduled_to ?? b.scheduled_at;
+        return aWhen.localeCompare(bWhen);
+      });
   }, [meetings, filter, search, scopeFilter]);
 
   const counts = useMemo(() => {
     const now = new Date();
-    let upcoming = 0, past = 0, pending = 0, accepted = 0;
+    let upcoming = 0,
+      past = 0,
+      pending = 0,
+      accepted = 0;
     for (const m of meetings) {
       const when = m.rescheduled_to ?? m.scheduled_at;
       const whenDate = when ? new Date(when) : null;
@@ -131,13 +183,23 @@ export default function MeetingsPage() {
     return { upcoming, past, pending, accepted, total: meetings.length };
   }, [meetings]);
 
-  const startNew = () => { setEditing(null); setFormOpen(true); };
-  const startEdit = (m: Meeting) => { setEditing(m); setFormOpen(true); };
+  const startNew = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+  const startEdit = (m: Meeting) => {
+    setEditing(m);
+    setFormOpen(true);
+  };
 
   const handleDelete = async (m: Meeting) => {
     const ok = await confirm({
       title: "Delete this meeting?",
-      description: <><span className="font-medium">{m.title}</span> will be removed.</>,
+      description: (
+        <>
+          <span className="font-medium">{m.title}</span> will be removed.
+        </>
+      ),
       confirmLabel: "Delete meeting",
       tone: "danger",
     });
@@ -148,7 +210,10 @@ export default function MeetingsPage() {
       load();
       void refreshScheduleRequests(true);
     } catch (e) {
-      showToast.error("Delete failed", e instanceof Error ? e.message : undefined);
+      showToast.error(
+        "Delete failed",
+        e instanceof Error ? e.message : undefined,
+      );
     }
   };
 
@@ -158,12 +223,15 @@ export default function MeetingsPage() {
       showToast.success("Meeting accepted", "Now visible on the calendar.");
       load();
     } catch (e) {
-      showToast.error("Accept failed", e instanceof Error ? e.message : undefined);
+      showToast.error(
+        "Accept failed",
+        e instanceof Error ? e.message : undefined,
+      );
     }
   };
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-[1600px]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
@@ -171,7 +239,8 @@ export default function MeetingsPage() {
             <CalendarDays className="h-6 w-6 text-blue-600" /> Meetings
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Schedule project or general meetings. Every meeting is raised to the CEO — once accepted it appears on the calendar.
+            Schedule project or general meetings. Every meeting is raised to the
+            CEO — once accepted it appears on the calendar.
           </p>
         </div>
         <Button onClick={startNew} className="gap-1.5">
@@ -181,11 +250,36 @@ export default function MeetingsPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatTile label="Total" value={counts.total} icon={<CalendarDays className="h-4 w-4" />} tone="slate" />
-        <StatTile label="Upcoming" value={counts.upcoming} icon={<Clock className="h-4 w-4" />} tone="blue" />
-        <StatTile label="Past" value={counts.past} icon={<Clock className="h-4 w-4" />} tone="gray" />
-        <StatTile label="Pending CEO" value={counts.pending} icon={<Hourglass className="h-4 w-4" />} tone="amber" />
-        <StatTile label="Accepted" value={counts.accepted} icon={<CheckCircle2 className="h-4 w-4" />} tone="green" />
+        <StatTile
+          label="Total"
+          value={counts.total}
+          icon={<CalendarDays className="h-4 w-4" />}
+          tone="slate"
+        />
+        <StatTile
+          label="Upcoming"
+          value={counts.upcoming}
+          icon={<Clock className="h-4 w-4" />}
+          tone="blue"
+        />
+        <StatTile
+          label="Past"
+          value={counts.past}
+          icon={<Clock className="h-4 w-4" />}
+          tone="gray"
+        />
+        <StatTile
+          label="Pending CEO"
+          value={counts.pending}
+          icon={<Hourglass className="h-4 w-4" />}
+          tone="amber"
+        />
+        <StatTile
+          label="Accepted"
+          value={counts.accepted}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          tone="green"
+        />
       </div>
 
       {/* Filters */}
@@ -200,18 +294,46 @@ export default function MeetingsPage() {
               className="pl-9 h-9"
             />
           </div>
-          <Select value={filter} onValueChange={(v) => v && setFilter(v as typeof filter)}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+          <Select
+            value={filter}
+            onValueChange={(v) => v && setFilter(v as typeof filter)}
+          >
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue>
+                {(
+                  {
+                    upcoming: "Upcoming",
+                    past: "Past",
+                    pending: "Pending",
+                    accepted: "Accepted",
+                    all: "All",
+                  } as Record<string, string>
+                )[filter] ?? filter}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All</SelectItem>
               <SelectItem value="upcoming">Upcoming</SelectItem>
               <SelectItem value="past">Past</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="accepted">Accepted</SelectItem>
-              <SelectItem value="all">All</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={scopeFilter} onValueChange={(v) => v && setScopeFilter(v as typeof scopeFilter)}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+          <Select
+            value={scopeFilter}
+            onValueChange={(v) => v && setScopeFilter(v as typeof scopeFilter)}
+          >
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue>
+                {(
+                  {
+                    all: "All scopes",
+                    project: "Project",
+                    general: "General",
+                  } as Record<string, string>
+                )[scopeFilter] ?? scopeFilter}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All scopes</SelectItem>
               <SelectItem value="project">Project</SelectItem>
@@ -231,9 +353,6 @@ export default function MeetingsPage() {
           <CardContent className="py-12 text-center text-muted-foreground">
             <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-40" />
             <p className="text-sm">No meetings match this filter.</p>
-            <Button variant="outline" size="sm" onClick={startNew} className="mt-4 gap-1.5">
-              <Plus className="h-3.5 w-3.5" /> Schedule a meeting
-            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -258,7 +377,11 @@ export default function MeetingsPage() {
         editing={editing}
         projects={projects}
         users={users}
-        onSaved={() => { setFormOpen(false); load(); void refreshScheduleRequests(true); }}
+        onSaved={() => {
+          setFormOpen(false);
+          load();
+          void refreshScheduleRequests(true);
+        }}
       />
     </div>
   );
@@ -266,8 +389,16 @@ export default function MeetingsPage() {
 
 // ── Stat tile ────────────────────────────────────────────────────────────────
 function StatTile({
-  label, value, icon, tone,
-}: { label: string; value: number; icon: React.ReactNode; tone: "slate" | "blue" | "gray" | "amber" | "green" }) {
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  tone: "slate" | "blue" | "gray" | "amber" | "green";
+}) {
   const cls = {
     slate: "text-slate-700 bg-slate-50 border-slate-200",
     blue: "text-blue-700 bg-blue-50 border-blue-200",
@@ -287,7 +418,12 @@ function StatTile({
 
 // ── Meeting Row ──────────────────────────────────────────────────────────────
 function MeetingRow({
-  meeting, project, onEdit, onDelete, canQuickAccept, onQuickAccept,
+  meeting,
+  project,
+  onEdit,
+  onDelete,
+  canQuickAccept,
+  onQuickAccept,
 }: {
   meeting: Meeting;
   project?: Project;
@@ -312,7 +448,10 @@ function MeetingRow({
                   <FolderKanban className="h-3 w-3" /> {project.title}
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1 text-[10px] text-slate-500">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-[10px] text-slate-500"
+                >
                   <Globe2 className="h-3 w-3" /> General
                 </Badge>
               )}
@@ -320,22 +459,36 @@ function MeetingRow({
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {effectiveWhen ? format(new Date(effectiveWhen), "EEE, MMM d · h:mm a") : "No time set"}
-                {meeting.duration_minutes ? ` · ${meeting.duration_minutes} min` : ""}
+                {effectiveWhen
+                  ? format(new Date(effectiveWhen), "EEE, MMM d · h:mm a")
+                  : "No time set"}
+                {meeting.duration_minutes
+                  ? ` · ${meeting.duration_minutes} min`
+                  : ""}
               </span>
-              {meeting.rescheduled_to && meeting.scheduled_at && meeting.rescheduled_to !== meeting.scheduled_at && (
-                <span className="text-amber-600 line-through">
-                  was {format(new Date(meeting.scheduled_at), "MMM d · h:mm a")}
-                </span>
+              {meeting.rescheduled_to &&
+                meeting.scheduled_at &&
+                meeting.rescheduled_to !== meeting.scheduled_at && (
+                  <span className="text-amber-600 line-through">
+                    was{" "}
+                    {format(new Date(meeting.scheduled_at), "MMM d · h:mm a")}
+                  </span>
+                )}
+              {meeting.created_by_name && (
+                <span>· raised by {meeting.created_by_name}</span>
               )}
-              {meeting.created_by_name && <span>· raised by {meeting.created_by_name}</span>}
               {meeting.attendees.length > 0 && (
-                <span>· {meeting.attendees.length} attendee{meeting.attendees.length === 1 ? "" : "s"}</span>
+                <span>
+                  · {meeting.attendees.length} attendee
+                  {meeting.attendees.length === 1 ? "" : "s"}
+                </span>
               )}
               {meeting.location && <span>· {meeting.location}</span>}
             </div>
             {meeting.agenda && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{meeting.agenda}</p>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {meeting.agenda}
+              </p>
             )}
             {meeting.ceo_note && (
               <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2 py-1 mt-2">
@@ -345,14 +498,29 @@ function MeetingRow({
           </div>
           <div className="flex items-center gap-1.5">
             {canQuickAccept && status === "pending" && (
-              <Button size="sm" variant="outline" className="gap-1 h-8 text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100" onClick={onQuickAccept}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1 h-8 text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                onClick={onQuickAccept}
+              >
                 <CheckCircle2 className="h-3.5 w-3.5" /> Accept
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="h-8 gap-1" onClick={onEdit}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1"
+              onClick={onEdit}
+            >
               <Pencil className="h-3.5 w-3.5" /> Edit
             </Button>
-            <Button size="sm" variant="ghost" className="h-8 gap-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={onDelete}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={onDelete}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -365,27 +533,39 @@ function MeetingRow({
 function StatusPill({ status }: { status: string }) {
   if (status === "pending") {
     return (
-      <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-200 bg-amber-50 gap-1">
+      <Badge
+        variant="outline"
+        className="text-[10px] text-amber-700 border-amber-200 bg-amber-50 gap-1"
+      >
         <Hourglass className="h-3 w-3" /> Pending CEO
       </Badge>
     );
   }
   if (status === "accepted") {
     return (
-      <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-200 bg-emerald-50 gap-1">
+      <Badge
+        variant="outline"
+        className="text-[10px] text-emerald-700 border-emerald-200 bg-emerald-50 gap-1"
+      >
         <CheckCircle2 className="h-3 w-3" /> Accepted
       </Badge>
     );
   }
   if (status === "rejected") {
     return (
-      <Badge variant="outline" className="text-[10px] text-red-700 border-red-200 bg-red-50 gap-1">
+      <Badge
+        variant="outline"
+        className="text-[10px] text-red-700 border-red-200 bg-red-50 gap-1"
+      >
         <XCircle className="h-3 w-3" /> Rejected
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-[10px] text-slate-600 border-slate-200 gap-1">
+    <Badge
+      variant="outline"
+      className="text-[10px] text-slate-600 border-slate-200 gap-1"
+    >
       <AlertCircle className="h-3 w-3" /> No request
     </Badge>
   );
@@ -393,7 +573,12 @@ function StatusPill({ status }: { status: string }) {
 
 // ── Create / Edit Dialog ─────────────────────────────────────────────────────
 function MeetingFormDialog({
-  open, onOpenChange, editing, projects, users, onSaved,
+  open,
+  onOpenChange,
+  editing,
+  projects,
+  users,
+  onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -402,6 +587,9 @@ function MeetingFormDialog({
   users: User[];
   onSaved: () => void;
 }) {
+  const { user: authUser } = useAuth();
+  const creatorId = authUser?.id ?? null;   // the host — always attends, can't be removed
+
   const [title, setTitle] = useState("");
   const [scope, setScope] = useState<"general" | "project">("general");
   const [projectId, setProjectId] = useState("");
@@ -411,6 +599,11 @@ function MeetingFormDialog({
   const [location, setLocation] = useState("");
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const attendeeSearchRef = useRef<HTMLInputElement>(null);
+  const [projectMembers, setProjectMembers] = useState<User[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -422,7 +615,11 @@ function MeetingFormDialog({
       setDuration(editing.duration_minutes ?? 30);
       setAgenda(editing.agenda ?? "");
       setLocation(editing.location ?? "");
-      setAttendeeIds(editing.attendees.map((a) => a.id));
+      // Keep existing attendees; guarantee the host is present.
+      setAttendeeIds(() => {
+        const ids = editing.attendees.map((a) => a.id);
+        return creatorId && !ids.includes(creatorId) ? [creatorId, ...ids] : ids;
+      });
     } else {
       setTitle("");
       setScope("general");
@@ -434,20 +631,63 @@ function MeetingFormDialog({
       setDuration(30);
       setAgenda("");
       setLocation("");
-      setAttendeeIds([]);
+      // The creator is always an attendee (the host) — pre-selected & locked.
+      setAttendeeIds(creatorId ? [creatorId] : []);
     }
-  }, [open, editing]);
+    setErrors({});
+    setAttendeeSearch("");
+    setProjectMembers([]);
+  }, [open, editing, creatorId]);
+
+  // Fetch project members when a project is selected, enriched with full user data
+  useEffect(() => {
+    if (scope !== "project" || !projectId) {
+      setProjectMembers([]);
+      return;
+    }
+    setLoadingMembers(true);
+    projectsApi
+      .get(projectId)
+      .then(({ project }) => {
+        const assignees = project.assignees ?? [];
+        // Merge with full users list to get role_type and other fields
+        const enriched = assignees.map(
+          (a) => users.find((u) => u.id === a.id) ?? a,
+        );
+        setProjectMembers(enriched);
+      })
+      .catch(() => setProjectMembers([]))
+      .finally(() => setLoadingMembers(false));
+  }, [scope, projectId, users]);
+
+  const attendeePool =
+    scope === "project" && projectId ? projectMembers : users;
 
   const toggleAttendee = (id: string) => {
+    if (id === creatorId) return;   // host can't be removed
     setAttendeeIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+    // Clear the search and refocus so the user can type the next attendee
+    // without deleting the previous query.
+    setAttendeeSearch("");
+    attendeeSearchRef.current?.focus();
   };
 
   const submit = async () => {
-    if (!title.trim()) { showToast.error("Title required"); return; }
-    if (!scheduledAt) { showToast.error("Pick a date and time"); return; }
-    if (scope === "project" && !projectId) { showToast.error("Choose a project or switch to General"); return; }
+    const errs: Record<string, string> = {};
+    if (!title.trim()) errs.title = "Title is required";
+    if (!scheduledAt) errs.scheduledAt = "Date and time is required";
+    if (scope === "project" && !projectId)
+      errs.project = "Select a project or switch to General";
+    if (!location.trim()) errs.location = "Location / link is required";
+    if (attendeeIds.filter((id) => id !== creatorId).length === 0)
+      errs.attendees = "Add at least one attendee besides yourself";
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
     setSaving(true);
     try {
       const iso = localToIso(scheduledAt);
@@ -477,7 +717,10 @@ function MeetingFormDialog({
       );
       onSaved();
     } catch (e) {
-      showToast.error(editing ? "Failed to update meeting" : "Failed to create meeting", e instanceof Error ? e.message : undefined);
+      showToast.error(
+        editing ? "Failed to update meeting" : "Failed to create meeting",
+        e instanceof Error ? e.message : undefined,
+      );
     } finally {
       setSaving(false);
     }
@@ -497,20 +740,41 @@ function MeetingFormDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="m-title">Title *</Label>
+            <Label htmlFor="m-title">
+              Title <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="m-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (errors.title) setErrors((p) => ({ ...p, title: "" }));
+              }}
               placeholder="e.g., Q3 Engineering Sync"
+              className={errors.title ? "border-red-400" : ""}
             />
+            {errors.title && (
+              <p className="text-xs text-red-500">{errors.title}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Scope</Label>
-              <Select value={scope} onValueChange={(v) => v && setScope(v as "general" | "project")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={scope}
+                onValueChange={(v) => v && setScope(v as "general" | "project")}
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {(
+                      { general: "General", project: "Project" } as Record<
+                        string,
+                        string
+                      >
+                    )[scope] ?? scope}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">General</SelectItem>
                   <SelectItem value="project">Project</SelectItem>
@@ -518,36 +782,89 @@ function MeetingFormDialog({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Project {scope === "project" && "*"}</Label>
+              <Label>
+                Project{" "}
+                {scope === "project" && <span className="text-red-500">*</span>}
+              </Label>
               <Select
                 value={projectId}
-                onValueChange={(v) => setProjectId(v ?? "")}
+                onValueChange={(v) => {
+                  setProjectId(v ?? "");
+                  if (errors.project) setErrors((p) => ({ ...p, project: "" }));
+                }}
                 disabled={scope === "general"}
               >
-                <SelectTrigger><SelectValue placeholder={scope === "general" ? "—" : "Select project"} /></SelectTrigger>
+                <SelectTrigger
+                  className={errors.project ? "border-red-400" : ""}
+                >
+                  <SelectValue
+                    placeholder={scope === "general" ? "—" : "Select project"}
+                  >
+                    {projectId
+                      ? (projects.find((p) => p.id === projectId)?.title ??
+                        "Select project")
+                      : scope === "general"
+                        ? "—"
+                        : "Select project"}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {errors.project && (
+                <p className="text-xs text-red-500">{errors.project}</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="m-when">Date &amp; time *</Label>
+              <Label htmlFor="m-when">
+                Date &amp; time <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="m-when"
                 type="datetime-local"
+                className={`cursor-pointer${errors.scheduledAt ? " border-red-400" : ""}`}
                 value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
+                onChange={(e) => {
+                  setScheduledAt(e.target.value);
+                  if (errors.scheduledAt)
+                    setErrors((p) => ({ ...p, scheduledAt: "" }));
+                }}
+                onClick={(e) =>
+                  (e.currentTarget as HTMLInputElement).showPicker?.()
+                }
               />
+              {errors.scheduledAt && (
+                <p className="text-xs text-red-500">{errors.scheduledAt}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Duration</Label>
-              <Select value={String(duration)} onValueChange={(v) => v && setDuration(parseInt(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={String(duration)}
+                onValueChange={(v) => v && setDuration(parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {(
+                      {
+                        "15": "15 min",
+                        "30": "30 min",
+                        "45": "45 min",
+                        "60": "1 hour",
+                        "90": "1.5 hours",
+                        "120": "2 hours",
+                      } as Record<string, string>
+                    )[String(duration)] ?? `${duration} min`}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="15">15 min</SelectItem>
                   <SelectItem value="30">30 min</SelectItem>
@@ -561,13 +878,22 @@ function MeetingFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="m-location">Location / link</Label>
+            <Label htmlFor="m-location">
+              Location / link <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="m-location"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                if (errors.location) setErrors((p) => ({ ...p, location: "" }));
+              }}
               placeholder="Conference Room A, or https://meet.google.com/…"
+              className={errors.location ? "border-red-400" : ""}
             />
+            {errors.location && (
+              <p className="text-xs text-red-500">{errors.location}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -582,36 +908,128 @@ function MeetingFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Attendees ({attendeeIds.length})</Label>
-            <div className="max-h-48 overflow-y-auto border rounded-lg p-2 space-y-1">
-              {users.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer"
-                >
-                  <Checkbox
-                    checked={attendeeIds.includes(u.id)}
-                    onCheckedChange={() => toggleAttendee(u.id)}
-                  />
-                  <div
-                    className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                    style={{ backgroundColor: u.avatar_color }}
-                  >
-                    {u.name[0]}
-                  </div>
-                  <span className="text-sm">{u.name}</span>
-                  <span className="text-xs text-muted-foreground">— {u.role_type}</span>
-                </label>
-              ))}
+            <Label>
+              Attendees ({attendeeIds.length})
+              {scope === "project" && projectId && (
+                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                  — project members only
+                </span>
+              )}
+            </Label>
+            <div className="relative">
+              <svg
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path strokeLinecap="round" d="m21 21-4.35-4.35" />
+              </svg>
+              <Input
+                ref={attendeeSearchRef}
+                value={attendeeSearch}
+                onChange={(e) => setAttendeeSearch(e.target.value)}
+                placeholder="Search attendees…"
+                className="pl-8 h-8 text-sm"
+              />
             </div>
+            <div className="max-h-44 overflow-y-auto border rounded-lg p-2 space-y-1">
+              {loadingMembers ? (
+                <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                  <svg
+                    className="h-3.5 w-3.5 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8z"
+                    />
+                  </svg>
+                  Loading members…
+                </div>
+              ) : (
+                (() => {
+                  const q = attendeeSearch.toLowerCase();
+                  const visible = attendeePool.filter(
+                    (u) =>
+                      u.name.toLowerCase().includes(q) ||
+                      (u.role_type ?? "").toLowerCase().includes(q),
+                  );
+                  if (visible.length === 0)
+                    return (
+                      <p className="text-xs text-center text-muted-foreground py-4">
+                        {attendeeSearch
+                          ? `No results for "${attendeeSearch}"`
+                          : "No users available."}
+                      </p>
+                    );
+                  return visible.map((u) => {
+                    const isCreator = u.id === creatorId;
+                    return (
+                      <label
+                        key={u.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent ${isCreator ? "cursor-default opacity-90" : "cursor-pointer"}`}
+                      >
+                        <Checkbox
+                          checked={attendeeIds.includes(u.id)}
+                          disabled={isCreator}
+                          onCheckedChange={() => toggleAttendee(u.id)}
+                        />
+                        <div
+                          className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                          style={{ backgroundColor: u.avatar_color }}
+                        >
+                          {u.name[0]}
+                        </div>
+                        <span className="text-sm">{u.name}</span>
+                        {isCreator ? (
+                          <span className="text-xs font-medium text-blue-600">— you · host</span>
+                        ) : (
+                          u.role_type && (
+                            <span className="text-xs text-muted-foreground">
+                              — {u.role_type}
+                            </span>
+                          )
+                        )}
+                      </label>
+                    );
+                  });
+                })()
+              )}
+            </div>
+            {errors.attendees && (
+              <p className="text-xs text-destructive">{errors.attendees}</p>
+            )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
           <Button onClick={submit} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {editing ? "Save changes" : "Raise to CEO"}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {editing ? "Save changes" : "Raise"}
           </Button>
         </DialogFooter>
       </DialogContent>
