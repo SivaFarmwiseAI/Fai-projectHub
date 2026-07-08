@@ -510,7 +510,11 @@ function MilestoneRow({ m, done, onOpen }: { m: WorkHistoryAllottedMilestone; do
         <p className="text-[13px] text-slate-800 truncate">{m.title}</p>
         <p className="text-[11px] text-slate-400 truncate">
           {m.task_title} · {m.project_title}
-          {m.target_day != null ? ` · day ${m.target_day}` : ""}
+          {m.target_date
+            ? ` · due ${format(parseISO(m.target_date), "MMM d, yyyy")}`
+            : m.target_day != null
+              ? ` · day ${m.target_day}`
+              : ""}
         </p>
       </div>
       <span className="text-[10px] text-slate-400 shrink-0 w-14 text-right">

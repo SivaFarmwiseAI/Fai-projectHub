@@ -5,13 +5,20 @@ import Link from "next/link";
 import {
   ArrowLeft, X, Kanban, List, ChevronRight, Loader2, Search,
   LayoutGrid, Layers, Users, Target, Clock, CheckCircle2, GripVertical,
+  FileText, GitBranch, ExternalLink, Link as LinkIcon, PenTool, Paintbrush,
+  Code as CodeIcon, MessageSquare, Flag, Calendar, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projects as projectsApi, tasks as tasksApi } from "@/lib/api-client";
-import type { Project, Task, TaskMilestone } from "@/lib/api-client";
+import type { Project, Task, TaskMilestone, Deliverable } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { fireSideCannons } from "@/lib/confetti";
 import { formatDistanceToNow } from "date-fns";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { RevisionHistory } from "@/components/revision-history";
+import { UserLink } from "@/components/user-link";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Enhanced Kanban — a full project-transaction board.
@@ -84,26 +91,37 @@ const initials = (name: string) =>
 
 const fmtHours = (h?: number) => (h == null ? "—" : `${Math.round(h * 10) / 10}h`);
 
+/** Format a milestone's lead-chosen date ("YYYY-MM-DD") for display. Parsed as
+ *  local time (append T00:00:00) so the day doesn't shift across timezones. */
+const fmtMsDate = (d?: string | null) =>
+  d ? new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+
 /* ── Avatar ─────────────────────────────────────────────────── */
-function Avatar({ name, color, size = 22, ring }: { name?: string; color?: string; size?: number; ring?: boolean }) {
+function Avatar({ name, color, size = 22, ring, userId }: { name?: string; color?: string; size?: number; ring?: boolean; userId?: string | null }) {
   if (!name) return null;
-  return (
+  const circle = (
     <div
-      className={cn("rounded-full flex items-center justify-center text-white font-bold shrink-0", ring && "ring-2 ring-white")}
+      className={cn("rounded-full flex items-center justify-center text-white font-bold shrink-0", ring && "ring-2 ring-white", userId && "hover:ring-2 hover:ring-blue-300 transition-shadow")}
       style={{ height: size, width: size, background: color ?? "#3b82f6", fontSize: size * 0.4 }}
       title={name}
     >
       {initials(name)}
     </div>
   );
+  if (!userId) return circle;
+  return (
+    <UserLink userId={userId} title={name} className="inline-flex shrink-0 hover:no-underline">
+      {circle}
+    </UserLink>
+  );
 }
 
-function AvatarStack({ people, max = 3 }: { people: { name: string; color?: string }[]; max?: number }) {
+function AvatarStack({ people, max = 3 }: { people: { name: string; color?: string; id?: string }[]; max?: number }) {
   const shown = people.slice(0, max);
   const extra = people.length - shown.length;
   return (
     <div className="flex items-center -space-x-1.5">
-      {shown.map((p, i) => <Avatar key={i} name={p.name} color={p.color} size={22} ring />)}
+      {shown.map((p, i) => <Avatar key={i} name={p.name} color={p.color} size={22} ring userId={p.id} />)}
       {extra > 0 && (
         <div className="h-[22px] w-[22px] rounded-full bg-slate-200 text-slate-600 text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
           +{extra}
@@ -125,7 +143,7 @@ function MiniBar({ pct, done }: { pct: number; done?: boolean }) {
 
 /* ── Task card ──────────────────────────────────────────────── */
 function TaskCard({
-  task, groupBy, phaseName, moveCols, onMove, onDragStart, onDragEnd, dragging,
+  task, groupBy, phaseName, moveCols, onMove, onDragStart, onDragEnd, dragging, onOpen,
 }: {
   task: Task;
   groupBy: GroupBy;
@@ -135,6 +153,7 @@ function TaskCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   dragging: boolean;
+  onOpen: (taskId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -149,8 +168,8 @@ function TaskCard({
     : steps.length ? Math.round((stepsDone / steps.length) * 100) : 0;
 
   const people = task.assignees?.length
-    ? task.assignees.map(a => ({ name: a.name, color: a.avatar_color }))
-    : task.assignee_name ? [{ name: task.assignee_name, color: task.assignee_color }] : [];
+    ? task.assignees.map(a => ({ name: a.name, color: a.avatar_color, id: a.id }))
+    : task.assignee_name ? [{ name: task.assignee_name, color: task.assignee_color, id: task.assignee_id }] : [];
 
   const est = task.estimated_hours ?? 0;
   const act = task.actual_hours ?? 0;
@@ -164,8 +183,9 @@ function TaskCard({
       draggable
       onDragStart={e => { e.dataTransfer.setData("id", task.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
+      onClick={() => onOpen(task.id)}
       className={cn(
-        "bg-white rounded-xl border shadow-card p-3 group cursor-grab active:cursor-grabbing relative transition-all duration-200",
+        "bg-white rounded-xl border shadow-card p-3 group cursor-pointer relative transition-all duration-200",
         dragging ? "opacity-40 scale-95" : "hover:-translate-y-0.5 hover:shadow-card-hover"
       )}
     >
@@ -184,7 +204,7 @@ function TaskCard({
           )}
         </div>
         <button
-          onClick={() => setShowMenu(v => !v)}
+          onClick={e => { e.stopPropagation(); setShowMenu(v => !v); }}
           className="text-slate-300 hover:text-slate-600 shrink-0 text-lg leading-none px-1 -mt-1"
           title="Move"
         >⋯</button>
@@ -275,7 +295,7 @@ function TaskCard({
 type MsCard = TaskMilestone & { _taskId: string; _taskTitle: string; _phaseName?: string };
 
 function MilestoneCard({
-  ms, members, moveCols, onMove, onDragStart, onDragEnd, dragging,
+  ms, members, moveCols, onMove, onDragStart, onDragEnd, dragging, onOpen,
 }: {
   ms: MsCard;
   members: Map<string, { name: string; color: string }>;
@@ -284,6 +304,7 @@ function MilestoneCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   dragging: boolean;
+  onOpen: (taskId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const assignee = ms.assignee_id ? members.get(ms.assignee_id) : undefined;
@@ -298,8 +319,9 @@ function MilestoneCard({
       draggable
       onDragStart={e => { e.dataTransfer.setData("id", ms.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
+      onClick={() => onOpen(ms._taskId)}
       className={cn(
-        "bg-white rounded-xl border shadow-card p-3 relative cursor-grab active:cursor-grabbing transition-all duration-200",
+        "bg-white rounded-xl border shadow-card p-3 relative cursor-pointer transition-all duration-200",
         dragging ? "opacity-40 scale-95" : "hover:-translate-y-0.5 hover:shadow-card-hover"
       )}
     >
@@ -313,7 +335,7 @@ function MilestoneCard({
             <span className={cn("h-1.5 w-1.5 rounded-full", stat.dot)} /> {stat.label}
           </span>
         </div>
-        <button onClick={() => setShowMenu(v => !v)}
+        <button onClick={e => { e.stopPropagation(); setShowMenu(v => !v); }}
           className="text-slate-300 hover:text-slate-600 text-lg leading-none px-1 -mt-1">⋯</button>
       </div>
 
@@ -328,9 +350,13 @@ function MilestoneCard({
             <Layers className="h-2.5 w-2.5" /> {ms._phaseName}
           </span>
         )}
-        {ms.target_day != null && (
+        {ms.target_date ? (
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">
+            <Calendar className="h-2.5 w-2.5" /> {fmtMsDate(ms.target_date)}
+          </span>
+        ) : ms.target_day != null ? (
           <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">Day {ms.target_day}</span>
-        )}
+        ) : null}
       </div>
 
       {/* working hours — estimated vs actual */}
@@ -353,7 +379,7 @@ function MilestoneCard({
         {ms.completed_at
           ? <span className="text-[10px] text-emerald-600 font-medium inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Done</span>
           : <span className="text-[10px] text-slate-400">In flight</span>}
-        {assignee && <Avatar name={assignee.name} color={assignee.color} size={22} />}
+        {assignee && <Avatar name={assignee.name} color={assignee.color} size={22} userId={ms.assignee_id} />}
       </div>
 
       {showMenu && (
@@ -439,6 +465,373 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
   );
 }
 
+/* ── Progress bar (labelled) ────────────────────────────────── */
+function ProgressRow({ label, done, total, pct, tone = "blue" }: {
+  label: string; done?: number; total?: number; pct: number; tone?: "blue" | "violet";
+}) {
+  const complete = pct >= 100;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-semibold text-slate-500">{label}</span>
+        <span className="text-[11px] font-bold tabular-nums text-slate-600">
+          {done != null && total != null ? `${done}/${total} · ` : ""}{pct}%
+        </span>
+      </div>
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, background: complete ? "#22c55e" : tone === "violet" ? "#8b5cf6" : "#3b82f6" }} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Deliverable / attachment chip ──────────────────────────── */
+function delIcon(type: string) {
+  switch (type) {
+    case "repo": case "code_repo": return GitBranch;
+    case "figma": return PenTool;
+    case "design": return Paintbrush;
+    case "document": case "doc": return FileText;
+    case "code": return CodeIcon;
+    default: return LinkIcon;
+  }
+}
+
+function DeliverableChip({ d }: { d: Deliverable }) {
+  const Icon = delIcon(d.type);
+  const href = d.document_url || d.code_repo_url || d.code_pr_url;
+  const inner = (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 transition">
+      <Icon className="h-3 w-3 shrink-0 text-slate-500" />
+      <span className="truncate max-w-[180px] font-medium">{d.title || d.type}</span>
+      {href && <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />}
+    </span>
+  );
+  if (!href) return inner;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()} className="inline-block max-w-full">
+      {inner}
+    </a>
+  );
+}
+
+/* ── Milestone detail block (inside the task sheet) ─────────── */
+function MilestoneDetail({
+  ms, taskId, members,
+}: {
+  ms: TaskMilestone;
+  taskId: string;
+  members: Map<string, { name: string; color: string }>;
+}) {
+  const stat = MS_STATUS_COLS[normMsStatus(ms.status)];
+  const assignee = ms.assignee_id ? members.get(ms.assignee_id) : undefined;
+  const est = ms.estimated_hours ?? 0;
+  const act = ms.actual_hours ?? 0;
+  const over = est > 0 && act > est;
+  const hoursPct = est > 0 ? Math.min(100, Math.round((act / est) * 100)) : act > 0 ? 100 : 0;
+  const deliverables = ms.deliverables ?? [];
+  const updates = ms.updates ?? [];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+      {/* header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+            <span className={cn("inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border", stat.bg, stat.color, stat.border)}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", stat.dot)} /> {stat.label}
+            </span>
+            {ms.target_date ? (
+              <span className="inline-flex items-center gap-1 text-[9px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">
+                <Calendar className="h-2.5 w-2.5" /> {fmtMsDate(ms.target_date)}
+              </span>
+            ) : ms.target_day != null ? (
+              <span className="inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                <Calendar className="h-2.5 w-2.5" /> Day {ms.target_day}
+              </span>
+            ) : null}
+            {ms.deliverable_type && (
+              <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">{ms.deliverable_type}</span>
+            )}
+          </div>
+          <p className="text-sm font-semibold text-slate-800 leading-snug">{ms.title}</p>
+        </div>
+        {assignee && <Avatar name={assignee.name} color={assignee.color} size={24} userId={ms.assignee_id} />}
+      </div>
+
+      {ms.description && <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{ms.description}</p>}
+
+      {/* hours */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500"><Clock className="h-3 w-3" /> Hours</span>
+          <span className={cn("text-[11px] font-bold tabular-nums", over ? "text-red-600" : "text-slate-600")}>
+            {fmtHours(act)} / {fmtHours(est)}{over ? " · over" : ""}
+          </span>
+        </div>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${hoursPct}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
+        </div>
+      </div>
+
+      {/* success criteria */}
+      {ms.success_criteria?.length > 0 && (
+        <div>
+          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">
+            <ListChecks className="h-3 w-3" /> Success criteria
+          </p>
+          <ul className="space-y-1">
+            {ms.success_criteria.map((c, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-[13px] text-slate-600">
+                <CheckCircle2 className="h-3.5 w-3.5 text-slate-300 shrink-0 mt-0.5" /> <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* outcome */}
+      {(ms.outcome || ms.outcome_notes) && (
+        <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/60 px-2.5 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 mb-0.5">Outcome</p>
+          {ms.outcome && <p className="text-[13px] font-medium text-emerald-800">{ms.outcome}</p>}
+          {ms.outcome_notes && <p className="text-[12px] text-emerald-700/90 whitespace-pre-wrap mt-0.5">{ms.outcome_notes}</p>}
+        </div>
+      )}
+
+      {/* deliverables / attachments */}
+      {deliverables.length > 0 && (
+        <div>
+          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+            <FileText className="h-3 w-3" /> Attachments ({deliverables.length})
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {deliverables.map(d => <DeliverableChip key={d.id} d={d} />)}
+          </div>
+        </div>
+      )}
+
+      {/* update feed */}
+      {updates.length > 0 && (
+        <div>
+          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+            <MessageSquare className="h-3 w-3" /> Progress updates ({updates.length})
+          </p>
+          <ol className="space-y-1.5">
+            {updates.map(u => (
+              <li key={u.id} className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5">
+                <p className="text-[12px] text-slate-700 whitespace-pre-wrap">{u.message}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* per-milestone revision history */}
+      <RevisionHistory entity="milestone" entityId={ms.id} parentId={taskId} entityLabel={ms.title} accent="slate" compact />
+    </div>
+  );
+}
+
+/* ── Task detail sheet ──────────────────────────────────────── */
+function TaskDetailSheet({
+  taskId, initialTask, phaseName, members, onClose,
+}: {
+  taskId: string;
+  initialTask?: Task;
+  phaseName?: string;
+  members: Map<string, { name: string; color: string }>;
+  onClose: () => void;
+}) {
+  const [task, setTask] = useState<Task | undefined>(initialTask);
+  const [loading, setLoading] = useState(!initialTask);
+
+  useEffect(() => {
+    let alive = true;
+    setTask(initialTask);
+    setLoading(!initialTask);
+    // Always refetch the full task so deliverables + update feeds are current.
+    tasksApi.get(taskId)
+      .then(r => { if (alive) setTask(r.task); })
+      .catch(() => { /* keep the board snapshot */ })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [taskId, initialTask]);
+
+  const milestones = task?.milestones ?? [];
+  const msDone = milestones.filter(m => normMsStatus(m.status) === "completed").length;
+  const steps = task?.steps ?? [];
+  const stepsDone = steps.filter(s => s.status === "completed").length;
+  const msPct = milestones.length ? Math.round((msDone / milestones.length) * 100) : 0;
+  const stepPct = steps.length ? Math.round((stepsDone / steps.length) * 100) : 0;
+
+  const est = task?.estimated_hours ?? 0;
+  const act = task?.actual_hours ?? 0;
+  const hoursPct = est > 0 ? Math.min(100, Math.round((act / est) * 100)) : act > 0 ? 100 : 0;
+  const over = est > 0 && act > est;
+
+  const people = task?.assignees?.length
+    ? task.assignees.map(a => ({ name: a.name, color: a.avatar_color, id: a.id }))
+    : task?.assignee_name ? [{ name: task.assignee_name, color: task.assignee_color, id: task.assignee_id }] : [];
+
+  const st = task ? STATUS_COLS[normStatus(task.status)] : null;
+  const updates = task?.updates ?? [];
+
+  return (
+    <Sheet open onOpenChange={o => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-xl p-0 overflow-y-auto">
+        {/* header */}
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur px-5 pt-5 pb-3">
+          <SheetHeader className="p-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5 pr-8">
+              {task && (
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide", PRIORITY_COLORS[task.priority])}>
+                  {task.priority}
+                </span>
+              )}
+              {st && (
+                <span className={cn("inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border", st.bg, st.color, st.border)}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", st.dot)} /> {st.label}
+                </span>
+              )}
+              {phaseName && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                  <Layers className="h-2.5 w-2.5" /> {phaseName}
+                </span>
+              )}
+            </div>
+            <SheetTitle className="text-lg font-extrabold text-slate-900 leading-snug pr-8">
+              {task?.title ?? "Loading…"}
+            </SheetTitle>
+          </SheetHeader>
+        </div>
+
+        {loading && !task ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
+        ) : task ? (
+          <div className="px-5 py-4 space-y-5">
+            {/* description / approach */}
+            {task.description && (
+              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{task.description}</p>
+            )}
+            {task.approach && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">Approach</p>
+                <p className="text-[13px] text-slate-600 whitespace-pre-wrap">{task.approach}</p>
+              </div>
+            )}
+
+            {/* progress summary */}
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Overall progress</p>
+              {milestones.length > 0 && <ProgressRow label="Milestones" done={msDone} total={milestones.length} pct={msPct} tone="violet" />}
+              {steps.length > 0 && <ProgressRow label="Steps" done={stepsDone} total={steps.length} pct={stepPct} />}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500"><Clock className="h-3 w-3" /> Hours logged</span>
+                  <span className={cn("text-[11px] font-bold tabular-nums", over ? "text-red-600" : "text-slate-600")}>
+                    {fmtHours(act)} / {fmtHours(est)}{over ? " · over" : ""}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${hoursPct}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
+                </div>
+              </div>
+              {people.length > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[11px] font-semibold text-slate-500">Team</span>
+                  <AvatarStack people={people} max={5} />
+                </div>
+              )}
+            </div>
+
+            {/* success / kill criteria */}
+            {(task.success_criteria?.length > 0 || task.kill_criteria?.length > 0) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {task.success_criteria?.length > 0 && (
+                  <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/40 p-3">
+                    <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-600 mb-1.5">
+                      <CheckCircle2 className="h-3 w-3" /> Success criteria
+                    </p>
+                    <ul className="space-y-1">
+                      {task.success_criteria.map((c, i) => <li key={i} className="text-[12px] text-emerald-800">• {c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {task.kill_criteria?.length > 0 && (
+                  <div className="rounded-lg border border-red-200/70 bg-red-50/40 p-3">
+                    <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-red-600 mb-1.5">
+                      <Flag className="h-3 w-3" /> Kill criteria
+                    </p>
+                    <ul className="space-y-1">
+                      {task.kill_criteria.map((c, i) => <li key={i} className="text-[12px] text-red-800">• {c}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* milestones */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <Target className="h-3.5 w-3.5 text-violet-500" /> Milestones
+                </p>
+                {milestones.length > 0 && (
+                  <span className="text-[11px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">{msDone}/{milestones.length} done</span>
+                )}
+              </div>
+              {milestones.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center">
+                  <p className="text-xs text-slate-400">No milestones on this task.</p>
+                </div>
+              ) : (
+                [...milestones]
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map(ms => <MilestoneDetail key={ms.id} ms={ms} taskId={task.id} members={members} />)
+              )}
+            </div>
+
+            {/* task-level progress updates */}
+            {updates.length > 0 && (
+              <div>
+                <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" /> Task updates ({updates.length})
+                </p>
+                <ol className="space-y-1.5">
+                  {updates.map(u => (
+                    <li key={u.id} className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-slate-600">{u.user_name ?? "Update"}</span>
+                        <span className="text-[10px] text-slate-400">{formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}</span>
+                      </div>
+                      <p className="text-[13px] text-slate-700 whitespace-pre-wrap mt-0.5">{u.message}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* task revision history */}
+            <div>
+              <RevisionHistory entity="task" entityId={task.id} entityLabel={task.title} accent="slate" />
+            </div>
+          </div>
+        ) : (
+          <div className="px-5 py-20 text-center text-sm text-slate-400">Couldn’t load this task.</div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Main
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -460,6 +853,9 @@ export function KanbanClient({ projectId }: { projectId: string }) {
   const [overCol, setOverCol] = useState<string | null>(null);
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  // task detail sheet
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -749,13 +1145,13 @@ export function KanbanClient({ projectId }: { projectId: string }) {
                     <MilestoneCard key={ms.id} ms={ms} members={members}
                       moveCols={moveColsFor(col.id)} onMove={applyMove}
                       onDragStart={() => setDragId(ms.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }}
-                      dragging={dragId === ms.id} />
+                      dragging={dragId === ms.id} onOpen={setDetailId} />
                   ))
                   : (items as Task[]).map(t => (
                     <TaskCard key={t.id} task={t} groupBy={groupBy} phaseName={phaseName(t.phase_id)}
                       moveCols={moveColsFor(col.id)} onMove={applyMove}
                       onDragStart={() => setDragId(t.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }}
-                      dragging={dragId === t.id} />
+                      dragging={dragId === t.id} onOpen={setDetailId} />
                   ))}
               </Column>
             );
@@ -780,7 +1176,8 @@ export function KanbanClient({ projectId }: { projectId: string }) {
                 <div className="border border-t-0 border-slate-200 rounded-b-xl overflow-hidden">
                   {groupBy === "milestone"
                     ? (items as MsCard[]).map((ms, i, arr) => (
-                      <div key={ms.id} className={cn("flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50", i < arr.length - 1 && "border-b border-slate-100")}>
+                      <div key={ms.id} onClick={() => setDetailId(ms._taskId)}
+                        className={cn("flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50 cursor-pointer", i < arr.length - 1 && "border-b border-slate-100")}>
                         <Target className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                         <p className="text-sm font-semibold text-slate-800 flex-1 min-w-0 truncate">{ms.title}</p>
                         <span className="text-[10px] text-slate-400 truncate max-w-[160px]">{ms._taskTitle}</span>
@@ -792,10 +1189,11 @@ export function KanbanClient({ projectId }: { projectId: string }) {
                     : (items as Task[]).map((t, i, arr) => {
                       const ms = t.milestones ?? [];
                       const md = ms.filter(m => normMsStatus(m.status) === "completed").length;
-                      const people = t.assignees?.length ? t.assignees.map(a => ({ name: a.name, color: a.avatar_color }))
-                        : t.assignee_name ? [{ name: t.assignee_name, color: t.assignee_color }] : [];
+                      const people = t.assignees?.length ? t.assignees.map(a => ({ name: a.name, color: a.avatar_color, id: a.id }))
+                        : t.assignee_name ? [{ name: t.assignee_name, color: t.assignee_color, id: t.assignee_id }] : [];
                       return (
-                        <div key={t.id} className={cn("flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50", i < arr.length - 1 && "border-b border-slate-100")}>
+                        <div key={t.id} onClick={() => setDetailId(t.id)}
+                          className={cn("flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50 cursor-pointer", i < arr.length - 1 && "border-b border-slate-100")}>
                           <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase shrink-0", PRIORITY_COLORS[t.priority])}>{t.priority}</span>
                           <p className="text-sm font-semibold text-slate-800 flex-1 min-w-0 truncate">{t.title}</p>
                           {phaseName(t.phase_id) && <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">{phaseName(t.phase_id)}</span>}
@@ -810,6 +1208,18 @@ export function KanbanClient({ projectId }: { projectId: string }) {
             );
           })}
         </div>
+      )}
+
+      {/* Task detail drawer — milestones, attachments & full progress */}
+      {detailId && (
+        <TaskDetailSheet
+          key={detailId}
+          taskId={detailId}
+          initialTask={tasks.find(t => t.id === detailId)}
+          phaseName={phaseName(tasks.find(t => t.id === detailId)?.phase_id)}
+          members={members}
+          onClose={() => setDetailId(null)}
+        />
       )}
     </div>
   );

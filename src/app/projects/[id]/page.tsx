@@ -27,6 +27,7 @@ import {
 import { ManageTeamDialog } from "@/components/manage-team-dialog";
 import { ProjectPerformanceTab } from "@/components/project-performance-tab";
 import { RevisionHistory } from "@/components/revision-history";
+import { UserLink } from "@/components/user-link";
 import { showToast } from "@/lib/toast";
 import { fireMilestoneCelebration } from "@/lib/confetti";
 import { useConfirm } from "@/components/confirm-provider";
@@ -253,9 +254,13 @@ import { format, differenceInDays, addDays } from "date-fns";
 function Avatar({
   userId,
   size = "sm",
+  /** When false, render a static avatar (use inside buttons/links to avoid
+   *  nested interactive elements). Defaults to true — links to /team/{id}. */
+  link = true,
 }: {
   userId: string;
   size?: "sm" | "md" | "lg";
+  link?: boolean;
 }) {
   const user = _userMap[userId];
   if (!user) return null;
@@ -265,13 +270,19 @@ function Avatar({
       : size === "md"
         ? "h-9 w-9 text-xs"
         : "h-11 w-11 text-sm";
-  return (
+  const circle = (
     <div
-      className={`${dim} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
+      className={`${dim} rounded-full flex items-center justify-center font-bold text-white shrink-0 ${link ? "hover:ring-2 hover:ring-blue-300 transition-shadow" : ""}`}
       style={{ backgroundColor: user.avatar_color }}
     >
       {user.name[0]}
     </div>
+  );
+  if (!link) return circle;
+  return (
+    <UserLink userId={userId} title={user.name} className="shrink-0 inline-flex hover:no-underline">
+      {circle}
+    </UserLink>
   );
 }
 
@@ -1315,6 +1326,7 @@ function MilestoneSection({
   const [updStatus, setUpdStatus] = useState<string>(milestone.status);
   const [updEst, setUpdEst] = useState<number | "">(milestone.estimated_hours ?? "");
   const [updAct, setUpdAct] = useState<number | "">(milestone.actual_hours ?? "");
+  const [updTargetDate, setUpdTargetDate] = useState<string>(formatDateForInput(milestone.target_date ?? undefined));
   const [updNote, setUpdNote] = useState("");
   const [updAttachments, setUpdAttachments] = useState<
     { url: string; fileName?: string }[]
@@ -1327,6 +1339,7 @@ function MilestoneSection({
   const [localStatus, setLocalStatus] = useState<string>(milestone.status);
   const [localEstHours, setLocalEstHours] = useState<number | null>(milestone.estimated_hours ?? null);
   const [localActHours, setLocalActHours] = useState<number | null>(milestone.actual_hours ?? null);
+  const [localTargetDate, setLocalTargetDate] = useState<string | null>(milestone.target_date ?? null);
 
   const config =
     deliverableTypeConfig[milestone.deliverable_type ?? "text"] ||
@@ -1344,6 +1357,7 @@ function MilestoneSection({
     setUpdStatus(localStatus);
     setUpdEst(localEstHours ?? "");
     setUpdAct(localActHours ?? "");
+    setUpdTargetDate(formatDateForInput(localTargetDate ?? undefined));
     setUpdNote("");
     setUpdAttachments([]);
     setShowUpdate(true);
@@ -1364,13 +1378,16 @@ function MilestoneSection({
       const hoursChanged =
         (estVal ?? null) !== localEstHours ||
         (actVal ?? null) !== localActHours;
+      const dateVal = updTargetDate || null;
+      const dateChanged = dateVal !== localTargetDate;
 
-      // 1. Apply title + status + timing to the milestone itself.
+      // 1. Apply title + status + timing + date to the milestone itself.
       await tasksApi.updateMilestone(taskId, milestone.id, {
         title: trimmedTitle,
         status: updStatus,
         estimated_hours: estVal,
         actual_hours: actVal,
+        target_date: dateVal,
       });
 
       // 2. Record a revision (with attachments) so the change + evidence is
@@ -1381,6 +1398,7 @@ function MilestoneSection({
         titleChanged ||
         statusChanged ||
         hoursChanged ||
+        dateChanged ||
         updNote.trim() ||
         updAttachments.length
       ) {
@@ -1391,6 +1409,8 @@ function MilestoneSection({
           parts.push(`Status → ${MILESTONE_STATUS_LABELS[updStatus] ?? updStatus}`);
         if (hoursChanged)
           parts.push(`${actVal ?? 0}h spent / ${estVal ?? 0}h est`);
+        if (dateChanged)
+          parts.push(dateVal ? `Date → ${formatShortDate(dateVal)}` : "Date cleared");
         const summary =
           updNote.trim() || parts.join(" · ") || "Progress update";
         try {
@@ -1419,6 +1439,7 @@ function MilestoneSection({
       setLocalStatus(updStatus);
       setLocalEstHours(estVal ?? null);
       setLocalActHours(actVal ?? null);
+      setLocalTargetDate(dateVal);
       showToast.success("Milestone updated");
       setShowUpdate(false);
       onUpdate?.();
@@ -1537,6 +1558,16 @@ function MilestoneSection({
             >
               {config.icon} {config.label}
             </Badge>
+            {localTargetDate && (
+              <Badge
+                variant="outline"
+                className="text-[9px] gap-0.5 text-indigo-700 border-indigo-200 bg-indigo-50"
+                title="Milestone due date"
+              >
+                <CalendarClock className="h-2.5 w-2.5" />
+                {formatShortDate(localTargetDate)}
+              </Badge>
+            )}
           </div>
           {milestone.description && (
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">
@@ -1562,7 +1593,7 @@ function MilestoneSection({
                 className="hover:ring-2 hover:ring-blue-300 rounded-full transition-all"
                 title="Click to reassign"
               >
-                <Avatar userId={assignee.id} size="sm" />
+                <Avatar userId={assignee.id} size="sm" link={false} />
               </button>
               {showAssigneeEditor && (
                 <div
@@ -1720,6 +1751,15 @@ function MilestoneSection({
                         e.preventDefault();
                     }}
                     className="h-7 w-20 text-[11px] px-1.5"
+                  />
+                </label>
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  Milestone date
+                  <Input
+                    type="date"
+                    value={updTargetDate}
+                    onChange={(e) => setUpdTargetDate(e.target.value)}
+                    className="h-7 w-36 text-[11px] px-1.5"
                   />
                 </label>
               </div>
@@ -2076,6 +2116,7 @@ function TaskCard({
   >([]);
   const [milestoneAssigneeId, setMilestoneAssigneeId] = useState("");
   const [milestoneEstimatedHours, setMilestoneEstimatedHours] = useState<number | "">(0);
+  const [milestoneTargetDate, setMilestoneTargetDate] = useState("");
   const [newCriteria, setNewCriteria] = useState("");
   const [milestoneErrors, setMilestoneErrors] = useState<
     Record<string, string>
@@ -2089,6 +2130,7 @@ function TaskCard({
       setMilestoneSuccessCriteria([]);
       setMilestoneAssigneeId("");
       setMilestoneEstimatedHours(0);
+      setMilestoneTargetDate("");
       setNewCriteria("");
     }
   }, [showAddMilestoneForm, task]);
@@ -2638,7 +2680,7 @@ function TaskCard({
                     setShowAssigneeEditor(!showAssigneeEditor);
                   }}
                 >
-                  <Avatar userId={allAssignees[0]} size="sm" />
+                  <Avatar userId={allAssignees[0]} size="sm" link={false} />
                   <span className="text-xs font-medium text-gray-700">
                     {primary?.name}
                   </span>
@@ -3012,15 +3054,16 @@ function TaskCard({
                                 </span>
                               )}
                               {stepAssignee && (
-                                <div
-                                  className="h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
-                                  style={{
-                                    backgroundColor: stepAssignee.avatar_color,
-                                  }}
-                                  title={stepAssignee.name}
-                                >
-                                  {stepAssignee.name[0]}
-                                </div>
+                                <UserLink userId={step.assignee_id} title={stepAssignee.name} className="shrink-0 inline-flex hover:no-underline">
+                                  <div
+                                    className="h-5 w-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 hover:ring-2 hover:ring-blue-300 transition-shadow"
+                                    style={{
+                                      backgroundColor: stepAssignee.avatar_color,
+                                    }}
+                                  >
+                                    {stepAssignee.name[0]}
+                                  </div>
+                                </UserLink>
                               )}
                             </div>
                             {/* Row 2: expected outcome */}
@@ -3239,19 +3282,35 @@ function TaskCard({
                     </div>
                   </div>
 
-                  {/* Assignee */}
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
-                    <select
-                      value={milestoneAssigneeId}
-                      onChange={(e) => setMilestoneAssigneeId(e.target.value)}
-                      className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
-                    >
-                      <option value="">Unassigned</option>
-                      {(projectMembers ?? []).map((u) => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Assignee */}
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
+                      <select
+                        value={milestoneAssigneeId}
+                        onChange={(e) => setMilestoneAssigneeId(e.target.value)}
+                        className="flex h-8 w-full rounded-md border border-blue-100 bg-background px-2.5 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400"
+                      >
+                        <option value="">Unassigned</option>
+                        {(projectMembers ?? []).map((u) => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Milestone date — chosen by the lead; may be in the future */}
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Milestone Date</label>
+                      <Input
+                        type="date"
+                        value={milestoneTargetDate}
+                        onChange={(e) => setMilestoneTargetDate(e.target.value)}
+                        className="text-xs h-8 border-blue-100 focus-visible:ring-blue-400"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Target date this milestone is due
+                      </p>
+                    </div>
                   </div>
 
                   {/* Success Criteria List */}
@@ -3349,6 +3408,7 @@ function TaskCard({
                                 ? milestoneSuccessCriteria
                                 : undefined,
                             assignee_id: milestoneAssigneeId || undefined,
+                            target_date: milestoneTargetDate || undefined,
                             estimated_hours:
                               milestoneEstimatedHours !== ""
                                 ? milestoneEstimatedHours
@@ -3362,6 +3422,7 @@ function TaskCard({
                             setMilestoneSuccessCriteria([]);
                             setMilestoneAssigneeId("");
                             setMilestoneEstimatedHours(0);
+                            setMilestoneTargetDate("");
                             setShowAddMilestoneForm(false);
                             showToast.success("Milestone added");
                             onReviewUpdate?.();
@@ -4958,9 +5019,9 @@ function ProjectDocumentsSection({
                                       >
                                         <Activity className="h-2.5 w-2.5 shrink-0" />
                                         <span>{t.title}</span>
-                                        <span className="text-[9px] opacity-70">
+                                        <UserLink userId={t.assignee_id} className="text-[9px] opacity-70">
                                           ({getUser(t.assignee_id ?? "")?.name})
-                                        </span>
+                                        </UserLink>
                                       </div>
                                     ))}
                                   </div>
@@ -8328,7 +8389,7 @@ export default function ProjectDetailPage({
                   return owner ? (
                     <div className="flex items-center gap-1.5">
                       <Avatar userId={project.owner_id} size="sm" />
-                      <span className="text-xs font-medium">{owner.name}</span>
+                      <UserLink userId={project.owner_id} className="text-xs font-medium">{owner.name}</UserLink>
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                         Owner
                       </span>
@@ -8345,7 +8406,7 @@ export default function ProjectDetailPage({
                       return co ? (
                         <div key={cid} className="flex items-center gap-1">
                           <Avatar userId={cid} size="sm" />
-                          <span className="text-xs">{co.name}</span>
+                          <UserLink userId={cid} className="text-xs">{co.name}</UserLink>
                           <span className="text-[9px] px-1 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
                             Co-owner
                           </span>
