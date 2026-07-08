@@ -51,6 +51,12 @@ Parameters:
     Default: https://projecthub.farmwiseai.com
     Description: Allowed CORS origin – the frontend URL (no trailing slash)
 
+  PublicApiKey:
+    Type: String
+    NoEcho: true
+    Default: dev-projecthub-key-2024
+    Description: API key for /api/public/notifications (sent as x-api-key header by external apps)
+
 # ── Globals ───────────────────────────────────────────────────────────────────
 
 Globals:
@@ -76,6 +82,7 @@ Globals:
         DB_POOL_MIN: '1'
         DB_POOL_MAX: '5'
         CORS_ORIGINS: !Ref CorsOrigins
+        PUBLIC_API_KEY: !Ref PublicApiKey
     Tags:
       Project: ProjectHub
       Environment: !Ref Env

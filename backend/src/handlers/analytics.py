@@ -10,6 +10,7 @@ _UUID_RE = re.compile(
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ..auth import get_current_user
+from ..config import get_settings
 from ..database import call_fn, execute, fetchall, fetchone, refresh_views
 from ..exceptions import HTTPError
 
@@ -123,52 +124,127 @@ def _mark_read(event, origin, notif_id):
 
 # ── Public Notifications (API Key — no JWT required) ─────────────────────────
 
-PUBLIC_API_KEY = "dev-projecthub-key-2024"
-
-
 def _validate_api_key(event):
     headers = event.get("headers") or {}
     key = headers.get("x-api-key") or headers.get("X-Api-Key", "")
-    if key != PUBLIC_API_KEY:
+    if key != get_settings().public_api_key:
         raise HTTPError(401, "Invalid API key")
+
+
+# Roles whose team view spans everything vs. their own reports/projects.
+_VIEW_ALL_ROLES = ("CEO", "Admin")
+_TEAM_LEAD_ROLES = ("Team Lead", "Leadership")
+
+
+def _require_scope(event):
+    """Validate and return the (applicationId, userId) scope query params.
+
+    userId is mandatory — every public route is scoped to one user so a
+    caller can never mutate another tenant's rows. applicationId (= project
+    UUID) is an optional filter: leave and other non-project notifications
+    have a NULL application_id and are only reachable without it.
+    """
+    p = get_query(event)
+    application_id = p.get("applicationId", "")
+    user_id = p.get("userId", "")
+    if not user_id:
+        raise HTTPError(400, "userId is required")
+    if not _UUID_RE.match(user_id):
+        raise HTTPError(400, "userId must be a valid UUID")
+    if application_id and not _UUID_RE.match(application_id):
+        raise HTTPError(400, "applicationId must be a valid project UUID")
+    return (application_id or None), user_id
 
 
 def _public_notifications(event, origin):
     _validate_api_key(event)
+    application_id, user_id = _require_scope(event)
     p = get_query(event)
-    application_id = p.get("applicationId", "")
-    user_id = p.get("userId", "")
-    if not application_id or not user_id:
-        raise HTTPError(400, "applicationId and userId are required")
-    if not _UUID_RE.match(application_id):
-        raise HTTPError(400, "applicationId must be a valid project UUID")
-    if not _UUID_RE.match(user_id):
-        raise HTTPError(400, "userId must be a valid UUID")
-    rows = fetchall("""
-        SELECT * FROM notifications
-        WHERE application_id = %s AND user_id = %s
-        ORDER BY created_at DESC LIMIT 50
-    """, (application_id, user_id))
-    unread_count = sum(1 for r in rows if not r.get("is_read"))
-    return resp({"notifications": rows, "unread_count": unread_count}, origin=origin)
+    unread_only = p.get("unread_only", "").lower() == "true"
+    team_view = p.get("view", "") == "team"
+    limit = min(int(p.get("limit", 50)), 100)
+
+    conds = []
+    params: list = []
+    if team_view:
+        role = (fetchone(
+            "SELECT role_type FROM users WHERE id = %s", (user_id,)
+        ) or {}).get("role_type")
+        if role in _VIEW_ALL_ROLES:
+            pass  # no user restriction — CEO/Admin see everything
+        elif role in _TEAM_LEAD_ROLES:
+            # Own rows + direct reports' rows + rows on the lead's projects.
+            conds.append("""(
+                n.user_id = %s
+                OR n.user_id IN (SELECT id FROM users WHERE manager_id = %s)
+                OR n.application_id IN
+                   (SELECT project_id FROM project_assignees WHERE user_id = %s)
+            )""")
+            params.extend([user_id, user_id, user_id])
+        else:
+            conds.append("n.user_id = %s")  # silent fallback to own-only
+            params.append(user_id)
+    else:
+        conds.append("n.user_id = %s")
+        params.append(user_id)
+    if application_id:
+        # Rows tied to a project must match the sent applicationId; rows
+        # with no project (leave etc.) don't depend on it and always pass.
+        conds.append("(n.application_id IS NULL OR n.application_id = %s)")
+        params.append(application_id)
+    if unread_only:
+        conds.append("NOT n.is_read")
+    params.append(limit)
+
+    rows = fetchall(f"""
+        SELECT n.*, u.name AS user_name, p.title AS project_title
+        FROM notifications n
+        JOIN users u ON u.id = n.user_id
+        LEFT JOIN projects p ON p.id = n.application_id
+        WHERE {" AND ".join(conds) if conds else "TRUE"}
+        ORDER BY n.created_at DESC LIMIT %s
+    """, tuple(params))
+    # Badge semantics: only the caller's own unread, never team rows —
+    # and the same applicationId rule as the list (project rows must
+    # match; NULL-app rows like leave always count) so badge == list.
+    unread_cond = (
+        "AND (application_id IS NULL OR application_id = %s)"
+        if application_id else ""
+    )
+    unread_params = (user_id, application_id) if application_id else (user_id,)
+    unread = fetchone(f"""
+        SELECT COUNT(*) AS n FROM notifications
+        WHERE user_id = %s AND NOT is_read {unread_cond}
+    """, unread_params)
+    return resp(
+        {"notifications": rows, "unread_count": (unread or {}).get("n", 0)},
+        origin=origin,
+    )
 
 
 def _public_mark_read(event, origin, notif_id):
     _validate_api_key(event)
+    _application_id, user_id = _require_scope(event)
     if not _UUID_RE.match(notif_id):
         raise HTTPError(400, "Invalid notification id")
-    execute(
-        "UPDATE notifications SET is_read = TRUE WHERE id = %s",
-        (notif_id,)
-    )
+    # user_id scoping doubles as the read-only team view: a lead can see
+    # reports' rows but can only mutate their own.
+    execute("""
+        UPDATE notifications SET is_read = TRUE
+        WHERE id = %s AND user_id = %s
+    """, (notif_id, user_id))
     return resp({"ok": True}, origin=origin)
 
 
 def _public_delete_notification(event, origin, notif_id):
     _validate_api_key(event)
+    _application_id, user_id = _require_scope(event)
     if not _UUID_RE.match(notif_id):
         raise HTTPError(400, "Invalid notification id")
-    execute("DELETE FROM notifications WHERE id = %s", (notif_id,))
+    execute("""
+        DELETE FROM notifications
+        WHERE id = %s AND user_id = %s
+    """, (notif_id, user_id))
     return resp({"ok": True}, origin=origin)
 
 

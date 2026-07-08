@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     db_pool_min: int = 1
     db_pool_max: int = 5
     cors_origins: str = "*"
+    public_api_key: str = "dev-projecthub-key-2024"
     s3_bucket: str = ""
     s3_region: str = "ap-south-1"
     cloudfront_domain: str = ""

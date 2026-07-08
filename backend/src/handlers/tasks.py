@@ -3,6 +3,7 @@ import json
 import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._notify import notify
 from ..auth import get_current_user
 from ..database import call_fn, execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -128,6 +129,12 @@ def _create_task(event, origin):
             "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
             (task["id"], uid, current_user["id"]),
         )
+        if uid != str(current_user["id"]):
+            notify(
+                uid, "task_assigned", f"New task assigned: {body.title}",
+                f"{current_user.get('name', 'Someone')} assigned you a task.",
+                "task", task["id"], project_id=str(body.project_id),
+            )
 
     task["assignees"] = fetchall("""
         SELECT u.id, u.name, u.avatar_color, u.role, u.department
@@ -143,7 +150,7 @@ def _add_task_assignee(event, origin, task_id):
     user_id = body.get("user_id")
     if not user_id:
         raise HTTPError(400, "user_id is required")
-    task_row = fetchone("SELECT project_id FROM tasks WHERE id = %s", (task_id,))
+    task_row = fetchone("SELECT project_id, title FROM tasks WHERE id = %s", (task_id,))
     if not task_row:
         raise HTTPError(404, "Task not found")
     if not fetchone("SELECT 1 FROM users WHERE id = %s AND is_active", (user_id,)):
@@ -155,11 +162,19 @@ def _add_task_assignee(event, origin, task_id):
         "VALUES (%s, %s) ON CONFLICT DO NOTHING",
         (task_row["project_id"], user_id),
     )
-    execute(
+    added = execute(
         "INSERT INTO task_assignees (task_id, user_id, added_by) "
         "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
         (task_id, user_id, current_user["id"]),
     )
+    # Only notify on a genuinely new assignment (re-adding is a no-op above).
+    if added and str(user_id) != str(current_user["id"]):
+        notify(
+            str(user_id), "task_assigned",
+            f"New task assigned: {task_row['title']}",
+            f"{current_user.get('name', 'Someone')} assigned you a task.",
+            "task", task_id, project_id=task_row["project_id"],
+        )
     # If the task has no primary assignee yet, promote this user.
     execute(
         "UPDATE tasks SET assignee_id = %s, updated_at = NOW() "

@@ -3,6 +3,7 @@ import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ._approval import auto_request
+from ._notify import notify
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -93,6 +94,13 @@ def _create_review(event, origin):
         proposed_at=f"{body.due_date}T09:00:00Z" if body.due_date else None,
         project_id=str(body.project_id) if body.project_id else None,
     )
+    for uid in {str(x) for x in body.assignee_ids}:
+        if uid != str(current_user["id"]):
+            notify(
+                uid, "review_requested", f"Review requested: {body.title}",
+                body.description or "", "review", review["id"],
+                project_id=str(body.project_id) if body.project_id else None,
+            )
     return resp({"review": review}, 201, origin)
 
 

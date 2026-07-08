@@ -3,6 +3,7 @@ import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ._approval import auto_request
+from ._notify import notify
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -101,6 +102,21 @@ def _add_message(event, origin, discussion_id):
         str(body.parent_id) if body.parent_id else None,
     ))
     execute("UPDATE discussions SET updated_at = NOW() WHERE id = %s", (discussion_id,))
+    if body.mentioned_user_ids:
+        disc = fetchone(
+            "SELECT project_id, title FROM discussions WHERE id = %s",
+            (discussion_id,),
+        )
+        if disc:
+            for uid in {str(u) for u in body.mentioned_user_ids}:
+                if uid != str(current_user["id"]):
+                    notify(
+                        uid, "discussion_mention",
+                        f"You were mentioned in: {disc['title']}",
+                        (body.content or "")[:300],
+                        "discussion", discussion_id,
+                        project_id=disc["project_id"],
+                    )
     return resp({"message": msg}, 201, origin)
 
 

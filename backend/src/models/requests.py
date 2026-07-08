@@ -328,6 +328,7 @@ class CreateDiscussionRequest(BaseModel):
 class CreateDiscussionMessageRequest(BaseModel):
     content: str
     parent_id: Optional[UUID] = None
+    mentioned_user_ids: List[UUID] = Field(default_factory=list)
 
 
 class UpdateDiscussionRequest(BaseModel):
