@@ -698,6 +698,8 @@ export interface TaskMilestone {
   status: string;
   assignee_id?: string;
   target_day?: number;
+  /** Lead-chosen absolute calendar date (YYYY-MM-DD); supports future milestones. */
+  target_date?: string | null;
   estimated_hours?: number;
   actual_hours?: number;
   outcome?: string;
@@ -1076,6 +1078,7 @@ export interface WorkHistoryMilestone {
   status: string;
   assignee_id?: string | null;
   target_day?: number | null;
+  target_date?: string | null;
   estimated_hours?: number | null;
   actual_hours?: number | null;
   completed_at?: string | null;
@@ -1107,6 +1110,7 @@ export interface WorkHistoryAllottedMilestone {
   title: string;
   status: string;
   target_day?: number | null;
+  target_date?: string | null;
   estimated_hours?: number | null;
   actual_hours?: number | null;
   completed_at?: string | null;
@@ -1565,7 +1569,7 @@ export interface ExtractedDocument {
 export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
 export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
-export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; assignee_id?: string; target_day?: number; estimated_hours?: number; order_index?: number; }
+export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; assignee_id?: string; target_day?: number; target_date?: string; estimated_hours?: number; order_index?: number; }
 export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }
 export interface CreateSubmissionPayload { phase_id?: string; project_id: string; title: string; type: string; description?: string; link?: string; is_key_milestone?: boolean }
 export interface CreateLeavePayload { type: string; start_date: string; end_date: string; reason?: string; cover_person_id?: string; cover_person_ids?: string[]; coverage_plan?: string; is_planned?: boolean }

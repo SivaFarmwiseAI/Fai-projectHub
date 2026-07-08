@@ -10,6 +10,7 @@ import { projects as projectsApi } from "@/lib/api-client";
 import type { Project } from "@/lib/api-client";
 import { format, addDays, differenceInDays, startOfMonth, startOfYear, addMonths, addYears } from "date-fns";
 import { SingleProjectTimeline } from "@/components/single-project-timeline";
+import { UserLink } from "@/components/user-link";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
   if (!startDate) return 0;
@@ -367,13 +368,13 @@ export function GanttClient() {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         {p.owner_name && (
-                          <div className="flex items-center gap-1">
+                          <UserLink userId={p.owner_id} title={p.owner_name} className="flex items-center gap-1 min-w-0 hover:no-underline">
                             <div className="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
                               style={{ background: p.owner_avatar_color ?? "#999" }}>
                               {p.owner_name.charAt(0)}
                             </div>
-                            <span className="text-[9px] text-slate-400 truncate">{p.owner_name}</span>
-                          </div>
+                            <span className="text-[9px] text-slate-400 truncate hover:text-blue-600">{p.owner_name}</span>
+                          </UserLink>
                         )}
                         <div className={`text-[9px] font-bold shrink-0 ${daysLeft < 0 ? "text-red-500" : "text-slate-400"}`}>
                           {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
