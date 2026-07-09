@@ -9,11 +9,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil, Crown } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
-import { bandColor, bandForScore, fmtScore, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
+import { bandColor, bandForScore, fmtScore, fmtDate, PEER_QUESTIONS, PEER_SCALE_LABELS } from "@/lib/performance";
 import { cn } from "@/lib/utils";
 import { PerfLoader } from "@/components/performance-loader";
 
-interface PeerData { competencies?: Record<string, number>; strengths?: string; improvements?: string; comment?: string }
+interface PeerData {
+  answers?: Record<string, string>;
+  overall?: number;
+  /** Legacy shape from the old competency-based form. */
+  competencies?: Record<string, number>;
+  strengths?: string;
+  improvements?: string;
+  comment?: string;
+}
 
 const isManagerKind = (k?: string | null) => k === "manager";
 
@@ -174,28 +182,38 @@ export function PerformanceReviews() {
 }
 
 // ── Peer review form ──────────────────────────────────────────────────────────
+/** Seed answers from saved data; older competency-based reviews map onto the closest new questions. */
+function seedAnswers(d?: PeerData): Record<string, string> {
+  if (d?.answers) return { ...d.answers };
+  const a: Record<string, string> = {};
+  if (d?.strengths) a.strength = d.strengths;
+  if (d?.improvements) a.improvement = d.improvements;
+  if (d?.comment) a.overall = d.comment;
+  return a;
+}
+
 function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
-  const [ratings, setRatings] = useState<Record<string, number>>(initial?.competencies ?? {});
-  const [strengths, setStrengths] = useState(initial?.strengths ?? "");
-  const [improvements, setImprovements] = useState(initial?.improvements ?? "");
-  const [comment, setComment] = useState(initial?.comment ?? "");
+  const [answers, setAnswers] = useState<Record<string, string>>(() => seedAnswers(initial));
+  const [overall, setOverall] = useState<number | null>(initial?.overall ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const isManager = isManagerKind(assignment.kind);
-  const rated = PEER_COMPETENCIES.filter((c) => ratings[c.key] != null);
-  const avg = rated.length ? rated.reduce((s, c) => s + ratings[c.key], 0) / rated.length : null;
-  const complete = rated.length === PEER_COMPETENCIES.length && strengths.trim().length > 0;
+  const isDone = (q: (typeof PEER_QUESTIONS)[number]) =>
+    (answers[q.key] ?? "").trim().length > 0 && (!q.scale || overall != null);
+  const doneCount = PEER_QUESTIONS.filter(isDone).length;
+  const complete = doneCount === PEER_QUESTIONS.length;
 
   const submit = async () => {
-    if (!complete || avg == null) { setError("Rate every competency and add at least the strengths."); return; }
+    if (!complete || overall == null) { setError("Please answer every question and pick the overall 1–5 rating."); return; }
     setSaving(true);
     setError("");
     try {
+      const trimmed = Object.fromEntries(PEER_QUESTIONS.map((q) => [q.key, (answers[q.key] ?? "").trim()]));
       await performanceAssessments.update(assignment.id, {
-        data: { competencies: ratings, strengths: strengths.trim(), improvements: improvements.trim(), comment: comment.trim() },
-        total_score: Number(avg.toFixed(2)),
-        rating_band: bandForScore(avg),
+        data: { answers: trimmed, overall },
+        total_score: overall,
+        rating_band: bandForScore(overall),
         status: "submitted",
       });
       onDone();
@@ -208,55 +226,89 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
   return (
     <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Avatar name={assignment.subject_name} color={assignment.subject_color} />
-            <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 truncate">
-                {isManager ? "Manager review" : "Peer review"} · {assignment.subject_name}
-              </h2>
-              <p className="text-xs text-slate-500 truncate">
-                {isManager ? "Your authoritative review as reporting manager" : assignment.subject_role || ""}
-                {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
-              </p>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar name={assignment.subject_name} color={assignment.subject_color} />
+              <div className="min-w-0">
+                <h2 className="text-base font-extrabold text-slate-900 truncate">
+                  {isManager ? "Manager review" : "Peer review"} · {assignment.subject_name}
+                </h2>
+                <p className="text-xs text-slate-500 truncate">
+                  {isManager ? "Your authoritative review as reporting manager" : assignment.subject_role || ""}
+                  {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
+                </p>
+              </div>
             </div>
+            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+              <X className="h-4.5 w-4.5" />
+            </button>
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
-            <X className="h-4.5 w-4.5" />
-          </button>
+          {/* Progress */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${(doneCount / PEER_QUESTIONS.length) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
+            </div>
+            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600" : "text-slate-400")}>
+              {doneCount}/{PEER_QUESTIONS.length} answered
+            </span>
+          </div>
         </div>
 
-        <div className="p-5 max-h-[60vh] overflow-y-auto space-y-4">
-          <div className="space-y-3">
-            {PEER_COMPETENCIES.map((c) => (
-              <div key={c.key}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[13px] font-semibold text-slate-700">{c.label} <span className="text-red-500">*</span></span>
-                  <span className="text-[11px] text-slate-400">{c.hint}</span>
+        <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
+          <p className="text-[12px] text-slate-500 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2">
+            All questions are required. Be honest, specific and constructive — your answers are shared with the reporting manager.
+          </p>
+
+          {PEER_QUESTIONS.map((q, i) => {
+            const done = isDone(q);
+            return (
+              <div key={q.key}
+                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-white")}>
+                <div className="flex items-start gap-3 mb-2.5">
+                  <span className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold text-white shrink-0 mt-0.5",
+                    done ? "bg-emerald-500" : "btn-gradient")}>
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{q.short}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 leading-snug">
+                      {q.question} <span className="text-red-500">*</span>
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-1.5">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} onClick={() => setRatings((p) => ({ ...p, [c.key]: n }))}
-                      className={cn("flex-1 h-9 rounded-lg border text-sm font-bold transition-all flex items-center justify-center gap-1",
-                        ratings[c.key] === n ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:border-blue-200")}>
-                      <Star className="h-3 w-3" fill={ratings[c.key] != null && ratings[c.key] >= n ? "currentColor" : "none"} /> {n}
-                    </button>
-                  ))}
-                </div>
+
+                {q.scale && (
+                  <div className="grid grid-cols-5 gap-1.5 mb-2.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} type="button" onClick={() => setOverall(n)}
+                        title={PEER_SCALE_LABELS[n - 1]}
+                        className={cn("rounded-lg border py-2 transition-all flex flex-col items-center gap-0.5",
+                          overall === n ? "border-blue-500 bg-blue-50 text-blue-600 shadow-sm"
+                            : "border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500")}>
+                        <span className="flex items-center gap-1 text-sm font-bold">
+                          <Star className="h-3.5 w-3.5" fill={overall != null && overall >= n ? "currentColor" : "none"} /> {n}
+                        </span>
+                        <span className="text-[9px] font-semibold leading-none text-center px-0.5">{PEER_SCALE_LABELS[n - 1]}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <textarea value={answers[q.key] ?? ""} onChange={(e) => setAnswers((p) => ({ ...p, [q.key]: e.target.value }))}
+                  placeholder={q.placeholder} rows={3} required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               </div>
-            ))}
-          </div>
+            );
+          })}
 
-          <Field label="Strengths" required value={strengths} onChange={setStrengths} placeholder="What does this person do really well?" />
-          <Field label="Areas to improve" value={improvements} onChange={setImprovements} placeholder="Where could they grow? Be specific and constructive." />
-          <Field label="Anything else (optional)" value={comment} onChange={setComment} placeholder="Context, examples, overall impression…" />
-
-          {avg != null && (
+          {overall != null && (
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-              <span className="stat-number text-2xl font-extrabold text-slate-900">{avg.toFixed(2)}</span>
-              <span className="text-[11px] text-slate-400 font-medium">overall / 5.0</span>
-              <span className="ml-auto"><Band band={bandForScore(avg)} /></span>
+              <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
+              <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+              <span className="ml-auto"><Band band={bandForScore(overall)} /></span>
             </div>
           )}
           {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
@@ -292,18 +344,6 @@ function Band({ band }: { band?: string | null }) {
   return (
     <span className="inline-flex items-center text-[13px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
       style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}40` }}>{band || "Unrated"}</span>
-  );
-}
-
-function Field({ label, value, onChange, placeholder, required }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; required?: boolean }) {
-  return (
-    <div>
-      <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={2}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-    </div>
   );
 }
 
