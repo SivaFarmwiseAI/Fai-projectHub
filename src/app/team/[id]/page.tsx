@@ -52,6 +52,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { UserLink } from "@/components/user-link";
+import { MilestoneLinks } from "@/components/milestone-links";
 import {
   users as usersApi,
   projects as projectsApi,
@@ -935,7 +936,7 @@ function AttachmentPill({ d }: { d: Deliverable }) {
 
 // ---- Milestone detail row (status + attachments + progress) ----
 
-function MilestoneRow({ ms, subjectId }: { ms: TaskMilestone; subjectId: string }) {
+function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId: string; taskId: string }) {
   const mine = ms.assignee_id === subjectId;
   const dels = ms.deliverables ?? [];
   const updates = ms.updates ?? [];
@@ -1007,17 +1008,21 @@ function MilestoneRow({ ms, subjectId }: { ms: TaskMilestone; subjectId: string 
         </div>
       )}
 
-      {/* attachments */}
+      {/* deliverables */}
       {dels.length > 0 && (
         <div>
           <p className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-1">
-            <Paperclip className="h-2.5 w-2.5" /> Attachments ({dels.length})
+            <Paperclip className="h-2.5 w-2.5" /> Deliverables ({dels.length})
           </p>
           <div className="flex flex-wrap gap-1.5">
             {dels.map((d) => <AttachmentPill key={d.id} d={d} />)}
           </div>
         </div>
       )}
+
+      {/* links & files (pasted links / uploaded files) — fetches revision
+          attachments when fn_task_full hasn't been deployed with them yet. */}
+      <MilestoneLinks taskId={taskId} milestoneId={ms.id} provided={ms.attachments} />
 
       {/* latest update */}
       {updates.length > 0 && (
@@ -1447,7 +1452,10 @@ export default function TeamMemberPage({
                           : 0;
                       const myMilestones = taskMilestones.filter((m) => m.assignee_id === user.id).length;
                       const attachmentCount = taskMilestones.reduce(
-                        (n, m) => n + (m.deliverables?.length ?? 0),
+                        (n, m) =>
+                          n +
+                          (m.deliverables?.length ?? 0) +
+                          (m.attachments?.filter((a) => a.url).length ?? 0),
                         0,
                       );
                       const estHrs = task.actual_hours ?? 0;
@@ -1526,7 +1534,7 @@ export default function TeamMemberPage({
                           {taskMilestones.length > 0 && (
                             <div className="space-y-2 pt-1">
                               {taskMilestones.map((ms) => (
-                                <MilestoneRow key={ms.id} ms={ms} subjectId={user.id} />
+                                <MilestoneRow key={ms.id} ms={ms} subjectId={user.id} taskId={task.id} />
                               ))}
                             </div>
                           )}

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { RevisionHistory } from "@/components/revision-history";
 import { UserLink } from "@/components/user-link";
+import { MilestoneLinks } from "@/components/milestone-links";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Enhanced Kanban — a full project-transaction board.
@@ -161,6 +162,7 @@ function TaskCard({
   const msDone = milestones.filter(m => normMsStatus(m.status) === "completed").length;
   const steps = task.steps ?? [];
   const stepsDone = steps.filter(s => s.status === "completed").length;
+  const linkCount = milestones.reduce((n, m) => n + (m.attachments?.filter(a => a.url).length ?? 0), 0);
 
   const hasMs = milestones.length > 0;
   const pct = hasMs
@@ -222,6 +224,11 @@ function TaskCard({
         {hasMs && (
           <span className="inline-flex items-center gap-1 text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-md">
             <Target className="h-2.5 w-2.5" /> {msDone}/{milestones.length}
+          </span>
+        )}
+        {linkCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+            <LinkIcon className="h-2.5 w-2.5" /> {linkCount}
           </span>
         )}
         {(est > 0 || act > 0) && (
@@ -357,6 +364,11 @@ function MilestoneCard({
         ) : ms.target_day != null ? (
           <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">Day {ms.target_day}</span>
         ) : null}
+        {(ms.attachments?.filter(a => a.url).length ?? 0) > 0 && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+            <LinkIcon className="h-2.5 w-2.5" /> {ms.attachments!.filter(a => a.url).length}
+          </span>
+        )}
       </div>
 
       {/* working hours — estimated vs actual */}
@@ -606,13 +618,18 @@ function MilestoneDetail({
       {deliverables.length > 0 && (
         <div>
           <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
-            <FileText className="h-3 w-3" /> Attachments ({deliverables.length})
+            <FileText className="h-3 w-3" /> Deliverables ({deliverables.length})
           </p>
           <div className="flex flex-wrap gap-1.5">
             {deliverables.map(d => <DeliverableChip key={d.id} d={d} />)}
           </div>
         </div>
       )}
+
+      {/* links & files (pasted links / uploaded files) — falls back to fetching
+          the milestone's revision attachments when fn_task_full hasn't been
+          deployed with the aggregated `attachments` field yet. */}
+      <MilestoneLinks taskId={taskId} milestoneId={ms.id} provided={ms.attachments} />
 
       {/* update feed */}
       {updates.length > 0 && (
