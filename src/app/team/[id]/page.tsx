@@ -52,6 +52,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { UserLink } from "@/components/user-link";
+import { MilestoneLinks } from "@/components/milestone-links";
 import {
   users as usersApi,
   projects as projectsApi,
@@ -90,8 +91,19 @@ import {
   isAfter,
 } from "date-fns";
 
-// ---- Mock Daily Activity ----
+// ---- Daily Activity item (derived from real task/milestone data) ----
 
+type DailyActivityKind = "done" | "update" | "due" | "in_progress" | "blocked";
+
+interface DailyActivityItem {
+  id: string;
+  kind: DailyActivityKind;
+  text: string;
+  sub?: string;
+}
+
+// ---- Mock Daily Activity (legacy demo copy; superseded by derived activity) ----
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const MOCK_DAILY_ACTIVITY: Record<string, { yesterday: string[]; today: string[]; tomorrow: string[] }> = {
   u2: {
     yesterday: [
@@ -904,6 +916,70 @@ function fmtHrs(h?: number | null): string {
   return `${Math.round(h * 10) / 10}h`;
 }
 
+// ---- Performance-analysis presentational helpers ----
+
+function KpiTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className={`text-xl font-extrabold tabular-nums ${color ?? "text-slate-900"}`}>{value}</div>
+      <div className="text-[11px] font-semibold text-slate-500 mt-0.5">{label}</div>
+      {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
+    </div>
+  );
+}
+
+function HoursBar({ label, hours, max, color }: { label: string; hours: number; max: number; color: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[11px] mb-1">
+        <span className="font-medium text-slate-600">{label}</span>
+        <span className="font-mono text-slate-500">{fmtHrs(hours)}</span>
+      </div>
+      <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (hours / max) * 100)}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function DailyActivityList({ items, empty }: { items: DailyActivityItem[]; empty: string }) {
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground italic">{empty}</p>;
+  }
+  const style: Record<DailyActivityKind, { icon: React.ReactNode; text: string }> = {
+    done: { icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />, text: "text-slate-700" },
+    update: { icon: <Activity className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />, text: "text-slate-700" },
+    due: { icon: <Calendar className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />, text: "text-amber-700 font-medium" },
+    in_progress: { icon: <Clock className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />, text: "text-slate-700" },
+    blocked: { icon: <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />, text: "text-red-700 font-medium" },
+  };
+  return (
+    <ul className="space-y-2.5">
+      {items.map((item) => {
+        const s = style[item.kind];
+        return (
+          <li key={item.id} className="flex items-start gap-2">
+            {s.icon}
+            <div className="min-w-0">
+              <span className={`text-sm ${s.text}`}>{item.text}</span>
+              {item.sub && <span className="block text-[11px] text-muted-foreground truncate">{item.sub}</span>}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function WeekStat({ value, label, color }: { value: number; label: string; color?: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 border border-slate-100 py-2">
+      <p className={`text-lg font-bold tabular-nums ${color ?? "text-slate-800"}`}>{value}</p>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
 // ---- Attachment (deliverable) pill ----
 
 function AttachmentPill({ d }: { d: Deliverable }) {
@@ -935,7 +1011,7 @@ function AttachmentPill({ d }: { d: Deliverable }) {
 
 // ---- Milestone detail row (status + attachments + progress) ----
 
-function MilestoneRow({ ms, subjectId }: { ms: TaskMilestone; subjectId: string }) {
+function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId: string; taskId: string }) {
   const mine = ms.assignee_id === subjectId;
   const dels = ms.deliverables ?? [];
   const updates = ms.updates ?? [];
@@ -1007,17 +1083,21 @@ function MilestoneRow({ ms, subjectId }: { ms: TaskMilestone; subjectId: string 
         </div>
       )}
 
-      {/* attachments */}
+      {/* deliverables */}
       {dels.length > 0 && (
         <div>
           <p className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-1">
-            <Paperclip className="h-2.5 w-2.5" /> Attachments ({dels.length})
+            <Paperclip className="h-2.5 w-2.5" /> Deliverables ({dels.length})
           </p>
           <div className="flex flex-wrap gap-1.5">
             {dels.map((d) => <AttachmentPill key={d.id} d={d} />)}
           </div>
         </div>
       )}
+
+      {/* links & files (pasted links / uploaded files) — fetches revision
+          attachments when fn_task_full hasn't been deployed with them yet. */}
+      <MilestoneLinks taskId={taskId} milestoneId={ms.id} provided={ms.attachments} />
 
       {/* latest update */}
       {updates.length > 0 && (
@@ -1210,6 +1290,159 @@ export default function TeamMemberPage({
     };
   }, [userTasks, leaves, userProjects, activeProjects, completedTasks, user]);
 
+  // ---- Estimated vs Working hours + weekly delivery (the "total view") ----
+  const analysis = React.useMemo(() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    const inWeek = (d?: string | null) =>
+      d ? isWithinInterval(parseISO(d), { start: weekStart, end: weekEnd }) : false;
+
+    let totalEst = 0;
+    let totalPlanned = 0; // revised estimate when present, else estimated
+    let totalActual = 0;
+    const perProjectMap: Record<string, { title: string; planned: number; actual: number }> = {};
+
+    // Weekly delivery accumulators
+    const msDoneThisWeek: Array<TaskMilestone & { _taskTitle: string; _projectId: string }> = [];
+    const deliverablesThisWeek: Array<{ id: string; title: string; type: string; msTitle: string }> = [];
+    let updatesThisWeek = 0;
+    let effortDeliveredThisWeek = 0; // planned hours of milestones completed this week
+    let actualDeliveredThisWeek = 0;
+
+    for (const t of userTasks) {
+      const est = t.estimated_hours ?? 0;
+      const planned = t.revised_estimate_hours ?? est;
+      const act = t.actual_hours ?? 0;
+      totalEst += est;
+      totalPlanned += planned;
+      totalActual += act;
+
+      const proj = getProjectForTask(t);
+      const key = t.project_id;
+      if (!perProjectMap[key]) perProjectMap[key] = { title: proj?.title ?? "—", planned: 0, actual: 0 };
+      perProjectMap[key].planned += planned;
+      perProjectMap[key].actual += act;
+
+      for (const m of t.milestones ?? []) {
+        if (m.status === "completed" && inWeek(m.completed_at)) {
+          msDoneThisWeek.push({ ...m, _taskTitle: t.title, _projectId: t.project_id });
+          effortDeliveredThisWeek += m.estimated_hours ?? 0;
+          actualDeliveredThisWeek += m.actual_hours ?? 0;
+        }
+        for (const d of m.deliverables ?? []) {
+          if (inWeek(d.submitted_at)) deliverablesThisWeek.push({ id: d.id, title: d.title, type: d.type, msTitle: m.title });
+        }
+        for (const u of m.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
+      }
+      for (const u of t.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
+    }
+
+    const tasksDoneThisWeek = userTasks.filter((t) => t.status === "completed" && inWeek(t.completed_at));
+    const utilization = totalPlanned > 0 ? Math.round((totalActual / totalPlanned) * 100) : 0;
+    const variance = totalActual - totalPlanned; // + = over, − = under
+    const allMs = userTasks.flatMap((t) => t.milestones ?? []);
+    const doneMs = allMs.filter((m) => m.status === "completed").length;
+    const totalDeliverables = allMs.reduce((n, m) => n + (m.deliverables?.length ?? 0), 0);
+    const perProject = Object.values(perProjectMap)
+      .filter((p) => p.planned > 0 || p.actual > 0)
+      .sort((a, b) => b.actual - a.actual);
+    const maxHours = Math.max(1, ...perProject.map((p) => Math.max(p.planned, p.actual)));
+
+    return {
+      weekStart, weekEnd,
+      totalEst, totalPlanned, totalActual, utilization, variance,
+      perProject, maxHours,
+      msDoneThisWeek, deliverablesThisWeek, tasksDoneThisWeek,
+      updatesThisWeek, effortDeliveredThisWeek, actualDeliveredThisWeek,
+      doneMs, totalMs: allMs.length, totalDeliverables,
+    };
+  }, [userTasks]);
+
+  // ---- Daily Activity — yesterday / today / tomorrow from real tasks + milestones ----
+  const dailyActivity = React.useMemo(() => {
+    const now = new Date();
+    const yDay = addDays(now, -1);
+    const tmDay = addDays(now, 1);
+    const yBucket: DailyActivityItem[] = [];
+    const tBucket: DailyActivityItem[] = [];
+    const tmBucket: DailyActivityItem[] = [];
+    const CAP = 8;
+    const add = (bucket: DailyActivityItem[], item: DailyActivityItem) => {
+      if (bucket.length < CAP && !bucket.some((b) => b.id === item.id)) bucket.push(item);
+    };
+    const parseDate = (d?: string | null) => (d ? parseISO(d) : null);
+    const parseDay = (d?: string | null) => (d ? parseISO(`${d}T00:00:00`) : null);
+
+    for (const task of userTasks) {
+      const projTitle = getProjectForTask(task)?.title;
+
+      // Completed tasks
+      const tc = parseDate(task.completed_at);
+      if (task.status === "completed" && tc) {
+        if (isSameDay(tc, yDay)) add(yBucket, { id: `tc-${task.id}`, kind: "done", text: `Completed task: ${task.title}`, sub: projTitle });
+        else if (isSameDay(tc, now)) add(tBucket, { id: `tc-${task.id}`, kind: "done", text: `Completed task: ${task.title}`, sub: projTitle });
+      }
+
+      // Task updates
+      for (const u of task.updates ?? []) {
+        const d = parseDate(u.created_at);
+        if (!d) continue;
+        if (isSameDay(d, yDay)) add(yBucket, { id: `tu-${u.id}`, kind: "update", text: u.message, sub: task.title });
+        else if (isSameDay(d, now)) add(tBucket, { id: `tu-${u.id}`, kind: "update", text: u.message, sub: task.title });
+      }
+
+      for (const m of task.milestones ?? []) {
+        // Milestone completions
+        const mc = parseDate(m.completed_at);
+        if (m.status === "completed" && mc) {
+          if (isSameDay(mc, yDay)) add(yBucket, { id: `mc-${m.id}`, kind: "done", text: `Completed milestone: ${m.title}`, sub: task.title });
+          else if (isSameDay(mc, now)) add(tBucket, { id: `mc-${m.id}`, kind: "done", text: `Completed milestone: ${m.title}`, sub: task.title });
+        }
+        // Milestone due dates (lead-chosen target_date)
+        const md = parseDay(m.target_date);
+        if (md && m.status !== "completed") {
+          if (isSameDay(md, now)) add(tBucket, { id: `md-${m.id}`, kind: "due", text: `Milestone due today: ${m.title}`, sub: task.title });
+          else if (isSameDay(md, tmDay)) add(tmBucket, { id: `md-${m.id}`, kind: "due", text: `Milestone due: ${m.title}`, sub: task.title });
+        }
+        // Milestone updates
+        for (const u of m.updates ?? []) {
+          const d = parseDate(u.created_at);
+          if (!d) continue;
+          if (isSameDay(d, yDay)) add(yBucket, { id: `mu-${u.id}`, kind: "update", text: u.message, sub: m.title });
+          else if (isSameDay(d, now)) add(tBucket, { id: `mu-${u.id}`, kind: "update", text: u.message, sub: m.title });
+        }
+      }
+    }
+
+    // Today: surface blocked + in-progress work if the day is otherwise sparse.
+    for (const b of userTasks.filter((t) => t.status === "blocked")) {
+      add(tBucket, { id: `blk-${b.id}`, kind: "blocked", text: `Blocked: ${b.title}`, sub: getProjectForTask(b)?.title });
+    }
+    for (const p of userTasks.filter((t) => t.status === "in_progress")) {
+      add(tBucket, { id: `wip-${p.id}`, kind: "in_progress", text: `In progress: ${p.title}`, sub: getProjectForTask(p)?.title });
+    }
+
+    // Tomorrow: if nothing is due tomorrow, preview the nearest upcoming milestones.
+    if (tmBucket.length === 0) {
+      const upcoming = userTasks
+        .flatMap((t) => (t.milestones ?? []).map((m) => ({ m, t })))
+        .filter(({ m }) => m.status !== "completed" && m.target_date && (parseDay(m.target_date) as Date) > tmDay)
+        .sort((a, b) => (parseDay(a.m.target_date) as Date).getTime() - (parseDay(b.m.target_date) as Date).getTime())
+        .slice(0, 4);
+      for (const { m, t } of upcoming) {
+        add(tmBucket, {
+          id: `up-${m.id}`,
+          kind: "due",
+          text: `Upcoming: ${m.title}`,
+          sub: `${t.title} · ${format(parseDay(m.target_date) as Date, "MMM d")}`,
+        });
+      }
+    }
+
+    return { yesterday: yBucket, today: tBucket, tomorrow: tmBucket };
+  }, [userTasks]);
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto pt-12 text-center text-muted-foreground">
@@ -1222,7 +1455,6 @@ export default function TeamMemberPage({
     notFound();
   }
 
-  const dailyActivity = MOCK_DAILY_ACTIVITY[user.id] || { yesterday: [], today: [], tomorrow: [] };
   const aiInsight = AI_INSIGHTS[user.id];
 
   return (
@@ -1289,11 +1521,159 @@ export default function TeamMemberPage({
         </CardContent>
       </Card>
 
+      {/* ===== Performance Analysis — estimated vs working hours + weekly delivery ===== */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-indigo-600" />
+          Performance Analysis
+          <span className="text-xs font-normal text-muted-foreground ml-1">
+            estimated vs working hours · this week&apos;s delivery
+          </span>
+        </h2>
+
+        {/* Total-view KPI strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+          <KpiTile label="Planned hours" value={`${fmtHrs(analysis.totalPlanned)}`} sub="estimated / revised" color="text-slate-900" />
+          <KpiTile label="Working hours" value={`${fmtHrs(analysis.totalActual)}`} sub="actually logged" color="text-violet-600" />
+          <KpiTile
+            label="Utilization"
+            value={`${analysis.utilization}%`}
+            sub={analysis.variance > 0 ? `${fmtHrs(analysis.variance)} over` : analysis.variance < 0 ? `${fmtHrs(-analysis.variance)} under` : "on plan"}
+            color={analysis.variance > 0 ? "text-red-600" : "text-emerald-600"}
+          />
+          <KpiTile label="Milestones" value={`${analysis.doneMs}/${analysis.totalMs}`} sub="completed" color="text-indigo-600" />
+          <KpiTile label="Deliverables" value={`${analysis.totalDeliverables}`} sub="submitted" color="text-blue-600" />
+          <KpiTile label="Tasks done" value={`${completedTasks.length}/${userTasks.length}`} sub="all-time" color="text-emerald-600" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* ── Estimated vs Working hours ── */}
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="h-4 w-4 text-violet-600" />
+                Estimated vs Working Hours
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-5 pb-5 space-y-4">
+              {/* Overall comparison bars */}
+              <div className="space-y-2">
+                <HoursBar label="Planned" hours={analysis.totalPlanned} max={Math.max(analysis.totalPlanned, analysis.totalActual, 1)} color="#94a3b8" />
+                <HoursBar label="Worked" hours={analysis.totalActual} max={Math.max(analysis.totalPlanned, analysis.totalActual, 1)} color={analysis.variance > 0 ? "#ef4444" : "#8b5cf6"} />
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <Badge variant="outline" className={analysis.variance > 0 ? "text-red-700 border-red-200 bg-red-50" : "text-emerald-700 border-emerald-200 bg-emerald-50"}>
+                  {analysis.utilization}% utilization
+                </Badge>
+                <span className="text-muted-foreground">
+                  {analysis.variance > 0
+                    ? `Working ${fmtHrs(analysis.variance)} over the plan — tends to underestimate`
+                    : analysis.variance < 0
+                      ? `Working ${fmtHrs(-analysis.variance)} under the plan — efficient / ahead`
+                      : "Right on the planned effort"}
+                </span>
+              </div>
+
+              {/* Per-project breakdown */}
+              {analysis.perProject.length > 0 && (
+                <div className="pt-1 border-t border-slate-100">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 mt-2">By project</p>
+                  <div className="space-y-2.5">
+                    {analysis.perProject.slice(0, 6).map((p) => {
+                      const over = p.actual > p.planned && p.planned > 0;
+                      return (
+                        <div key={p.title}>
+                          <div className="flex items-center justify-between text-[11px] mb-1">
+                            <span className="font-medium text-slate-700 truncate pr-2">{p.title}</span>
+                            <span className={`font-mono shrink-0 ${over ? "text-red-600" : "text-slate-500"}`}>
+                              {fmtHrs(p.actual)} / {fmtHrs(p.planned)}
+                            </span>
+                          </div>
+                          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+                            {/* planned (light) */}
+                            <div className="absolute inset-y-0 left-0 bg-slate-300/70 rounded-full" style={{ width: `${Math.min(100, (p.planned / analysis.maxHours) * 100)}%` }} />
+                            {/* actual (solid) */}
+                            <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (p.actual / analysis.maxHours) * 100)}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-3 mt-2.5 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block" /> Planned</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-violet-500 inline-block" /> Worked</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── This week's delivery ── */}
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                Delivered This Week
+                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
+                  {format(analysis.weekStart, "MMM d")} – {format(analysis.weekEnd, "MMM d")}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-5 pb-5 space-y-3">
+              {/* Weekly count chips */}
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <WeekStat value={analysis.msDoneThisWeek.length} label="Milestones" color="text-indigo-600" />
+                <WeekStat value={analysis.tasksDoneThisWeek.length} label="Tasks" color="text-emerald-600" />
+                <WeekStat value={analysis.deliverablesThisWeek.length} label="Deliverables" color="text-blue-600" />
+                <WeekStat value={analysis.updatesThisWeek} label="Updates" color="text-slate-700" />
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span>
+                  Effort delivered: <span className="font-semibold text-slate-700">{fmtHrs(analysis.effortDeliveredThisWeek)}</span> planned
+                  {analysis.actualDeliveredThisWeek > 0 && <> · <span className="font-semibold text-violet-600">{fmtHrs(analysis.actualDeliveredThisWeek)}</span> worked</>}
+                </span>
+              </div>
+
+              {/* What was delivered */}
+              {analysis.msDoneThisWeek.length === 0 && analysis.deliverablesThisWeek.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-6 border rounded-lg border-dashed">
+                  Nothing completed yet this week
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {analysis.msDoneThisWeek.map((m) => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span className="font-medium text-slate-800 truncate flex-1">{m.title}</span>
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{m._taskTitle}</span>
+                      {m.completed_at && (
+                        <span className="text-[10px] text-emerald-600 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
+                      )}
+                    </div>
+                  ))}
+                  {analysis.deliverablesThisWeek.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50">
+                      <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                      <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* ===== Section 2: Daily Activity — Yesterday / Today / Tomorrow ===== */}
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-indigo-600" />
           Daily Activity
+          <span className="text-xs font-normal text-muted-foreground ml-1">
+            tasks &amp; milestones — completions, updates &amp; due dates
+          </span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Yesterday */}
@@ -1305,18 +1685,7 @@ export default function TeamMemberPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              {dailyActivity.yesterday.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">No recorded activity</p>
-              ) : (
-                <ul className="space-y-2.5">
-                  {dailyActivity.yesterday.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
-                      <span className="text-sm text-slate-700">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DailyActivityList items={dailyActivity.yesterday} empty="No recorded activity" />
             </CardContent>
           </Card>
 
@@ -1329,30 +1698,7 @@ export default function TeamMemberPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              {dailyActivity.today.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">No planned activity</p>
-              ) : (
-                <ul className="space-y-2.5">
-                  {dailyActivity.today.map((item, i) => {
-                    const isBlocked = item.toLowerCase().startsWith("blocked");
-                    const isLeave = item.toLowerCase().includes("leave");
-                    return (
-                      <li key={i} className="flex items-start gap-2">
-                        {isBlocked ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
-                        ) : isLeave ? (
-                          <Calendar className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-                        ) : (
-                          <Activity className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        )}
-                        <span className={`text-sm ${isBlocked ? "text-red-700 font-medium" : isLeave ? "text-amber-700 font-medium" : "text-slate-700"}`}>
-                          {item}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              <DailyActivityList items={dailyActivity.today} empty="No activity logged today yet" />
             </CardContent>
           </Card>
 
@@ -1365,18 +1711,7 @@ export default function TeamMemberPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              {dailyActivity.tomorrow.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">Nothing planned yet</p>
-              ) : (
-                <ul className="space-y-2.5">
-                  {dailyActivity.tomorrow.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <ArrowRight className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
-                      <span className="text-sm text-slate-700">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DailyActivityList items={dailyActivity.tomorrow} empty="Nothing due or scheduled yet" />
             </CardContent>
           </Card>
         </div>
@@ -1447,7 +1782,10 @@ export default function TeamMemberPage({
                           : 0;
                       const myMilestones = taskMilestones.filter((m) => m.assignee_id === user.id).length;
                       const attachmentCount = taskMilestones.reduce(
-                        (n, m) => n + (m.deliverables?.length ?? 0),
+                        (n, m) =>
+                          n +
+                          (m.deliverables?.length ?? 0) +
+                          (m.attachments?.filter((a) => a.url).length ?? 0),
                         0,
                       );
                       const estHrs = task.actual_hours ?? 0;
@@ -1526,7 +1864,7 @@ export default function TeamMemberPage({
                           {taskMilestones.length > 0 && (
                             <div className="space-y-2 pt-1">
                               {taskMilestones.map((ms) => (
-                                <MilestoneRow key={ms.id} ms={ms} subjectId={user.id} />
+                                <MilestoneRow key={ms.id} ms={ms} subjectId={user.id} taskId={task.id} />
                               ))}
                             </div>
                           )}

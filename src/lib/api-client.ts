@@ -706,8 +706,19 @@ export interface TaskMilestone {
   outcome_notes?: string;
   deliverables?: Deliverable[];
   updates?: MilestoneUpdateEntry[];
+  /** Links/files attached to the milestone (aggregated from revision attachments). */
+  attachments?: MilestoneAttachment[];
   completed_at?: string;
   order_index: number;
+}
+
+/** A link/file attached to a milestone (persisted as a revision attachment). */
+export interface MilestoneAttachment {
+  id: string;
+  title: string;
+  type: string;
+  url?: string | null;
+  created_at: string;
 }
 
 export interface Deliverable {

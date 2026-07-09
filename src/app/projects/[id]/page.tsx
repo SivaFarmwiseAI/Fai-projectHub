@@ -28,6 +28,7 @@ import { ManageTeamDialog } from "@/components/manage-team-dialog";
 import { ProjectPerformanceTab } from "@/components/project-performance-tab";
 import { RevisionHistory } from "@/components/revision-history";
 import { UserLink } from "@/components/user-link";
+import { MilestoneLinks } from "@/components/milestone-links";
 import { showToast } from "@/lib/toast";
 import { fireMilestoneCelebration } from "@/lib/confetti";
 import { useConfirm } from "@/components/confirm-provider";
@@ -1890,6 +1891,12 @@ function MilestoneSection({
               </div>
             </div>
           )}
+
+          {/* Links & files — pasted links / uploaded files attached to the
+              milestone (stored as revision attachments). Surfaced here so they
+              aren't hidden inside the revision-history drawer. Falls back to
+              fetching revisions when fn_task_full hasn't been deployed yet. */}
+          <MilestoneLinks taskId={taskId} milestoneId={milestone.id} provided={milestone.attachments} />
 
           {/* Outcome */}
           {milestone.outcome && (
