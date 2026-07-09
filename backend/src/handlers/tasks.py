@@ -417,10 +417,10 @@ def _create_milestone(event, origin, task_id):
     ms = execute_returning("""
         INSERT INTO task_milestones
           (task_id, title, description, deliverable_type, success_criteria,
-           assignee_id, target_day, estimated_hours, order_index)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+           assignee_id, target_day, target_date, estimated_hours, order_index)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
     """, (task_id, body.title, body.description, body.deliverable_type, json.dumps(body.success_criteria),
-          str(body.assignee_id) if body.assignee_id else None, body.target_day,
+          str(body.assignee_id) if body.assignee_id else None, body.target_day, body.target_date,
           body.estimated_hours, body.order_index))
     _rollup_task_hours(task_id)
     return resp({"milestone": ms}, 201, origin)

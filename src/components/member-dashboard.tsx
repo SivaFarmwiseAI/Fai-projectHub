@@ -15,6 +15,7 @@ import {
 } from "@/lib/api-client";
 import type { Project, Task, StandupEntry, Discussion } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
+import { UserLink } from "@/components/user-link";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
   if (!startDate) return 0;
@@ -360,15 +361,17 @@ export function MemberDashboard() {
                   style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 50}ms` }}
                 >
                   <div className="flex items-start gap-3">
-                    <div
-                      className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                      style={{ backgroundColor: color }}
-                    >
-                      {(entry.name ?? "?").charAt(0).toUpperCase()}
-                    </div>
+                    <UserLink userId={entry.user_id} title={entry.name ?? undefined} className="shrink-0 inline-flex hover:no-underline">
+                      <div
+                        className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 hover:ring-2 hover:ring-blue-300 transition-shadow"
+                        style={{ backgroundColor: color }}
+                      >
+                        {(entry.name ?? "?").charAt(0).toUpperCase()}
+                      </div>
+                    </UserLink>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-sm text-slate-900">{entry.name}</span>
+                        <UserLink userId={entry.user_id} className="font-bold text-sm text-slate-900">{entry.name}</UserLink>
                         {entry.department && <span className="text-xs text-slate-400">{entry.department}</span>}
                       </div>
                       {entry.today && <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{entry.today}</p>}

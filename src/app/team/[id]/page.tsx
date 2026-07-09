@@ -43,11 +43,15 @@ import {
   Target,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Milestone,
   BarChart3,
   Eye,
   GanttChart,
+  ExternalLink,
+  Paperclip,
 } from "lucide-react";
+import { UserLink } from "@/components/user-link";
 import {
   users as usersApi,
   projects as projectsApi,
@@ -55,6 +59,7 @@ import {
   leave as leaveApi,
   type Task,
   type DeadlineExtension,
+  type Deliverable,
   type LeaveRequest,
   type Project,
   type TaskMilestone,
@@ -333,12 +338,18 @@ function buildTimelineItems(userTasks: Task[], userId: string): TimelineItem[] {
     const milestones = task.milestones ?? [];
     if (milestones.length > 0) {
       for (const ms of milestones) {
-        const msPlannedEnd = ms.target_day
-          ? addDays(taskStart, ms.target_day)
-          : plannedEnd;
-        const msPlannedStart = ms.target_day
-          ? addDays(taskStart, Math.max(0, ms.target_day - Math.ceil(estimatedDays / milestones.length)))
-          : taskStart;
+        // Prefer the lead-chosen absolute date; fall back to the target_day
+        // offset, then to the task's planned end.
+        const msPlannedEnd = ms.target_date
+          ? new Date(`${ms.target_date}T00:00:00`)
+          : ms.target_day
+            ? addDays(taskStart, ms.target_day)
+            : plannedEnd;
+        const msPlannedStart = ms.target_date
+          ? addDays(msPlannedEnd, -Math.ceil(estimatedDays / milestones.length))
+          : ms.target_day
+            ? addDays(taskStart, Math.max(0, ms.target_day - Math.ceil(estimatedDays / milestones.length)))
+            : taskStart;
 
         const actualEnd = ms.completed_at ? new Date(ms.completed_at) : null;
         let status: TimelineItem["status"];
@@ -872,6 +883,159 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
   );
 }
 
+// ---- Milestone status styling ----
+
+const milestoneStatusColors: Record<string, string> = {
+  pending: "text-slate-700 border-slate-200 bg-slate-50",
+  in_progress: "text-blue-700 border-blue-200 bg-blue-50",
+  completed: "text-green-700 border-green-200 bg-green-50",
+  blocked: "text-red-700 border-red-200 bg-red-50",
+};
+
+const milestoneStatusIcons: Record<string, React.ReactNode> = {
+  pending: <CircleDot className="h-3 w-3" />,
+  in_progress: <Activity className="h-3 w-3" />,
+  completed: <CheckCircle2 className="h-3 w-3" />,
+  blocked: <PauseCircle className="h-3 w-3" />,
+};
+
+function fmtHrs(h?: number | null): string {
+  if (h == null) return "—";
+  return `${Math.round(h * 10) / 10}h`;
+}
+
+// ---- Attachment (deliverable) pill ----
+
+function AttachmentPill({ d }: { d: Deliverable }) {
+  const href = d.document_url || d.code_pr_url || d.code_repo_url;
+  const label = d.title || deliverableTypeLabels[d.type] || d.type;
+  const statusCls =
+    d.status === "verified"
+      ? "text-green-700 border-green-200 bg-green-50"
+      : d.status === "submitted"
+        ? "text-blue-700 border-blue-200 bg-blue-50"
+        : d.status === "rejected"
+          ? "text-red-700 border-red-200 bg-red-50"
+          : "text-amber-700 border-amber-200 bg-amber-50";
+  const inner = (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 transition-colors">
+      <span className="shrink-0">{deliverableTypeIcons[d.type] || "📎"}</span>
+      <span className="truncate max-w-[150px] font-medium">{label}</span>
+      <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold border ${statusCls}`}>{d.status}</span>
+      {href && <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />}
+    </span>
+  );
+  if (!href) return inner;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-block max-w-full">
+      {inner}
+    </a>
+  );
+}
+
+// ---- Milestone detail row (status + attachments + progress) ----
+
+function MilestoneRow({ ms, subjectId }: { ms: TaskMilestone; subjectId: string }) {
+  const mine = ms.assignee_id === subjectId;
+  const dels = ms.deliverables ?? [];
+  const updates = ms.updates ?? [];
+  const est = ms.estimated_hours ?? 0;
+  const act = ms.actual_hours ?? 0;
+  const over = est > 0 && act > est;
+  const hoursPct = est > 0 ? Math.min(100, Math.round((act / est) * 100)) : act > 0 ? 100 : 0;
+  const statusCls = milestoneStatusColors[ms.status] || milestoneStatusColors.pending;
+
+  return (
+    <div className={`rounded-lg border p-2.5 space-y-2 ${mine ? "border-indigo-200 bg-indigo-50/40" : "border-slate-200 bg-white"}`}>
+      {/* header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          <Milestone className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+          <span className="text-xs font-semibold text-slate-800">{ms.title}</span>
+          {mine ? (
+            <Badge variant="outline" className="text-[9px] py-0 px-1.5 text-indigo-700 border-indigo-200 bg-indigo-100">
+              Allotted
+            </Badge>
+          ) : ms.assignee_id ? (
+            <UserLink userId={ms.assignee_id} className="text-[10px] text-slate-500">
+              Another member →
+            </UserLink>
+          ) : null}
+        </div>
+        <Badge variant="outline" className={`shrink-0 text-[10px] ${statusCls}`}>
+          <span className="mr-1">{milestoneStatusIcons[ms.status]}</span>
+          {ms.status.replace(/_/g, " ")}
+        </Badge>
+      </div>
+
+      {/* meta chips */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+        {ms.target_date ? (
+          <span className="inline-flex items-center gap-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 font-medium">
+            <Calendar className="h-2.5 w-2.5" /> {format(new Date(`${ms.target_date}T00:00:00`), "MMM d, yyyy")}
+          </span>
+        ) : ms.target_day != null ? (
+          <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 font-medium">
+            <Calendar className="h-2.5 w-2.5" /> Day {ms.target_day}
+          </span>
+        ) : null}
+        {ms.deliverable_type && (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">{ms.deliverable_type}</span>
+        )}
+        <span className={`inline-flex items-center gap-1 font-medium ${over ? "text-red-600" : "text-slate-500"}`}>
+          <Clock className="h-2.5 w-2.5" /> {fmtHrs(act)} / {fmtHrs(est)}{over ? " · over" : ""}
+        </span>
+        {ms.completed_at && (
+          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+            <CheckCircle2 className="h-2.5 w-2.5" /> {format(new Date(ms.completed_at), "MMM d")}
+          </span>
+        )}
+      </div>
+
+      {/* hours bar */}
+      {(est > 0 || act > 0) && (
+        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${hoursPct}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
+        </div>
+      )}
+
+      {/* outcome */}
+      {(ms.outcome || ms.outcome_notes) && (
+        <div className="rounded-md border border-green-200/70 bg-green-50/60 px-2 py-1.5">
+          {ms.outcome && <p className="text-[11px] font-semibold text-green-800">{ms.outcome}</p>}
+          {ms.outcome_notes && <p className="text-[11px] text-green-700/90 whitespace-pre-wrap mt-0.5">{ms.outcome_notes}</p>}
+        </div>
+      )}
+
+      {/* attachments */}
+      {dels.length > 0 && (
+        <div>
+          <p className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-1">
+            <Paperclip className="h-2.5 w-2.5" /> Attachments ({dels.length})
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {dels.map((d) => <AttachmentPill key={d.id} d={d} />)}
+          </div>
+        </div>
+      )}
+
+      {/* latest update */}
+      {updates.length > 0 && (
+        <div className="border-t border-slate-100 pt-1.5">
+          <p className="text-[11px] text-slate-600">
+            <MessageSquare className="inline h-2.5 w-2.5 mr-1 text-slate-400" />
+            {updates[updates.length - 1].message}
+          </p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">
+            {formatDistanceToNow(new Date(updates[updates.length - 1].created_at), { addSuffix: true })}
+            {updates.length > 1 ? ` · ${updates.length} updates` : ""}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Component ----
 
 export default function TeamMemberPage({
@@ -1269,24 +1433,41 @@ export default function TeamMemberPage({
                       const taskSteps = task.steps ?? [];
                       const completedSteps = taskSteps.filter((s) => s.status === "completed").length;
                       const totalSteps = taskSteps.length;
-                      const stepProgress = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-                      const taskMilestones = task.milestones ?? [];
+                      const taskMilestones = [...(task.milestones ?? [])].sort(
+                        (a, b) => a.order_index - b.order_index,
+                      );
+                      const msDone = taskMilestones.filter((m) => m.status === "completed").length;
+                      const totalMs = taskMilestones.length;
+                      // Prefer milestone completion for the progress readout when the
+                      // task is milestone-driven; fall back to steps otherwise.
+                      const progressPct = totalMs > 0
+                        ? Math.round((msDone / totalMs) * 100)
+                        : totalSteps > 0
+                          ? Math.round((completedSteps / totalSteps) * 100)
+                          : 0;
+                      const myMilestones = taskMilestones.filter((m) => m.assignee_id === user.id).length;
+                      const attachmentCount = taskMilestones.reduce(
+                        (n, m) => n + (m.deliverables?.length ?? 0),
+                        0,
+                      );
+                      const estHrs = task.actual_hours ?? 0;
+                      const plannedHrs = task.revised_estimate_hours ?? task.estimated_hours ?? 0;
 
                       return (
-                        <div key={task.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-2.5">
+                        <div key={task.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-3">
                           {/* Task header */}
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-sm">{task.title}</span>
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <Link
+                                href={`/projects/${project.id}?tab=tasks&task=${task.id}`}
+                                className="font-medium text-sm text-slate-800 hover:text-blue-600 hover:underline"
+                              >
+                                {task.title}
+                              </Link>
                               <Badge variant="outline" className={taskStatusColors[task.status] || ""}>
                                 <span className="mr-1">{taskStatusIcons[task.status]}</span>
                                 {task.status.replace(/_/g, " ")}
                               </Badge>
-                              {taskMilestones.length > 0 && (
-                                <Badge variant="outline" className="text-slate-700 border-slate-200 bg-slate-50 text-xs">
-                                  {taskMilestones[0].title}
-                                </Badge>
-                              )}
                             </div>
                             <Badge variant="outline" className={
                               task.priority === "high" ? "text-red-700 border-red-200 bg-red-50" :
@@ -1297,29 +1478,58 @@ export default function TeamMemberPage({
                             </Badge>
                           </div>
 
-                          {/* Progress bar */}
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Steps: {completedSteps}/{totalSteps}</span>
-                              <span>{stepProgress}%</span>
-                            </div>
-                            <Progress value={stepProgress} className="h-1.5" />
-                          </div>
-
-                          {/* Estimate row */}
-                          <div className="flex items-center gap-3 text-xs">
-                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                          {/* Meta chips: milestones allotted · attachments · hours */}
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            {totalMs > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 font-medium">
+                                <Milestone className="h-3 w-3" /> {msDone}/{totalMs} milestones
+                              </span>
+                            )}
+                            {myMilestones > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 border border-indigo-200 text-indigo-800 px-2 py-0.5 font-semibold">
+                                {myMilestones} allotted to {user.name.split(" ")[0]}
+                              </span>
+                            )}
+                            {totalSteps > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium">
+                                <ListChecks className="h-3 w-3" /> {completedSteps}/{totalSteps} steps
+                              </span>
+                            )}
+                            {attachmentCount > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium">
+                                <Paperclip className="h-3 w-3" /> {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 text-muted-foreground">
                               <Timer className="h-3 w-3" />
                               {task.revised_estimate_hours ? (
                                 <span>
-                                  <span className="line-through">{task.estimated_hours}h</span>{" "}
+                                  {fmtHrs(estHrs)} / <span className="line-through">{task.estimated_hours}h</span>{" "}
                                   <span className="font-medium text-slate-700">{task.revised_estimate_hours}h</span>
                                 </span>
                               ) : (
-                                <span>{task.estimated_hours ?? 0}h est.</span>
+                                <span>{fmtHrs(estHrs)} / {fmtHrs(plannedHrs)}</span>
                               )}
-                            </div>
+                            </span>
                           </div>
+
+                          {/* Progress bar */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[11px] text-muted-foreground">
+                              <span>{totalMs > 0 ? "Milestone" : "Step"} progress</span>
+                              <span>{progressPct}%</span>
+                            </div>
+                            <Progress value={progressPct} className="h-1.5" />
+                          </div>
+
+                          {/* Milestones — status, attachments & details */}
+                          {taskMilestones.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              {taskMilestones.map((ms) => (
+                                <MilestoneRow key={ms.id} ms={ms} subjectId={user.id} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

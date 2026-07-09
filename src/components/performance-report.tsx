@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp, Activity } from "lucide-react";
-import { performanceAssessments, type EmployeeReport } from "@/lib/api-client";
-import { WorkHistory } from "@/components/work-history";
+import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp, Crown } from "lucide-react";
+import { performanceAssessments, type EmployeeReport, type EmployeeReportPeer } from "@/lib/api-client";
 import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
 
 /* ─── Data shape mirrors gather() in the assessment page ─── */
@@ -119,6 +118,7 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
   const subject = report?.subject;
   const self = report?.self;
   const peers = report?.peers ?? [];
+  const manager = report?.manager ?? null;
   const data = (self?.data ?? {}) as AssessmentData;
   const contributions = data.contributions ?? [];
   const teamEntries = data.teamEntries ?? [];
@@ -212,10 +212,10 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
               )}
             </section>
 
-            {/* ── Objective work history (real task/milestone data) ── */}
-            <section className="print:hidden">
-              <SectionLabel icon={<Activity className="h-3.5 w-3.5 text-blue-500" />} text="Work history & activity" />
-              <WorkHistory subjectId={subjectId} />
+            {/* ── Manager review (authoritative / final) ── */}
+            <section>
+              <SectionLabel icon={<Crown className="h-3.5 w-3.5 text-indigo-500" />} text="Manager review (final)" />
+              <ManagerReviewCard manager={manager} managerName={subject?.manager_name} />
             </section>
 
             {/* ── Contributions ── */}
@@ -360,6 +360,71 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Manager review — the authoritative third actor ─── */
+function ManagerReviewCard({ manager, managerName }: { manager: EmployeeReportPeer | null; managerName?: string | null }) {
+  if (!manager) {
+    return (
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5">
+        <p className="text-sm text-indigo-900/70 font-medium">
+          {managerName ? `Awaiting review from ${managerName}.` : "Manager review pending — assigned once a reporting manager is set."}
+        </p>
+      </div>
+    );
+  }
+  const d = (manager.data ?? {}) as PeerData;
+  const comps = d.competencies ?? {};
+  const submitted = manager.status === "submitted";
+  return (
+    <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/50 to-white p-6 print:break-inside-avoid">
+      <div className="flex items-center gap-3.5 pb-4 mb-5 border-b border-indigo-100">
+        <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 ring-2 ring-white shadow"
+          style={{ backgroundColor: manager.author_color || "#6366f1" }}>
+          {(manager.author_name || managerName || "?").charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-base font-bold text-slate-900 truncate">{manager.author_name || managerName || "Reporting manager"}</p>
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
+              <Crown className="h-3 w-3" /> Manager
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 font-medium">
+            {manager.author_role ? `${manager.author_role} · ` : ""}
+            {submitted ? `Submitted ${fmtDate(manager.submitted_at || manager.created_at)}` : "Pending review"}
+          </p>
+        </div>
+        {submitted ? <Band band={manager.rating_band} /> : (
+          <span className="text-[13px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">Awaiting</span>
+        )}
+      </div>
+      {submitted ? (
+        <>
+          <div className="space-y-4">
+            {PEER_COMPETENCIES.filter((c) => comps[c.key] != null).map((c) => (
+              <div key={c.key} className="flex items-center gap-4">
+                <span className="w-56 shrink-0 text-sm font-medium text-slate-600 truncate">{c.label}</span>
+                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(comps[c.key] / 5) * 100}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }} />
+                </div>
+                <span className="text-sm font-bold text-slate-700 w-6 text-right">{comps[c.key]}</span>
+              </div>
+            ))}
+          </div>
+          {(d.strengths || d.improvements || d.comment) && (
+            <div className="space-y-4 mt-5 pt-5 border-t border-indigo-100">
+              {d.strengths && <Note label="Strengths" text={d.strengths} />}
+              {d.improvements && <Note label="To improve" text={d.improvements} />}
+              {d.comment && <Note label="Manager comment" text={d.comment} />}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-slate-400">Your manager hasn&apos;t submitted this review yet.</p>
+      )}
     </div>
   );
 }

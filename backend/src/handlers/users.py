@@ -106,14 +106,17 @@ def _user_tasks(event, origin, user_id):
     if status:
         cond = "AND t.status = %s"
         sql_params.append(status)
-    tasks = fetchall(f"""
-        SELECT t.*, pr.title AS project_title, ph.phase_name
+    # Return the FULL task shape (fn_task_full → nested milestones with
+    # deliverables/updates, steps, criteria, deadline extensions, …). The
+    # member dashboard renders per-task milestone status + attachments from
+    # these arrays, so a thin `t.*` summary left them invisible.
+    rows = fetchall(f"""
+        SELECT fn_task_full(t.id) AS task
         FROM tasks t
-        JOIN projects pr ON pr.id = t.project_id
-        LEFT JOIN phases ph ON ph.id = t.phase_id
         WHERE t.assignee_id = %s {cond}
         ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, t.created_at DESC
     """, tuple(sql_params))
+    tasks = [r["task"] for r in rows]
     return resp({"tasks": tasks}, origin=origin)
 
 

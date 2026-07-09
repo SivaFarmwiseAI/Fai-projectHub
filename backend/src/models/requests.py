@@ -179,6 +179,7 @@ class CreateMilestoneRequest(BaseModel):
     success_criteria: List[str] = Field(default_factory=list)
     assignee_id: Optional[UUID] = None
     target_day: Optional[int] = None
+    target_date: Optional[date] = None
     estimated_hours: Optional[float] = None
     order_index: int = 0
 
@@ -191,6 +192,7 @@ class UpdateMilestoneRequest(BaseModel):
     success_criteria: Optional[List[str]] = None
     assignee_id: Optional[UUID] = None
     target_day: Optional[int] = None
+    target_date: Optional[date] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
     outcome: Optional[str] = None

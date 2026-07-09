@@ -1482,7 +1482,7 @@ export default function PerformanceAssessmentPage() {
 
     setSubmitting(true);
     try {
-      await performanceAssessments.create(payload);
+      const res = await performanceAssessments.create(payload);
       setSubmitted(true);
       // Re-fetch so the saved submission persists across reloads / tab switches.
       performanceAssessments
@@ -1495,10 +1495,11 @@ export default function PerformanceAssessmentPage() {
           if (self) setExistingSelf(self);
         })
         .catch(() => {});
+      const mgrNote = res?.manager_assigned ? " Your reporting manager has been assigned a manager review." : "";
       showFlash(
         reviewerIds.length
-          ? `✅ Assessment saved. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.`
-          : "✅ Assessment saved and shared with your reporting line and leadership.",
+          ? `✅ Assessment saved. ${reviewerIds.length} reviewer${reviewerIds.length > 1 ? "s" : ""} notified to complete your peer review.${mgrNote}`
+          : `✅ Assessment saved and shared with your reporting line and leadership.${mgrNote}`,
       );
     } catch (e) {
       console.error("performance assessment submit failed", e);

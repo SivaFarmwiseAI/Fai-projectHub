@@ -15,6 +15,7 @@ import type {
   Project, Task, ProjectDocument, ProjectUpdate, ReviewTask,
 } from "@/lib/api-client";
 import { format, addDays, startOfDay } from "date-fns";
+import { UserLink } from "@/components/user-link";
 
 type ViewMode = "daily" | "weekly" | "monthly";
 
@@ -395,7 +396,7 @@ export function SingleProjectTimeline({
             </div>
             <p className="text-[11px] text-slate-500">
               {pStart ? format(pStart, "MMM d, yyyy") : "No start"} → {pEnd ? format(pEnd, "MMM d, yyyy") : "No end"}
-              {project.owner_name && <> · Owner: <span className="font-semibold text-slate-700">{project.owner_name}</span></>}
+              {project.owner_name && <> · Owner: <UserLink userId={project.owner_id} className="font-semibold text-slate-700">{project.owner_name}</UserLink></>}
               <> · {events.length} events</>
             </p>
           </div>
