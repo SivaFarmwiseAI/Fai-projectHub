@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git -C \"d:\\\\FAI Projects\\\\Fai-projectHub\" log --all --oneline -5 -- backend/src/handlers/performance_assessments.py)",
+      "PowerShell(git -C \"d:\\\\FAI Projects\\\\Fai-projectHub\" branch -a)",
+      "PowerShell(git -C \"d:\\\\FAI Projects\\\\Fai-projectHub\" check-ignore -v backend/src/handlers/performance_assessments.py)",
+      "PowerShell(git -C \"d:\\\\FAI Projects\\\\Fai-projectHub\" status --short)",
+      "PowerShell(python -m py_compile \"d:\\\\FAI Projects\\\\Fai-projectHub\\\\backend\\\\src\\\\handlers\\\\performance_assessments.py\")",
+      "PowerShell(if \\($?\\) { \"syntax OK\" })",
+      "PowerShell(git -C \"d:\\\\FAI Projects\\\\Fai-projectHub\" ls-files backend)"
+    ]
+  }
+}

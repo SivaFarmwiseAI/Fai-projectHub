@@ -96,6 +96,80 @@ export const PEER_QUESTIONS: { key: string; short: string; question: string; pla
 /** Labels for the 1–5 overall scale (index 0 → rating 1). */
 export const PEER_SCALE_LABELS = ["Not satisfactory", "Below expectation", "Meets expectation", "Exceeds expectation", "Exceptional"];
 
+/** Behavioural parameters the manager rates 1–5 inside the `grid` question. */
+export const MANAGER_PARAMETERS: { key: string; label: string }[] = [
+  { key: "discipline",     label: "Discipline and punctuality" },
+  { key: "policy",         label: "Policy and process adherence" },
+  { key: "ethics",         label: "Professional conduct and ethics" },
+  { key: "teamwork",       label: "Team behaviour and collaboration" },
+  { key: "accountability", label: "Accountability and reliability" },
+];
+
+/**
+ * Manager (authoritative) review questionnaire. Every question requires BOTH a
+ * 1–5 rating and a written answer. The `grid` question swaps the single scale
+ * for the MANAGER_PARAMETERS grid (each parameter rated 1–5). The `overall`
+ * question's rating becomes the review's total score.
+ */
+export const MANAGER_QUESTIONS: { key: string; short: string; question: string; placeholder: string; grid?: boolean; overall?: boolean }[] = [
+  {
+    key: "selfappraisal",
+    short: "Self-appraisal accuracy",
+    question: "How accurately does this employee's self-appraisal reflect their actual performance during the year? Is their self-assessment overestimated, broadly aligned, or underestimated — and what is your reasoning?",
+    placeholder: "Overestimated, broadly aligned, or underestimated — and your reasoning…",
+  },
+  {
+    key: "impact",
+    short: "Business impact",
+    question: "Based on the employee's achievements and contributions this year, what business impact have they had on the project, team, or organization? Add your managerial perspective beyond what the employee has stated.",
+    placeholder: "Impact on project, team or organisation — beyond what the employee stated…",
+  },
+  {
+    key: "growth",
+    short: "Professional growth",
+    question: "How would you evaluate this employee's professional growth and development over the past year? Cover technical skills, domain knowledge, communication, leadership, and any additional responsibilities taken on.",
+    placeholder: "Technical skills, domain knowledge, communication, leadership, new responsibilities…",
+  },
+  {
+    key: "workstyle",
+    short: "Working style & ownership",
+    question: "How would you assess this employee's working style — specifically their commitment, initiative, and ability to manage competing priorities without close supervision? Focus on how they worked, not just what they delivered.",
+    placeholder: "Commitment, initiative, handling competing priorities without supervision…",
+  },
+  {
+    key: "beyond",
+    short: "Beyond core responsibilities",
+    question: "How has this employee contributed beyond their core responsibilities towards team or organizational development? Highlight the tangible impact of these efforts.",
+    placeholder: "Mentoring, hiring, process improvements, culture — and their tangible impact…",
+  },
+  {
+    key: "strengths",
+    short: "Key strengths & value",
+    question: "What key strengths does this employee bring to the team, and how do those strengths add specific value to the project and make them valuable for this organization?",
+    placeholder: "The strengths, and the specific value they add to project and organisation…",
+  },
+  {
+    key: "readiness",
+    short: "Readiness for larger role",
+    question: "How ready is this employee for greater responsibility within the next 12 months? Identify the strengths supporting this, the gaps to address, and the development actions you would recommend.",
+    placeholder: "Supporting strengths, gaps to close, and recommended development actions…",
+  },
+  {
+    key: "parameters",
+    short: "Behavioural parameters",
+    question: "Rate the employee on the following parameters on a scale of 1 to 5.",
+    placeholder: "Context or examples behind these parameter ratings…",
+    grid: true,
+  },
+  {
+    key: "overall",
+    short: "Overall rating & summary",
+    question: "Overall, how would you rate this employee's performance and contribution during this appraisal year? Provide a summary covering delivery, growth, conduct, and business impact that can be shared with the employee during the appraisal discussion.",
+    placeholder: "Appraisal summary — delivery, growth, conduct, business impact…",
+    overall: true,
+  },
+];
+
 export const bandColor = (band?: string | null) => (band && BAND_COLOR[band]) || "#94a3b8";
 export const roleLabel = (k: string) => ROLE_LABEL[k] ?? k;
 export const levelLabel = (k?: string) => (k ? LEVEL_LABEL[k] ?? k : "—");

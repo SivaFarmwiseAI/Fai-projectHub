@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp, Crown } from "lucide-react";
 import { performanceAssessments, type EmployeeReport, type EmployeeReportPeer } from "@/lib/api-client";
-import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES, PEER_QUESTIONS, PEER_SCALE_LABELS } from "@/lib/performance";
+import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS } from "@/lib/performance";
 
 /* ─── Data shape mirrors gather() in the assessment page ─── */
 interface Contribution {
@@ -36,6 +36,9 @@ interface Entry {
 interface PeerData {
   answers?: Record<string, string>;
   overall?: number | null;
+  /** Manager-review shape: per-question rating + narrative, behavioural grid. */
+  managerAnswers?: Record<string, { rating?: number; text?: string }>;
+  parameters?: Record<string, number>;
   /** Legacy shape from the old competency-based form. */
   competencies?: Record<string, number>;
   strengths?: string;
@@ -519,12 +522,58 @@ function Pill({ label, value }: { label: string; value?: number | null }) {
   );
 }
 
+/** Rating bar + numeric chip used across review answers. */
+function RatingLine({ value, gradient }: { value: number; gradient: string }) {
+  return (
+    <div className="flex items-center gap-3 mt-2.5">
+      <div className="flex-1 h-2.5 bg-slate-200/60 rounded-full overflow-hidden max-w-[240px]">
+        <div className="h-full rounded-full" style={{ width: `${(value / 5) * 100}%`, background: gradient }} />
+      </div>
+      <span className="text-sm font-bold text-slate-800">{value}/5</span>
+      <span className="text-[11px] font-semibold text-slate-400">{PEER_SCALE_LABELS[value - 1] ?? ""}</span>
+    </div>
+  );
+}
+
 /**
- * Body of a submitted peer/manager review. Renders the new questionnaire
- * (question + written answer, with the 1–5 scale on the overall question);
- * falls back to the legacy competency bars for reviews saved by the old form.
+ * Body of a submitted peer/manager review. Renders the manager questionnaire
+ * (rating + narrative per question, behavioural parameter grid), the peer
+ * questionnaire (written answer per question, 1–5 scale on the overall one),
+ * or falls back to the legacy competency bars for reviews saved by old forms.
  */
 function PeerReviewBody({ d, gradient, managerComment }: { d: PeerData; gradient: string; managerComment?: boolean }) {
+  const ma = d.managerAnswers;
+  if (ma) {
+    return (
+      <div className="space-y-4">
+        {MANAGER_QUESTIONS.filter((q) => (ma[q.key]?.text ?? "").trim() || ma[q.key]?.rating != null || (q.grid && d.parameters)).map((q) => (
+          <div key={q.key} className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">{q.short}</p>
+            <p className="text-[13px] font-semibold text-slate-700 leading-snug">{q.question}</p>
+            {q.grid ? (
+              <div className="space-y-2.5 mt-3">
+                {MANAGER_PARAMETERS.filter((p) => d.parameters?.[p.key] != null).map((p) => (
+                  <div key={p.key} className="flex items-center gap-4">
+                    <span className="w-56 shrink-0 text-[13px] font-medium text-slate-600 truncate">{p.label}</span>
+                    <div className="flex-1 h-2.5 bg-slate-200/60 rounded-full overflow-hidden max-w-[240px]">
+                      <div className="h-full rounded-full" style={{ width: `${((d.parameters![p.key]) / 5) * 100}%`, background: gradient }} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 w-6 text-right">{d.parameters![p.key]}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              ma[q.key]?.rating != null && <RatingLine value={ma[q.key]!.rating!} gradient={gradient} />
+            )}
+            {(ma[q.key]?.text ?? "").trim() && (
+              <p className="text-sm text-slate-500 leading-relaxed mt-2 whitespace-pre-wrap">{ma[q.key]!.text}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const answers = d.answers;
   if (answers) {
     return (
@@ -533,15 +582,7 @@ function PeerReviewBody({ d, gradient, managerComment }: { d: PeerData; gradient
           <div key={q.key} className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
             <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">{q.short}</p>
             <p className="text-[13px] font-semibold text-slate-700 leading-snug">{q.question}</p>
-            {q.scale && d.overall != null && (
-              <div className="flex items-center gap-3 mt-2.5">
-                <div className="flex-1 h-2.5 bg-slate-200/60 rounded-full overflow-hidden max-w-[240px]">
-                  <div className="h-full rounded-full" style={{ width: `${(d.overall / 5) * 100}%`, background: gradient }} />
-                </div>
-                <span className="text-sm font-bold text-slate-800">{d.overall}/5</span>
-                <span className="text-[11px] font-semibold text-slate-400">{PEER_SCALE_LABELS[d.overall - 1] ?? ""}</span>
-              </div>
-            )}
+            {q.scale && d.overall != null && <RatingLine value={d.overall} gradient={gradient} />}
             <p className="text-sm text-slate-500 leading-relaxed mt-2 whitespace-pre-wrap">{answers[q.key]}</p>
           </div>
         ))}
