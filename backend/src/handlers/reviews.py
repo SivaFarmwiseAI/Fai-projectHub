@@ -94,13 +94,11 @@ def _create_review(event, origin):
         proposed_at=f"{body.due_date}T09:00:00Z" if body.due_date else None,
         project_id=str(body.project_id) if body.project_id else None,
     )
-    for uid in {str(x) for x in body.assignee_ids}:
+    proj_id = str(body.project_id) if body.project_id else None
+    for uid in [str(x) for x in (body.assignee_ids or [])]:
         if uid != str(current_user["id"]):
-            notify(
-                uid, "review_requested", f"Review requested: {body.title}",
-                body.description or "", "review", review["id"],
-                project_id=str(body.project_id) if body.project_id else None,
-            )
+            notify(uid, "review_requested", f"Review requested: {body.title}",
+                   "You have been assigned a review task.", project_id=proj_id)
     return resp({"review": review}, 201, origin)
 
 
@@ -151,6 +149,13 @@ def _update_review(event, origin, review_id):
     )
     if not updated:
         raise HTTPError(404, "Review not found")
+    if fields.get("status") == "completed":
+        rev = fetchone("SELECT requester_id, title, project_id FROM review_tasks WHERE id = %s", (review_id,))
+        if rev and rev.get("requester_id"):
+            notify(str(rev["requester_id"]), "milestone_reached",
+                   f"Review completed: {rev.get('title', '')}",
+                   "A review task assigned to you has been completed.",
+                   project_id=str(rev["project_id"]) if rev.get("project_id") else None)
     return resp({"review": updated}, origin=origin)
 
 

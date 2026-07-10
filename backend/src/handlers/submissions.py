@@ -3,6 +3,7 @@ import json
 import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._notify import notify
 from ..auth import get_current_user
 from ..database import execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -57,6 +58,17 @@ def _create_submission(event, origin):
         str(body.project_id), current_user["id"],
         body.title, body.type, body.description, body.link, body.is_key_milestone,
     ))
+    # Notify project owner and co-owners about new submission
+    proj = fetchone("SELECT owner_id, title FROM projects WHERE id = %s", (str(body.project_id),))
+    co_owners = fetchall("SELECT user_id FROM project_co_owners WHERE project_id = %s", (str(body.project_id),))
+    notify_uids = {str(r["user_id"]) for r in co_owners}
+    if proj and proj.get("owner_id"):
+        notify_uids.add(str(proj["owner_id"]))
+    notify_uids.discard(str(current_user["id"]))
+    for uid in notify_uids:
+        notify(uid, "review_requested", f"New submission: {body.title}",
+               f"A new submission needs your review in \"{(proj or {}).get('title', 'a project')}\".",
+               project_id=str(body.project_id))
     return resp({"submission": sub}, 201, origin)
 
 
@@ -120,6 +132,13 @@ def _create_feedback(event, origin):
         current_user["id"] if not body.is_ai else None,
         body.text, body.is_ai, json.dumps(body.action_items),
     ))
+    # Notify the submission author that feedback was given
+    sub = fetchone("SELECT user_id, project_id, title FROM submissions WHERE id = %s", (str(body.submission_id),))
+    if sub and sub.get("user_id") and str(sub["user_id"]) != str(current_user["id"]):
+        notify(str(sub["user_id"]), "review_requested",
+               f"Feedback on your submission: {sub.get('title', '')}",
+               "You received feedback on your submission.",
+               project_id=str(sub["project_id"]) if sub.get("project_id") else None)
     return resp({"feedback": fb}, 201, origin)
 
 
@@ -136,12 +155,23 @@ def _create_checkpoint(event, origin):
         str(body.project_id), body.decision, body.notes,
         body.ai_insights, json.dumps(body.action_items), current_user["id"],
     ))
-    if body.decision == "kill":
-        execute("UPDATE projects SET status = 'killed', updated_at = NOW() WHERE id = %s",
-                (str(body.project_id),))
-    elif body.decision == "pause":
-        execute("UPDATE projects SET status = 'paused', updated_at = NOW() WHERE id = %s",
-                (str(body.project_id),))
+    if body.decision in ("kill", "pause"):
+        status = "killed" if body.decision == "kill" else "paused"
+        execute("UPDATE projects SET status = %s, updated_at = NOW() WHERE id = %s",
+                (status, str(body.project_id)))
+        # Notify all project members about project kill/pause
+        proj = fetchone("SELECT title, owner_id FROM projects WHERE id = %s", (str(body.project_id),))
+        assignees = fetchall("SELECT user_id FROM project_assignees WHERE project_id = %s", (str(body.project_id),))
+        co_owners = fetchall("SELECT user_id FROM project_co_owners WHERE project_id = %s", (str(body.project_id),))
+        all_members = {str(r["user_id"]) for r in assignees + co_owners}
+        if proj and proj.get("owner_id"):
+            all_members.add(str(proj["owner_id"]))
+        proj_title = (proj or {}).get("title", "a project")
+        action_word = "killed" if body.decision == "kill" else "paused"
+        for uid in all_members:
+            notify(uid, "project_at_risk", f"Project {action_word}: {proj_title}",
+                   f"Project \"{proj_title}\" has been {action_word}.",
+                   project_id=str(body.project_id))
     return resp({"checkpoint": cp}, 201, origin)
 
 

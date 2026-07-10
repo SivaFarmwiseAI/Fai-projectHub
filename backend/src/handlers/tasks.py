@@ -1,12 +1,14 @@
 """Tasks Lambda handler — /api/tasks/*"""
 import json
 import logging
+import uuid
 
 from .base import PARAM, get_body, get_query, make_handler, resp
 from ._notify import notify
 from ..auth import get_current_user
 from ..database import call_fn, execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
+from ._notify import notify
 from ..models.requests import (
     CreateDeadlineExtensionRequest, CreateMilestoneRequest, CreateTaskRequest,
     CreateTaskStepRequest, CreateTaskUpdateRequest, UpdateDeadlineExtensionRequest,
@@ -14,6 +16,16 @@ from ..models.requests import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _project_members(project_id: str) -> list:
+    assignees  = fetchall("SELECT user_id FROM project_assignees WHERE project_id = %s", (project_id,))
+    co_owners  = fetchall("SELECT user_id FROM project_co_owners WHERE project_id = %s", (project_id,))
+    owner      = fetchone("SELECT owner_id FROM projects WHERE id = %s", (project_id,))
+    ids = {str(r["user_id"]) for r in assignees + co_owners}
+    if owner:
+        ids.add(str(owner["owner_id"]))
+    return list(ids)
 
 
 # ── Deadline extensions ───────────────────────────────────────────────────────
@@ -32,6 +44,12 @@ def _create_extension(event, origin):
           current_user["id"],
           body.original_deadline, body.requested_deadline,
           body.reason, body.reason_detail, body.impact))
+    if body.task_id:
+        task_row = fetchone("SELECT project_id FROM tasks WHERE id = %s", (str(body.task_id),))
+        if task_row:
+            proj = fetchone("SELECT owner_id, title FROM projects WHERE id = %s", (str(task_row["project_id"]),))
+            if proj:
+                notify(str(proj["owner_id"]), "extension_requested", f"Deadline extension requested", f"A deadline extension was requested for project \"{proj['title']}\".", project_id=str(task_row["project_id"]))
     return resp({"extension": ext}, 201, origin)
 
 
@@ -45,6 +63,13 @@ def _update_extension(event, origin, ext_id):
     """, (body.status, body.ceo_comment, body.action_taken, current_user["id"], ext_id))
     if not ext:
         raise HTTPError(404, "Extension not found")
+    if body.status in ("approved", "rejected"):
+        ext_req = fetchone("SELECT requested_by, task_id FROM deadline_extensions WHERE id = %s", (ext_id,))
+        if ext_req:
+            task_row = fetchone("SELECT project_id FROM tasks WHERE id = %s", (str(ext_req["task_id"]),)) if ext_req["task_id"] else None
+            proj_id = str(task_row["project_id"]) if task_row else None
+            status_word = "approved" if body.status == "approved" else "rejected"
+            notify(str(ext_req["requested_by"]), "extension_requested", f"Extension {status_word}", f"Your deadline extension request was {status_word}.", project_id=proj_id)
     return resp({"extension": ext}, origin=origin)
 
 
@@ -136,6 +161,10 @@ def _create_task(event, origin):
                 "task", task["id"], project_id=str(body.project_id),
             )
 
+    for uid in all_ids:
+        if uid != str(current_user["id"]):
+            notify(uid, "task_assigned", f"New task: {body.title}", f"You have been assigned a task in this project.", project_id=str(body.project_id))
+
     task["assignees"] = fetchall("""
         SELECT u.id, u.name, u.avatar_color, u.role, u.department
         FROM task_assignees ta JOIN users u ON u.id = ta.user_id
@@ -167,14 +196,9 @@ def _add_task_assignee(event, origin, task_id):
         "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
         (task_id, user_id, current_user["id"]),
     )
-    # Only notify on a genuinely new assignment (re-adding is a no-op above).
-    if added and str(user_id) != str(current_user["id"]):
-        notify(
-            str(user_id), "task_assigned",
-            f"New task assigned: {task_row['title']}",
-            f"{current_user.get('name', 'Someone')} assigned you a task.",
-            "task", task_id, project_id=task_row["project_id"],
-        )
+    task = fetchone("SELECT project_id, title FROM tasks WHERE id = %s", (task_id,))
+    if task:
+        notify(str(user_id), "task_assigned", f"New task: {task['title']}", "You have been assigned to a task.", project_id=str(task["project_id"]))
     # If the task has no primary assignee yet, promote this user.
     execute(
         "UPDATE tasks SET assignee_id = %s, updated_at = NOW() "
@@ -242,6 +266,16 @@ def _update_task(event, origin, task_id):
     if fields.get("hours_overridden") is False:
         _rollup_task_hours(task_id)
         updated = fetchone("SELECT * FROM tasks WHERE id = %s", (task_id,))
+    if "status" in fields:
+        task_row = fetchone("SELECT project_id, title, assignee_id FROM tasks WHERE id = %s", (task_id,))
+        if task_row:
+            proj_id = str(task_row["project_id"])
+            if fields["status"] == "blocked":
+                for uid in _project_members(proj_id):
+                    notify(uid, "blocker_flagged", f"Task blocked: {task_row['title']}", "A task in this project has been blocked.", project_id=proj_id)
+            elif fields["status"] == "completed":
+                for uid in _project_members(proj_id):
+                    notify(uid, "milestone_reached", f"Task completed: {task_row['title']}", "A task in this project has been completed.", project_id=proj_id)
     return resp({"task": updated}, origin=origin)
 
 

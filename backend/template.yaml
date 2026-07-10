@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: ProjectHub – serverless REST API (public, no VPC)
 
@@ -78,9 +78,9 @@ Globals:
         ANTHROPIC_MODEL: claude-sonnet-4-6
         GEMINI_API_KEY: !Ref GeminiApiKey
         GEMINI_MODEL: !Ref GeminiModel
-        JWT_ACCESS_EXPIRE_MINUTES: '480'
-        DB_POOL_MIN: '1'
-        DB_POOL_MAX: '5'
+        JWT_ACCESS_EXPIRE_MINUTES: "480"
+        DB_POOL_MIN: "1"
+        DB_POOL_MAX: "5"
         CORS_ORIGINS: !Ref CorsOrigins
         PUBLIC_API_KEY: !Ref PublicApiKey
     Tags:
@@ -91,7 +91,6 @@ Globals:
 # ── Resources ─────────────────────────────────────────────────────────────────
 
 Resources:
-
   # ── Lambda Layer (shared Python dependencies) ───────────────────────────────
 
   DepsLayer:
@@ -136,8 +135,7 @@ Resources:
   #         Value: ProjectHub
   #       - Key: Environment
   #         Value: !Ref Env
-  
-  
+
   # ── API Gateway – public REST API (no VPC) ──────────────────────────────────
   #
   # CORS is handled entirely by the Lambda handlers (see base.py make_handler).
@@ -155,8 +153,8 @@ Resources:
       # here to keep deploys self-contained — Lambda execution logs still flow to
       # /aws/lambda/projecthub-*-${Env}. Re-enable once the account role is set.
       MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
+        - ResourcePath: "/*"
+          HttpMethod: "*"
           MetricsEnabled: true
           ThrottlingRateLimit: 200
           ThrottlingBurstLimit: 400
@@ -494,17 +492,11 @@ Resources:
             RestApiId: !Ref Api
             Path: /api/analytics/{proxy+}
             Method: ANY
-        PublicNotificationsBase:
+        PublicProxy:
           Type: Api
           Properties:
             RestApiId: !Ref Api
-            Path: /api/public/notifications
-            Method: ANY
-        PublicNotificationsProxy:
-          Type: Api
-          Properties:
-            RestApiId: !Ref Api
-            Path: /api/public/notifications/{proxy+}
+            Path: /api/public/{proxy+}
             Method: ANY
     Metadata:
       BuildMethod: python3.10
@@ -826,5 +818,3 @@ Outputs:
     Value: !Ref DepsLayer
     Export:
       Name: !Sub ProjectHub-DepsLayerArn-${Env}
-
-  

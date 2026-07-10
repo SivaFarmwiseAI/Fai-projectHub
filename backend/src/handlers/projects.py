@@ -226,6 +226,17 @@ def _create_project(event, origin):
     )
     if not project_id:
         raise HTTPError(500, "Project creation failed")
+    # Notify every assignee (and co-owner) — user-level notification (no application_id)
+    recipients = list({str(u) for u in body.assignee_ids} | {str(u) for u in body.co_owner_ids})
+    for uid in recipients:
+        execute("""
+            INSERT INTO notifications (id, user_id, application_id, type, title, message)
+            VALUES (%s, %s, NULL, 'task_assigned', %s, %s)
+        """, (
+            str(uuid.uuid4()), uid,
+            "You've been assigned to a project",
+            f"You have been added as a member of \"{body.title}\".",
+        ))
     if body.end_date:
         execute(
             "UPDATE projects SET end_date = %s WHERE id = %s",
@@ -323,6 +334,16 @@ def _add_project_assignee(event, origin, project_id):
         "ON CONFLICT DO NOTHING",
         (project_id, user_id),
     )
+    project = fetchone("SELECT title FROM projects WHERE id = %s", (project_id,))
+    project_title = (project or {}).get("title", "a project")
+    execute("""
+        INSERT INTO notifications (id, user_id, application_id, type, title, message)
+        VALUES (%s, %s, NULL, 'task_assigned', %s, %s)
+    """, (
+        str(uuid.uuid4()), user_id,
+        "You've been assigned to a project",
+        f"You have been added as a member of \"{project_title}\".",
+    ))
     return resp({"project_id": project_id, "user_id": user_id, "role": "assignee"}, 201, origin)
 
 
@@ -330,13 +351,23 @@ def _remove_project_assignee(event, origin, project_id, user_id):
     current_user = get_current_user(event)
     if not _can_manage_team(current_user, project_id):
         raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
-    owner = fetchone("SELECT owner_id FROM projects WHERE id = %s", (project_id,))
-    if owner and str(owner["owner_id"]) == str(user_id):
+    project = fetchone("SELECT owner_id, title FROM projects WHERE id = %s", (project_id,))
+    if project and str(project["owner_id"]) == str(user_id):
         raise HTTPError(400, "Cannot remove project owner. Transfer ownership first.")
     execute(
         "DELETE FROM project_assignees WHERE project_id = %s AND user_id = %s",
         (project_id, user_id),
     )
+    # User-level notification (application_id = NULL) — shows on every app the user is logged into
+    project_title = (project or {}).get("title", "a project")
+    execute("""
+        INSERT INTO notifications (id, user_id, application_id, type, title, message)
+        VALUES (%s, %s, NULL, 'task_assigned', %s, %s)
+    """, (
+        str(uuid.uuid4()), user_id,
+        "You've been removed from a project",
+        f"You have been removed from \"{project_title}\".",
+    ))
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 
@@ -355,6 +386,15 @@ def _add_project_co_owner(event, origin, project_id):
         "ON CONFLICT DO NOTHING",
         (project_id, user_id),
     )
+    co_project = fetchone("SELECT title FROM projects WHERE id = %s", (project_id,))
+    co_title = (co_project or {}).get("title", "a project")
+    try:
+        from ._notify import notify as _notify
+        _notify(user_id, "task_assigned",
+                "You've been added as co-owner of a project",
+                f"You are now a co-owner of \"{co_title}\".")
+    except Exception as _e:
+        log.error("Co-owner notify failed: %s", _e)
     return resp({"project_id": project_id, "user_id": user_id, "role": "co_owner"}, 201, origin)
 
 
@@ -362,10 +402,19 @@ def _remove_project_co_owner(event, origin, project_id, user_id):
     current_user = get_current_user(event)
     if not _can_manage_team(current_user, project_id):
         raise HTTPError(403, "Only project owner, CEO, or Admin can manage team")
+    rm_project = fetchone("SELECT title FROM projects WHERE id = %s", (project_id,))
     execute(
         "DELETE FROM project_co_owners WHERE project_id = %s AND user_id = %s",
         (project_id, user_id),
     )
+    rm_title = (rm_project or {}).get("title", "a project")
+    try:
+        from ._notify import notify as _notify
+        _notify(user_id, "task_assigned",
+                "You've been removed as co-owner of a project",
+                f"You are no longer a co-owner of \"{rm_title}\".")
+    except Exception as _e:
+        log.error("Co-owner removal notify failed: %s", _e)
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 
@@ -375,11 +424,19 @@ def _delete_project(event, origin, project_id):
     current_user = require_auth(event, "CEO", "Admin", "Team Lead")
     if not _can_manage_team(current_user, project_id):
         raise HTTPError(403, "Only the project owner, CEO, or Admin can delete this project")
+    # Fetch project title + all members BEFORE delete (FK cascade will remove them)
+    project = fetchone("SELECT title FROM projects WHERE id = %s", (project_id,))
+    project_title = (project or {}).get("title", "a project")
+    assignees = fetchall(
+        "SELECT user_id FROM project_assignees WHERE project_id = %s", (project_id,)
+    )
+    co_owners = fetchall(
+        "SELECT user_id FROM project_co_owners WHERE project_id = %s", (project_id,)
+    )
+    recipients = {str(r["user_id"]) for r in assignees + co_owners}
     try:
         deleted = execute("DELETE FROM projects WHERE id = %s", (project_id,))
     except Exception as e:
-        # pg8000 surfaces FK violations as a generic DatabaseError; the message
-        # contains the constraint name, which is the actionable bit for ops.
         msg = str(e)
         log.error("Project delete failed for %s: %s", project_id, msg)
         if "foreign key" in msg.lower() or "violates" in msg.lower():
@@ -387,6 +444,16 @@ def _delete_project(event, origin, project_id):
         raise HTTPError(500, "Failed to delete project")
     if deleted == 0:
         raise HTTPError(404, "Project not found")
+    # Notify all members — user-level (application_id = NULL) so it shows in every app
+    for uid in recipients:
+        execute("""
+            INSERT INTO notifications (id, user_id, application_id, type, title, message)
+            VALUES (%s, %s, NULL, 'project_at_risk', %s, %s)
+        """, (
+            str(uuid.uuid4()), uid,
+            "Project deleted",
+            f"The project \"{project_title}\" has been deleted.",
+        ))
     return {"statusCode": 204, "headers": {"Access-Control-Allow-Origin": origin}, "body": ""}
 
 

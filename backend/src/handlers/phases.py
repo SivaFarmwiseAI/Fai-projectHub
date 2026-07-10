@@ -1,8 +1,10 @@
 """Phases Lambda handler — /api/phases/*"""
 import json
 import logging
+import uuid
 
 from .base import PARAM, get_body, get_query, make_handler, resp
+from ._notify import notify
 from ..auth import get_current_user
 from ..database import call_fn, call_proc, execute, execute_returning, fetchall, fetchone
 from ..exceptions import HTTPError
@@ -12,7 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def _create_phase(event, origin):
-    get_current_user(event)
+    current_user = get_current_user(event)
     body = CreatePhaseRequest(**get_body(event))
     phase = execute_returning("""
         INSERT INTO phases
@@ -22,6 +24,23 @@ def _create_phase(event, origin):
     """, (str(body.project_id), body.phase_name, body.description,
           body.order_index, body.sign_off_required, body.estimated_duration,
           json.dumps(body.checklist)))
+
+    # Notify all project members — project-scoped (application_id = project_id)
+    project = fetchone("SELECT title, owner_id FROM projects WHERE id = %s", (str(body.project_id),))
+    project_title = (project or {}).get("title", "the project")
+    assignees  = fetchall("SELECT user_id FROM project_assignees WHERE project_id = %s",  (str(body.project_id),))
+    co_owners  = fetchall("SELECT user_id FROM project_co_owners WHERE project_id = %s",  (str(body.project_id),))
+    owner_id   = str((project or {}).get("owner_id", "")) if project else None
+    recipients = {str(r["user_id"]) for r in assignees + co_owners}
+    if owner_id:
+        recipients.add(owner_id)
+    recipients.discard(str(current_user["id"]))  # don't notify the creator
+    for uid in recipients:
+        notify(uid, "milestone_reached",
+               f"New phase in {project_title}",
+               f"A new phase \"{body.phase_name}\" has been added to \"{project_title}\".",
+               project_id=str(body.project_id))
+
     return resp({"phase": phase}, 201, origin)
 
 
@@ -55,6 +74,22 @@ def _update_phase(event, origin, phase_id):
 
     if body.status == "completed":
         result = call_proc("fn_advance_phase", phase_id)
+        # Notify all project members about phase completion
+        phase_row = fetchone("SELECT project_id, phase_name FROM phases WHERE id = %s", (phase_id,))
+        if phase_row:
+            proj = fetchone("SELECT title, owner_id FROM projects WHERE id = %s", (str(phase_row["project_id"]),))
+            assignees = fetchall("SELECT user_id FROM project_assignees WHERE project_id = %s", (str(phase_row["project_id"]),))
+            co_owners = fetchall("SELECT user_id FROM project_co_owners WHERE project_id = %s", (str(phase_row["project_id"]),))
+            members = {str(r["user_id"]) for r in assignees + co_owners}
+            if proj and proj.get("owner_id"):
+                members.add(str(proj["owner_id"]))
+            phase_name = phase_row.get("phase_name", "")
+            proj_title = (proj or {}).get("title", "the project")
+            for uid in members:
+                notify(uid, "milestone_reached",
+                       f"Phase completed: {phase_name}",
+                       f"Phase \"{phase_name}\" in \"{proj_title}\" has been completed.",
+                       project_id=str(phase_row["project_id"]))
         return resp({"result": result}, origin=origin)
 
     fields: dict = {}

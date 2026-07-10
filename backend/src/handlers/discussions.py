@@ -102,21 +102,20 @@ def _add_message(event, origin, discussion_id):
         str(body.parent_id) if body.parent_id else None,
     ))
     execute("UPDATE discussions SET updated_at = NOW() WHERE id = %s", (discussion_id,))
-    if body.mentioned_user_ids:
-        disc = fetchone(
-            "SELECT project_id, title FROM discussions WHERE id = %s",
-            (discussion_id,),
-        )
-        if disc:
-            for uid in {str(u) for u in body.mentioned_user_ids}:
-                if uid != str(current_user["id"]):
-                    notify(
-                        uid, "discussion_mention",
-                        f"You were mentioned in: {disc['title']}",
-                        (body.content or "")[:300],
-                        "discussion", discussion_id,
-                        project_id=disc["project_id"],
-                    )
+    # Notify discussion author and parent-message author (excluding the sender)
+    disc = fetchone("SELECT author_id, project_id, title FROM discussions WHERE id = %s", (discussion_id,))
+    if disc:
+        proj_id = str(disc["project_id"]) if disc.get("project_id") else None
+        notify_uids = set()
+        if disc.get("author_id") and str(disc["author_id"]) != str(current_user["id"]):
+            notify_uids.add(str(disc["author_id"]))
+        if body.parent_id:
+            parent = fetchone("SELECT author_id FROM discussion_messages WHERE id = %s", (str(body.parent_id),))
+            if parent and str(parent["author_id"]) != str(current_user["id"]):
+                notify_uids.add(str(parent["author_id"]))
+        for uid in notify_uids:
+            notify(uid, "discussion_mention", f"New reply in: {disc.get('title', 'a discussion')}",
+                   "Someone replied in a discussion you are part of.", project_id=proj_id)
     return resp({"message": msg}, 201, origin)
 
 
