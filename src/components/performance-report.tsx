@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Loader2, Printer, ShieldAlert, Users2, Award, ChevronDown, ChevronUp, Crown } from "lucide-react";
 import { performanceAssessments, type EmployeeReport, type EmployeeReportPeer } from "@/lib/api-client";
-import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
+import { bandColor, roleLabel, levelLabel, fmtScore, ratingLabel, fmtDate, PEER_COMPETENCIES, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS } from "@/lib/performance";
 
 /* ─── Data shape mirrors gather() in the assessment page ─── */
 interface Contribution {
@@ -34,10 +34,15 @@ interface Entry {
 }
 
 interface PeerData {
+  answers?: Record<string, string>;
+  overall?: number | null;
+  /** Manager-review shape: per-question rating + narrative, behavioural grid. */
+  managerAnswers?: Record<string, { rating?: number; text?: string }>;
+  parameters?: Record<string, number>;
+  /** Legacy shape from the old competency-based form. */
   competencies?: Record<string, number>;
   strengths?: string;
   improvements?: string;
-  overall?: number | null;
   comment?: string;
 }
 
@@ -306,7 +311,6 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
                 <div className="space-y-4">
                   {peers.map((p) => {
                     const d = (p.data ?? {}) as PeerData;
-                    const comps = d.competencies ?? {};
                     return (
                       <div key={p.id} className="rounded-2xl border border-slate-200 p-6 print:break-inside-avoid">
                         {/* Header */}
@@ -326,27 +330,7 @@ export function EmployeeReportModal({ subjectId, cycleId, onClose }: { subjectId
                           )}
                         </div>
                         {p.status === "submitted" ? (
-                          <>
-                            {/* Competencies — stacked vertically */}
-                            <div className="space-y-4">
-                              {PEER_COMPETENCIES.filter((c) => comps[c.key] != null).map((c) => (
-                                <div key={c.key} className="flex items-center gap-4">
-                                  <span className="w-56 shrink-0 text-sm font-medium text-slate-600 truncate">{c.label}</span>
-                                  <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full" style={{ width: `${(comps[c.key] / 5) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
-                                  </div>
-                                  <span className="text-sm font-bold text-slate-700 w-6 text-right">{comps[c.key]}</span>
-                                </div>
-                              ))}
-                            </div>
-                            {/* Qualitative notes */}
-                            {(d.strengths || d.improvements) && (
-                              <div className="space-y-4 mt-5 pt-5 border-t border-slate-100">
-                                {d.strengths && <Note label="Strengths" text={d.strengths} />}
-                                {d.improvements && <Note label="To improve" text={d.improvements} />}
-                              </div>
-                            )}
-                          </>
+                          <PeerReviewBody d={d} gradient="linear-gradient(90deg,#3b82f6,#6366f1)" />
                         ) : (
                           <p className="text-sm text-slate-400">This reviewer hasn&apos;t submitted yet.</p>
                         )}
@@ -376,7 +360,6 @@ function ManagerReviewCard({ manager, managerName }: { manager: EmployeeReportPe
     );
   }
   const d = (manager.data ?? {}) as PeerData;
-  const comps = d.competencies ?? {};
   const submitted = manager.status === "submitted";
   return (
     <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/50 to-white p-6 print:break-inside-avoid">
@@ -402,26 +385,7 @@ function ManagerReviewCard({ manager, managerName }: { manager: EmployeeReportPe
         )}
       </div>
       {submitted ? (
-        <>
-          <div className="space-y-4">
-            {PEER_COMPETENCIES.filter((c) => comps[c.key] != null).map((c) => (
-              <div key={c.key} className="flex items-center gap-4">
-                <span className="w-56 shrink-0 text-sm font-medium text-slate-600 truncate">{c.label}</span>
-                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(comps[c.key] / 5) * 100}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }} />
-                </div>
-                <span className="text-sm font-bold text-slate-700 w-6 text-right">{comps[c.key]}</span>
-              </div>
-            ))}
-          </div>
-          {(d.strengths || d.improvements || d.comment) && (
-            <div className="space-y-4 mt-5 pt-5 border-t border-indigo-100">
-              {d.strengths && <Note label="Strengths" text={d.strengths} />}
-              {d.improvements && <Note label="To improve" text={d.improvements} />}
-              {d.comment && <Note label="Manager comment" text={d.comment} />}
-            </div>
-          )}
-        </>
+        <PeerReviewBody d={d} gradient="linear-gradient(90deg,#6366f1,#8b5cf6)" managerComment />
       ) : (
         <p className="text-sm text-slate-400">Your manager hasn&apos;t submitted this review yet.</p>
       )}
@@ -555,6 +519,100 @@ function Pill({ label, value }: { label: string; value?: number | null }) {
       <span className="text-lg font-bold text-slate-800">{fmtScore(value)}</span>
       <span className="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">{label}</span>
     </span>
+  );
+}
+
+/** Rating bar + numeric chip used across review answers. */
+function RatingLine({ value, gradient }: { value: number; gradient: string }) {
+  return (
+    <div className="flex items-center gap-3 mt-2.5">
+      <div className="flex-1 h-2.5 bg-slate-200/60 rounded-full overflow-hidden max-w-[240px]">
+        <div className="h-full rounded-full" style={{ width: `${(value / 5) * 100}%`, background: gradient }} />
+      </div>
+      <span className="text-sm font-bold text-slate-800">{value}/5</span>
+      <span className="text-[11px] font-semibold text-slate-400">{PEER_SCALE_LABELS[value - 1] ?? ""}</span>
+    </div>
+  );
+}
+
+/**
+ * Body of a submitted peer/manager review. Renders the manager questionnaire
+ * (rating + narrative per question, behavioural parameter grid), the peer
+ * questionnaire (written answer per question, 1–5 scale on the overall one),
+ * or falls back to the legacy competency bars for reviews saved by old forms.
+ */
+function PeerReviewBody({ d, gradient, managerComment }: { d: PeerData; gradient: string; managerComment?: boolean }) {
+  const ma = d.managerAnswers;
+  if (ma) {
+    return (
+      <div className="space-y-4">
+        {MANAGER_QUESTIONS.filter((q) => (ma[q.key]?.text ?? "").trim() || ma[q.key]?.rating != null || (q.grid && d.parameters)).map((q) => (
+          <div key={q.key} className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">{q.short}</p>
+            <p className="text-[13px] font-semibold text-slate-700 leading-snug">{q.question}</p>
+            {q.grid ? (
+              <div className="space-y-2.5 mt-3">
+                {MANAGER_PARAMETERS.filter((p) => d.parameters?.[p.key] != null).map((p) => (
+                  <div key={p.key} className="flex items-center gap-4">
+                    <span className="w-56 shrink-0 text-[13px] font-medium text-slate-600 truncate">{p.label}</span>
+                    <div className="flex-1 h-2.5 bg-slate-200/60 rounded-full overflow-hidden max-w-[240px]">
+                      <div className="h-full rounded-full" style={{ width: `${((d.parameters![p.key]) / 5) * 100}%`, background: gradient }} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 w-6 text-right">{d.parameters![p.key]}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              ma[q.key]?.rating != null && <RatingLine value={ma[q.key]!.rating!} gradient={gradient} />
+            )}
+            {(ma[q.key]?.text ?? "").trim() && (
+              <p className="text-sm text-slate-500 leading-relaxed mt-2 whitespace-pre-wrap">{ma[q.key]!.text}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const answers = d.answers;
+  if (answers) {
+    return (
+      <div className="space-y-4">
+        {PEER_QUESTIONS.filter((q) => (answers[q.key] ?? "").trim()).map((q) => (
+          <div key={q.key} className="rounded-xl bg-slate-50/70 border border-slate-100 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">{q.short}</p>
+            <p className="text-[13px] font-semibold text-slate-700 leading-snug">{q.question}</p>
+            {q.scale && d.overall != null && <RatingLine value={d.overall} gradient={gradient} />}
+            <p className="text-sm text-slate-500 leading-relaxed mt-2 whitespace-pre-wrap">{answers[q.key]}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Legacy competency-based review
+  const comps = d.competencies ?? {};
+  return (
+    <>
+      <div className="space-y-4">
+        {PEER_COMPETENCIES.filter((c) => comps[c.key] != null).map((c) => (
+          <div key={c.key} className="flex items-center gap-4">
+            <span className="w-56 shrink-0 text-sm font-medium text-slate-600 truncate">{c.label}</span>
+            <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${(comps[c.key] / 5) * 100}%`, background: gradient }} />
+            </div>
+            <span className="text-sm font-bold text-slate-700 w-6 text-right">{comps[c.key]}</span>
+          </div>
+        ))}
+      </div>
+      {(d.strengths || d.improvements || (managerComment && d.comment)) && (
+        <div className="space-y-4 mt-5 pt-5 border-t border-slate-100">
+          {d.strengths && <Note label="Strengths" text={d.strengths} />}
+          {d.improvements && <Note label="To improve" text={d.improvements} />}
+          {managerComment && d.comment && <Note label="Manager comment" text={d.comment} />}
+        </div>
+      )}
+    </>
   );
 }
 
