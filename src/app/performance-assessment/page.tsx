@@ -27,6 +27,8 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   performanceAssessments,
   users as usersApi,
+  uploads,
+  ApiError,
   type ReviewCycle,
   type User,
   type PerformanceAssessmentRow,
@@ -59,6 +61,9 @@ interface Contribution {
   evidence: string;
   proofref: string;
   prooffilename: string;
+  /** Public CloudFront URL of the uploaded proof file (empty for link-only or
+   *  legacy submissions that stored just the file name). */
+  proofurl: string;
   rjust: string;
   custom: { q: string; a: string }[];
 }
@@ -84,10 +89,16 @@ function blankContrib(id: number): Contribution {
     evidence: "",
     proofref: "",
     prooffilename: "",
+    proofurl: "",
     rjust: "",
     custom: [],
   };
 }
+
+/** Proof uploads: same cap as project attachments (Lambda base64 path). */
+const PROOF_MAX_BYTES = 8 * 1024 * 1024;
+const PROOF_ACCEPT =
+  ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.gif,.svg,.webp,.zip";
 
 interface Entry {
   id: number;
@@ -397,6 +408,32 @@ const PA_CSS = `
 .pa .rev-block{border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:12px}
 .pa .rev-block h4{margin:0 0 6px;font-size:14px;font-weight:700;color:var(--leaf)}
 .pa .rev-block .kv{font-size:13px;margin:3px 0}
+.pa .blockhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.pa .blockhead h4{margin:0}
+.pa .avg-pill{font-size:12px;font-weight:700;color:var(--leaf);background:var(--leaf-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.pa .sum-grid{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13px;align-items:start}
+.pa .sum-grid .sl{color:var(--muted);font-weight:600}
+.pa .chips{display:flex;flex-wrap:wrap;gap:6px}
+.pa .chip{font-size:11.5px;font-weight:600;background:#f1f5f9;color:#334155;border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.pa .sum-list .sum-item{padding:9px 0;border-top:1px dashed var(--line)}
+.pa .sum-list .sum-item:first-child{border-top:none;padding-top:2px}
+.pa .sum-head{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.pa .sum-head .sum-text{flex:1 1 auto;min-width:160px;font-size:13px}
+.pa .sum-head .rb-pill{margin-left:auto}
+.pa .sum-idx{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.pa .sum-rates{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 28px}
+.pa .rb-pill{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;background:#f1f5f9;color:#475569;white-space:nowrap}
+.pa .rb-pill.g{background:#dcfce7;color:#166534}
+.pa .rb-pill.o{background:#ffedd5;color:#9a3412}
+.pa .rb-pill.r{background:#fee2e2;color:#991b1b}
+.pa .sum-sub{font-size:12.5px;color:var(--muted);margin:4px 0 0 28px}
+.pa .sum-sub.warn{color:#b45309}
+.pa .cult-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px;margin-top:4px}
+.pa .cult-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.pa .mini-scores{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.pa .ms{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 12px;text-align:center;min-width:64px}
+.pa .ms span{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:1px}
+.pa .ms b{font-size:15px;font-variant-numeric:tabular-nums}
 .pa .note{font-size:12.5px;color:#3730a3;background:var(--leaf-soft);border:1px solid #e0e7ff;border-radius:12px;padding:10px 13px;margin:8px 0}
 .pa .warn-box{font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px 13px;margin-top:12px}
 .pa .cap-note{font-size:13px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:10px 13px;margin-top:10px}
@@ -521,14 +558,33 @@ export default function PerformanceAssessmentPage() {
   const topErrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Init ─────────────────────────────────────────────────────────────────
+  // Restore an explicitly saved draft straight into the form fields so a
+  // refresh brings the user back to exactly what they saved.
   useEffect(() => {
-    if (
-      typeof localStorage !== "undefined" &&
-      localStorage.getItem(DRAFT_KEY)
-    ) {
+    if (typeof localStorage === "undefined") return;
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    try {
+      applyState(JSON.parse(raw));
       setDraftFound(true);
+    } catch {
+      localStorage.removeItem(DRAFT_KEY);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Changes not saved to draft live only in React state, so a refresh discards
+  // them — warn first with the browser's native "changes may not be saved"
+  // prompt while the form is dirty.
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
 
   // Prefill the self-assessment identity fields from the signed-in user.
   useEffect(() => {
@@ -578,9 +634,26 @@ export default function PerformanceAssessmentPage() {
         if (self) {
           setExistingSelf(self);
           setSubmitted(true);
+          setDraftFound(false);
+          // Load the submitted snapshot into the form and lock the wizard to
+          // the read-only Review & Submit step — submitted assessments are
+          // view-only.
+          performanceAssessments
+            .get(self.id)
+            .then((res) => {
+              const d = res.assessment?.data;
+              if (d && Object.keys(d).length) {
+                applyState(d as Record<string, unknown>);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setStep(7));
         }
       }),
     ]).finally(() => setBooting(false));
+    // applyState is declared below and stable; including it in deps would be a
+    // temporal-dead-zone reference at render time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOrgUsers]);
 
   const toggleReviewer = useCallback((id: string) => {
@@ -589,6 +662,7 @@ export default function PerformanceAssessmentPage() {
       if (prev.length >= 2) return prev; // cap at 2 peer reviewers
       return [...prev, id];
     });
+    setIsDirty(true);
   }, []);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -674,6 +748,51 @@ export default function PerformanceAssessmentPage() {
     },
     [clearErr],
   );
+
+  // Proof file upload — stores the real file in S3 (via the shared uploads
+  // API) so reviewers can open/download it, not just see the name.
+  const [proofUploading, setProofUploading] = useState<Record<number, boolean>>(
+    {},
+  );
+
+  const handleProofFile = useCallback(
+    async (id: number, file: File) => {
+      if (file.size > PROOF_MAX_BYTES) {
+        showFlash("⚠️ File too large — max 8 MB");
+        return;
+      }
+      setProofUploading((p) => ({ ...p, [id]: true }));
+      try {
+        const url = await uploads.uploadFileSmart(file);
+        setContributions((p) =>
+          p.map((c) =>
+            c.id === id ? { ...c, prooffilename: file.name, proofurl: url } : c,
+          ),
+        );
+        setIsDirty(true);
+        showFlash("📎 Proof uploaded — " + file.name);
+      } catch (err) {
+        showFlash(
+          "⚠️ " +
+            (err instanceof ApiError && err.status === 503
+              ? "File upload is not configured on the server"
+              : "Upload failed — please try again"),
+        );
+      } finally {
+        setProofUploading((p) => ({ ...p, [id]: false }));
+      }
+    },
+    [showFlash],
+  );
+
+  const clearProofFile = useCallback((id: number) => {
+    setContributions((p) =>
+      p.map((c) =>
+        c.id === id ? { ...c, prooffilename: "", proofurl: "" } : c,
+      ),
+    );
+    setIsDirty(true);
+  }, []);
 
   const pickSelf = useCallback(
     (id: number, n: number) => {
@@ -1321,12 +1440,12 @@ export default function PerformanceAssessmentPage() {
         }, 80);
         return;
       }
-      saveDraft();
-      showFlash("✅ Progress saved");
+      // Deliberately no saveDraft() here — only the explicit "Save Draft"
+      // button persists data, so a refresh discards anything not saved.
       goto(to);
     },
-    [validate, goto, showFlash],
-  ); // eslint-disable-line
+    [validate, goto],
+  );
 
   // ── Draft ─────────────────────────────────────────────────────────────────
   const gather = useCallback(
@@ -1345,6 +1464,7 @@ export default function PerformanceAssessmentPage() {
       cultRatings,
       cultComment,
       gateFlags: [...gateFlags],
+      reviewerIds,
     }),
     [
       mode,
@@ -1361,6 +1481,7 @@ export default function PerformanceAssessmentPage() {
       cultRatings,
       cultComment,
       gateFlags,
+      reviewerIds,
     ],
   );
 
@@ -1403,28 +1524,25 @@ export default function PerformanceAssessmentPage() {
       setCultRatings((dd.cultRatings as Record<string, number>) || {});
       setCultComment(dd.cultComment || "");
       setGateFlags(new Set((dd.gateFlags as string[]) || []));
+      setReviewerIds((dd.reviewerIds as string[]) || []);
       onAck(true);
       setIsDirty(false);
     },
     [onAck],
   );
 
-  const loadDraft = useCallback(() => {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return;
-    try {
-      applyState(JSON.parse(raw));
-      setDraftFound(false);
-      goto(1);
-    } catch {
-      /* ignore */
-    }
-  }, [applyState, goto]);
-
   const discardDraft = useCallback(() => {
     localStorage.removeItem(DRAFT_KEY);
     setDraftFound(false);
-  }, []);
+    // Reset back to a fresh form, keeping the signed-in prefills.
+    applyState({
+      emp: user?.name || "",
+      rev: user?.name || "",
+      desig: user?.role || "",
+      period: activeCycle?.name || "",
+    });
+    goto(0);
+  }, [applyState, goto, user?.name, user?.role, activeCycle?.name]);
 
   const navigateToError = useCallback(
     (se: SubmitStepError) => {
@@ -1484,6 +1602,15 @@ export default function PerformanceAssessmentPage() {
     try {
       const res = await performanceAssessments.create(payload);
       setSubmitted(true);
+      // The assessment now lives on the server — drop the local draft so a
+      // refresh doesn't restore stale pre-submit data.
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+      setDraftFound(false);
+      setIsDirty(false);
       // Re-fetch so the saved submission persists across reloads / tab switches.
       performanceAssessments
         .myAssessments()
@@ -1512,6 +1639,13 @@ export default function PerformanceAssessmentPage() {
   };
 
   // ── Reusable sub-components ───────────────────────────────────────────────
+  // Summary helpers: "Meets (3)" label + green/orange/red tone per the same
+  // band mapping as the legend (3–5 green, 2 orange, 1 red).
+  const rateLabel = (n: number | null | undefined) =>
+    n != null ? `${LN[NUM.indexOf(n)]} (${n})` : "—";
+  const rateTone = (n: number | null | undefined) =>
+    n == null ? "" : n >= 3 ? " g" : n === 2 ? " o" : " r";
+
   const RatingRow = ({
     n,
     i,
@@ -1782,9 +1916,14 @@ export default function PerformanceAssessmentPage() {
               {STEPS.map((s, i) => (
                 <div
                   key={i}
-                  className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${i > 0 && !unlocked ? "locked" : ""}`}
+                  className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${(i > 0 && !unlocked) || (submitted && i !== 7) ? "locked" : ""}`}
                   onClick={() => {
                     if (i === step) return;
+                    // Submitted assessments are view-only — stay on Review & Submit.
+                    if (submitted && i !== 7) {
+                      showFlash("✓ Assessment submitted — view only");
+                      return;
+                    }
                     if (i > 0 && !unlocked) return;
                     if (isDirty) {
                       setPendingStep(i);
@@ -1838,13 +1977,12 @@ export default function PerformanceAssessmentPage() {
             {/* Draft / flash banners */}
             {draftFound && (
               <div className="draftbar">
-                <span>A saved draft was found on this device.</span>
+                <span>
+                  💾 Your saved draft has been restored into the form below.
+                </span>
                 <span style={{ display: "flex", gap: 8 }}>
-                  <button className="primary" onClick={loadDraft}>
-                    Restore
-                  </button>
                   <button className="ghost" onClick={discardDraft}>
-                    Discard
+                    Discard draft
                   </button>
                 </span>
               </div>
@@ -2600,27 +2738,65 @@ export default function PerformanceAssessmentPage() {
                             <span className="or-sep">or</span>
                             <div className="file-row">
                               <label className="file-btn">
-                                <Upload size={14} aria-hidden="true" />
-                                choose a file
+                                {proofUploading[c.id] ? (
+                                  <Loader2
+                                    size={14}
+                                    className="animate-spin"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <Upload size={14} aria-hidden="true" />
+                                )}
+                                {proofUploading[c.id]
+                                  ? "uploading…"
+                                  : "choose a file"}
                                 <input
                                   type="file"
+                                  accept={PROOF_ACCEPT}
                                   aria-label="Choose a proof file"
-                                  onChange={(e) =>
-                                    updContrib(
-                                      c.id,
-                                      "prooffilename",
-                                      e.target.files?.[0]?.name || "",
-                                    )
-                                  }
+                                  disabled={!!proofUploading[c.id]}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    // Reset so picking the same file twice
+                                    // still fires onChange.
+                                    e.target.value = "";
+                                    if (f) handleProofFile(c.id, f);
+                                  }}
                                 />
                               </label>
-                              {c.prooffilename && (
-                                <span
-                                  className="file-name"
-                                  title={c.prooffilename}
+                              {c.prooffilename &&
+                                (c.proofurl ? (
+                                  <a
+                                    className="file-name"
+                                    href={c.proofurl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`${c.prooffilename} — open in a new tab`}
+                                    style={{
+                                      textDecoration: "underline",
+                                      color: "var(--accent)",
+                                    }}
+                                  >
+                                    {c.prooffilename}
+                                  </a>
+                                ) : (
+                                  <span
+                                    className="file-name"
+                                    title={c.prooffilename}
+                                  >
+                                    {c.prooffilename}
+                                  </span>
+                                ))}
+                              {c.prooffilename && !proofUploading[c.id] && (
+                                <button
+                                  type="button"
+                                  className="custom-remove"
+                                  aria-label="Remove the attached proof file"
+                                  title="Remove the attached file"
+                                  onClick={() => clearProofFile(c.id)}
                                 >
-                                  {c.prooffilename}
-                                </span>
+                                  <X size={15} />
+                                </button>
                               )}
                             </div>
                           </div>
@@ -3127,19 +3303,29 @@ export default function PerformanceAssessmentPage() {
                         ? CATS[displayIdx].name
                         : "Complete the sections"}
                     </div>
-                    <div className="breakdown">
-                      Ind{" "}
-                      <b>
-                        {ind.best != null
-                          ? ind.anyDown
-                            ? ind.best + "*"
-                            : ind.best
-                          : "–"}
-                      </b>
-                      {" · "}Team <b>{tAvg != null ? tAvg.toFixed(1) : "–"}</b>
-                      {" · "}Org <b>{oAvg != null ? oAvg.toFixed(1) : "–"}</b>
-                      {" · "}Culture{" "}
-                      <b>{cAvg != null ? cAvg.toFixed(1) : "–"}</b>
+                    <div className="mini-scores">
+                      <div className="ms">
+                        <span>Individual</span>
+                        <b>
+                          {ind.best != null
+                            ? ind.anyDown
+                              ? ind.best + "*"
+                              : ind.best
+                            : "–"}
+                        </b>
+                      </div>
+                      <div className="ms">
+                        <span>Team</span>
+                        <b>{tAvg != null ? tAvg.toFixed(1) : "–"}</b>
+                      </div>
+                      <div className="ms">
+                        <span>Organization</span>
+                        <b>{oAvg != null ? oAvg.toFixed(1) : "–"}</b>
+                      </div>
+                      <div className="ms">
+                        <span>Culture</span>
+                        <b>{cAvg != null ? cAvg.toFixed(1) : "–"}</b>
+                      </div>
                     </div>
                   </div>
                   {warnings.length > 0 && (
@@ -3165,8 +3351,8 @@ export default function PerformanceAssessmentPage() {
                   )}
                 </div>
 
-                {/* ── Nominate peer reviewers ──────────────────────────────── */}
-                {mode === "self" && (
+                {/* ── Nominate peer reviewers (hidden once submitted) ──────── */}
+                {mode === "self" && !submitted && (
                   <div className="card no-print" style={{ margin: "0 0 16px" }}>
                     <h3 className="sec" style={{ marginTop: 0 }}>
                       Nominate your peer reviewers
@@ -3326,17 +3512,35 @@ export default function PerformanceAssessmentPage() {
                 <h3 className="sec">Summary</h3>
 
                 <div className="rev-block">
-                  <h4>Employee</h4>
-                  <div className="kv">
-                    <b>{emp || "—"}</b> · {desig || ""} · {period || ""}
+                  <div className="blockhead">
+                    <h4>Employee</h4>
                   </div>
-                  <div className="kv">
-                    Filled by: {mode === "self" ? "Self" : "Reviewer"} (
-                    {rev || "—"})
-                  </div>
-                  <div className="kv">
-                    Role areas:{" "}
-                    {[...facets].map((k) => FACETS[k].label).join(", ") || "—"}
+                  <div className="sum-grid">
+                    <span className="sl">Name</span>
+                    <span>
+                      <b>{emp || "—"}</b>
+                    </span>
+                    <span className="sl">Designation</span>
+                    <span>{desig || "—"}</span>
+                    <span className="sl">Review period</span>
+                    <span>{period || "—"}</span>
+                    <span className="sl">Filled by</span>
+                    <span>
+                      {mode === "self" ? "Self" : "Reviewer"}
+                      {rev ? ` (${rev})` : ""}
+                    </span>
+                    <span className="sl">Role areas</span>
+                    <span className="chips">
+                      {facets.size ? (
+                        [...facets].map((k) => (
+                          <span key={k} className="chip">
+                            {FACETS[k].label}
+                          </span>
+                        ))
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </span>
                   </div>
                   {submitErrors.find((e) => e.step === 1) && (
                     <MissList se={submitErrors.find((e) => e.step === 1)!} />
@@ -3344,54 +3548,77 @@ export default function PerformanceAssessmentPage() {
                 </div>
 
                 <div className="rev-block">
-                  <h4>Individual Contributions</h4>
+                  <div className="blockhead">
+                    <h4>Individual Contributions</h4>
+                    <span className="avg-pill">
+                      Best: {ind.best != null ? `${ind.best} / 5` : "—"}
+                    </span>
+                  </div>
                   {contributions.length === 0 ? (
                     <div className="kv">No contributions added.</div>
                   ) : (
-                    contributions.map((c, i) => {
-                      const { down } = contribEff(c);
-                      const { suggested: sugg } = computeSuggested(c);
-                      const rl = (n: number | null) =>
-                        n != null ? LN[NUM.indexOf(n)] + " (" + n + ")" : "—";
-                      const impLabel = (k: string) =>
-                        (IMPACTS.find((x) => x[0] === k) || [k, k])[1];
-                      const imps = c.impacts
-                        .map(
-                          (k) =>
-                            impLabel(k) +
-                            (c.impactWhy[k] ? " — " + c.impactWhy[k] : ""),
-                        )
-                        .join("; ");
-                      return (
-                        <div key={c.id} className="kv">
-                          #{i + 1} <b>{c.title || "(untitled)"}</b>
-                          <br />
-                          <span style={{ color: "var(--muted)" }}>
-                            Self: {rl(c.self)} · Suggested: {rl(sugg)} ·
-                            Reviewer: {rl(c.reviewer)}
-                            {down
-                              ? " · Exceptional proof incomplete → counts as Exceeds"
-                              : ""}
-                          </span>
-                          {imps && (
-                            <>
-                              <br />
-                              <span style={{ color: "var(--muted)" }}>
-                                Impact: {imps}
+                    <div className="sum-list">
+                      {contributions.map((c, i) => {
+                        const { down } = contribEff(c);
+                        const { suggested: sugg } = computeSuggested(c);
+                        const impLabel = (k: string) =>
+                          (IMPACTS.find((x) => x[0] === k) || [k, k])[1];
+                        const imps = c.impacts
+                          .map(
+                            (k) =>
+                              impLabel(k) +
+                              (c.impactWhy[k] ? " — " + c.impactWhy[k] : ""),
+                          )
+                          .join("; ");
+                        return (
+                          <div key={c.id} className="sum-item">
+                            <div className="sum-head">
+                              <span className="sum-idx">{i + 1}</span>
+                              <b className="sum-text">
+                                {c.title || "(untitled)"}
+                              </b>
+                              {c.proofurl ? (
+                                <a
+                                  className="rb-pill g"
+                                  href={c.proofurl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={c.prooffilename || "Open the attached proof"}
+                                  style={{ textDecoration: "underline" }}
+                                >
+                                  Proof ✓ view
+                                </a>
+                              ) : c.proofref || c.prooffilename ? (
+                                <span className="rb-pill g">Proof ✓</span>
+                              ) : null}
+                            </div>
+                            <div className="sum-rates">
+                              <span className={`rb-pill${rateTone(c.self)}`}>
+                                Self: {rateLabel(c.self)}
                               </span>
-                            </>
-                          )}
-                          {(c.proofref || c.prooffilename) && (
-                            <>
-                              <br />
-                              <span style={{ color: "var(--muted)" }}>
-                                Proof attached ✓
+                              <span className={`rb-pill${rateTone(sugg)}`}>
+                                Suggested: {rateLabel(sugg)}
                               </span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })
+                              {c.reviewer != null && (
+                                <span
+                                  className={`rb-pill${rateTone(c.reviewer)}`}
+                                >
+                                  Reviewer: {rateLabel(c.reviewer)}
+                                </span>
+                              )}
+                            </div>
+                            {down && (
+                              <div className="sum-sub warn">
+                                Exceptional proof incomplete → counts as Exceeds
+                              </div>
+                            )}
+                            {imps && (
+                              <div className="sum-sub">Impact: {imps}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                   {submitErrors.find((e) => e.step === 2) && (
                     <MissList se={submitErrors.find((e) => e.step === 2)!} />
@@ -3399,29 +3626,35 @@ export default function PerformanceAssessmentPage() {
                 </div>
 
                 <div className="rev-block">
-                  <h4>Team Contribution</h4>
-                  <div className="kv">
-                    Average:{" "}
-                    <b>{tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}</b>
+                  <div className="blockhead">
+                    <h4>Team Contribution</h4>
+                    <span className="avg-pill">
+                      Average: {tAvg == null ? "—" : tAvg.toFixed(1) + " / 5"}
+                    </span>
                   </div>
                   {teamEntries.length === 0 ? (
                     <div className="kv" style={{ color: "var(--muted)" }}>
                       No entries.
                     </div>
                   ) : (
-                    teamEntries.map((e, i) => (
-                      <div key={e.id} className="kv">
-                        #{i + 1}{" "}
-                        {e.rating
-                          ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")"
-                          : "—"}{" "}
-                        —{" "}
-                        <span style={{ color: "var(--muted)" }}>
-                          {e.text || "(no description)"}
-                        </span>
-                        {e.remark ? " · " + e.remark : ""}
-                      </div>
-                    ))
+                    <div className="sum-list">
+                      {teamEntries.map((e, i) => (
+                        <div key={e.id} className="sum-item">
+                          <div className="sum-head">
+                            <span className="sum-idx">{i + 1}</span>
+                            <span className="sum-text">
+                              {e.text || "(no description)"}
+                            </span>
+                            <span className={`rb-pill${rateTone(e.rating)}`}>
+                              {rateLabel(e.rating)}
+                            </span>
+                          </div>
+                          {e.remark && (
+                            <div className="sum-sub">Remark: {e.remark}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                   {submitErrors.find((e) => e.step === 3) && (
                     <MissList se={submitErrors.find((e) => e.step === 3)!} />
@@ -3429,29 +3662,35 @@ export default function PerformanceAssessmentPage() {
                 </div>
 
                 <div className="rev-block">
-                  <h4>Organization Contribution</h4>
-                  <div className="kv">
-                    Average:{" "}
-                    <b>{oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}</b>
+                  <div className="blockhead">
+                    <h4>Organization Contribution</h4>
+                    <span className="avg-pill">
+                      Average: {oAvg == null ? "—" : oAvg.toFixed(1) + " / 5"}
+                    </span>
                   </div>
                   {orgEntries.length === 0 ? (
                     <div className="kv" style={{ color: "var(--muted)" }}>
                       No entries.
                     </div>
                   ) : (
-                    orgEntries.map((e, i) => (
-                      <div key={e.id} className="kv">
-                        #{i + 1}{" "}
-                        {e.rating
-                          ? LN[NUM.indexOf(e.rating)] + " (" + e.rating + ")"
-                          : "—"}{" "}
-                        —{" "}
-                        <span style={{ color: "var(--muted)" }}>
-                          {e.text || "(no description)"}
-                        </span>
-                        {e.remark ? " · " + e.remark : ""}
-                      </div>
-                    ))
+                    <div className="sum-list">
+                      {orgEntries.map((e, i) => (
+                        <div key={e.id} className="sum-item">
+                          <div className="sum-head">
+                            <span className="sum-idx">{i + 1}</span>
+                            <span className="sum-text">
+                              {e.text || "(no description)"}
+                            </span>
+                            <span className={`rb-pill${rateTone(e.rating)}`}>
+                              {rateLabel(e.rating)}
+                            </span>
+                          </div>
+                          {e.remark && (
+                            <div className="sum-sub">Remark: {e.remark}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                   {submitErrors.find((e) => e.step === 4) && (
                     <MissList se={submitErrors.find((e) => e.step === 4)!} />
@@ -3459,38 +3698,66 @@ export default function PerformanceAssessmentPage() {
                 </div>
 
                 <div className="rev-block">
-                  <h4>Culture &amp; Discipline</h4>
-                  <div className="kv">
-                    Average:{" "}
-                    <b>{cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}</b>
-                    <br />
-                    <span style={{ color: "var(--muted)" }}>
-                      {CULT_ITEMS.filter(([k]) => cultRatings[k] != null)
-                        .map(([k, l]) => l + ": " + cultRatings[k])
-                        .join(" · ") || "not rated"}
+                  <div className="blockhead">
+                    <h4>Culture &amp; Discipline</h4>
+                    <span className="avg-pill">
+                      Average: {cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}
                     </span>
-                    {cultComment && (
-                      <>
-                        <br />
-                        <span style={{ color: "var(--muted)" }}>
-                          {cultComment}
-                        </span>
-                      </>
-                    )}
                   </div>
+                  {CULT_ITEMS.some(([k]) => cultRatings[k] != null) ? (
+                    <div className="cult-grid">
+                      {CULT_ITEMS.filter(([k]) => cultRatings[k] != null).map(
+                        ([k, l]) => (
+                          <div key={k} className="cult-row">
+                            <span>{l.split(" — ")[0]}</span>
+                            <span
+                              className={`rb-pill${rateTone(cultRatings[k])}`}
+                            >
+                              {cultRatings[k]} / 5
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  ) : (
+                    <div className="kv" style={{ color: "var(--muted)" }}>
+                      Not rated yet.
+                    </div>
+                  )}
+                  {cultComment && (
+                    <div className="sum-sub" style={{ marginLeft: 0 }}>
+                      Comment: {cultComment}
+                    </div>
+                  )}
                   {submitErrors.find((e) => e.step === 5) && (
                     <MissList se={submitErrors.find((e) => e.step === 5)!} />
                   )}
                 </div>
 
                 <div className="rev-block">
-                  <h4>Integrity Gate</h4>
-                  <div className="kv">
-                    Severity: <b>{sev}</b>
-                    {gateFlags.size > 0
-                      ? " · " + [...gateFlags].join(", ")
-                      : ""}
+                  <div className="blockhead">
+                    <h4>Integrity Gate</h4>
+                    <span
+                      className={`rb-pill${
+                        sev === "none" ? " g" : sev === "concern" ? " o" : " r"
+                      }`}
+                    >
+                      {sev === "none"
+                        ? "No concerns"
+                        : sev === "concern"
+                          ? "Concern flagged"
+                          : "Serious concern"}
+                    </span>
                   </div>
+                  {gateFlags.size > 0 && (
+                    <div className="chips">
+                      {[...gateFlags].map((f) => (
+                        <span key={f} className="chip">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -3518,19 +3785,25 @@ export default function PerformanceAssessmentPage() {
                 </div>
 
                 <div className="navbtns" style={{ marginTop: 16 }}>
-                  <button className="ghost" onClick={() => goto(6)}>
-                    ← Back
-                  </button>
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <button
-                      className="ghost"
-                      onClick={() => {
-                        saveDraft();
-                        showFlash("💾 Saved on this device.");
-                      }}
-                    >
-                      💾 Save &amp; finish later
+                  {submitted ? (
+                    <span />
+                  ) : (
+                    <button className="ghost" onClick={() => goto(6)}>
+                      ← Back
                     </button>
+                  )}
+                  <span style={{ display: "flex", gap: 8 }}>
+                    {!submitted && (
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          saveDraft();
+                          showFlash("💾 Saved on this device.");
+                        }}
+                      >
+                        💾 Save &amp; finish later
+                      </button>
+                    )}
                     <button className="primary" onClick={() => window.print()}>
                       Print / PDF
                     </button>

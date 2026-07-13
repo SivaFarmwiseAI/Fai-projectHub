@@ -199,7 +199,7 @@ export default function ManageTeamPage() {
   const roles = roleObjects.map(r => r.name);
   const departments = deptObjects.map(d => d.name);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", role: "", role_type: "", department: "", email: "", manager_id: "" });
+  const [editForm, setEditForm] = useState({ name: "", role: "", role_type: "", department: "", email: "", manager_id: "", employee_no: "", date_of_joining: "" });
   const [, forceUpdate] = useState(0);
   const managers = members.filter((m) => MANAGER_ROLES.has(m.role_type));
 
@@ -284,6 +284,8 @@ export default function ManageTeamPage() {
       department: user.department ?? "",
       email: user.email,
       manager_id: user.manager_id ?? "",
+      employee_no: user.employee_no ?? "",
+      date_of_joining: (user.date_of_joining ?? "").slice(0, 10),
     });
   }
 
@@ -293,6 +295,9 @@ export default function ManageTeamPage() {
 
   function saveEditing(id: string) {
     const payload: Partial<User> = { name: editForm.name, role: editForm.role, department: editForm.department, email: editForm.email };
+    payload.employee_no = editForm.employee_no.trim();
+    // Backend expects a valid ISO date — omit rather than send "".
+    if (editForm.date_of_joining) payload.date_of_joining = editForm.date_of_joining;
     if (canManageRoleType) {
       payload.role_type = editForm.role_type;
       // Note: the update endpoint only applies non-null fields, so clearing a
@@ -670,6 +675,23 @@ export default function ManageTeamPage() {
                           excludeId={user.id}
                         />
                       )}
+                      <Input
+                        value={editForm.employee_no}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, employee_no: e.target.value })
+                        }
+                        placeholder="Employee No"
+                        className="h-8 text-sm"
+                      />
+                      <Input
+                        type="date"
+                        value={editForm.date_of_joining}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, date_of_joining: e.target.value })
+                        }
+                        title="Date of joining"
+                        className="h-8 text-sm"
+                      />
                     </div>
                   </div>
                 ) : (

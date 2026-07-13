@@ -7,13 +7,26 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil, Crown } from "lucide-react";
+import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Lock, Crown } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
-import { bandColor, bandForScore, fmtScore, fmtDate, PEER_COMPETENCIES } from "@/lib/performance";
+import { bandColor, bandForScore, fmtScore, fmtDate, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS } from "@/lib/performance";
 import { cn } from "@/lib/utils";
 import { PerfLoader } from "@/components/performance-loader";
 
-interface PeerData { competencies?: Record<string, number>; strengths?: string; improvements?: string; comment?: string }
+interface ManagerAnswer { rating?: number; text?: string }
+
+interface PeerData {
+  answers?: Record<string, string>;
+  overall?: number;
+  /** Manager-review shape: per-question rating + narrative, behavioural grid. */
+  managerAnswers?: Record<string, ManagerAnswer>;
+  parameters?: Record<string, number>;
+  /** Legacy shape from the old competency-based form. */
+  competencies?: Record<string, number>;
+  strengths?: string;
+  improvements?: string;
+  comment?: string;
+}
 
 const isManagerKind = (k?: string | null) => k === "manager";
 
@@ -32,18 +45,8 @@ export function PerformanceReviews() {
   const [received, setReceived] = useState<ReviewReceived[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<PeerReviewAssignment | null>(null);
-  const [editInitial, setEditInitial] = useState<PeerData | undefined>(undefined);
 
-  const openWrite = (r: PeerReviewAssignment) => { setEditInitial(undefined); setActive(r); };
-  const openEdit = async (r: PeerReviewAssignment) => {
-    try {
-      const res = await performanceAssessments.get(r.id);
-      setEditInitial((res.assessment.data as PeerData) || {});
-    } catch {
-      setEditInitial(undefined);
-    }
-    setActive(r);
-  };
+  const openWrite = (r: PeerReviewAssignment) => setActive(r);
 
   const load = useCallback(() => {
     Promise.all([
@@ -131,10 +134,10 @@ export function PerformanceReviews() {
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
                 <span className="stat-number text-sm font-bold text-slate-700 w-10 text-right">{fmtScore(r.total_score)}</span>
-                <button onClick={() => openEdit(r)}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 text-slate-500 px-3 py-2 text-[13px] font-semibold hover:bg-slate-50 hover:text-slate-700">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </button>
+                <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100"
+                  title="Submitted reviews are final and can no longer be edited">
+                  <Lock className="h-3 w-3" /> Final
+                </span>
               </div>
             ))}
           </div>
@@ -168,34 +171,80 @@ export function PerformanceReviews() {
         </section>
       )}
 
-      {active && <PeerReviewForm assignment={active} initial={editInitial} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />}
+      {active && (isManagerKind(active.kind)
+        ? <ManagerReviewForm assignment={active} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />
+        : <PeerReviewForm assignment={active} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />)}
     </div>
   );
 }
 
 // ── Peer review form ──────────────────────────────────────────────────────────
+/** Seed answers from saved data; older competency-based reviews map onto the closest new questions. */
+function seedAnswers(d?: PeerData): Record<string, string> {
+  if (d?.answers) return { ...d.answers };
+  const a: Record<string, string> = {};
+  if (d?.strengths) a.strength = d.strengths;
+  if (d?.improvements) a.improvement = d.improvements;
+  if (d?.comment) a.overall = d.comment;
+  return a;
+}
+
+/** "Are you sure?" gate shown before a review is submitted — submission is
+ *  final, so this is the reviewer's last chance to go back and edit. */
+function SubmitConfirmDialog({ label, onCancel, onConfirm }: { label: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onCancel}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-extrabold text-slate-900">Submit {label}?</h3>
+        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+          Once submitted, <strong className="text-slate-700">you cannot edit or make any changes</strong> to this review.
+        </p>
+        <p className="text-[13px] text-slate-400 mt-1.5">Are you sure you want to submit?</p>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button onClick={onCancel}
+            className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">
+            Go back &amp; review
+          </button>
+          <button onClick={onConfirm}
+            className="inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-4 py-2 text-sm font-semibold shadow-glow-blue">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Yes, submit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
-  const [ratings, setRatings] = useState<Record<string, number>>(initial?.competencies ?? {});
-  const [strengths, setStrengths] = useState(initial?.strengths ?? "");
-  const [improvements, setImprovements] = useState(initial?.improvements ?? "");
-  const [comment, setComment] = useState(initial?.comment ?? "");
+  const [answers, setAnswers] = useState<Record<string, string>>(() => seedAnswers(initial));
+  const [overall, setOverall] = useState<number | null>(initial?.overall ?? null);
   const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
 
-  const isManager = isManagerKind(assignment.kind);
-  const rated = PEER_COMPETENCIES.filter((c) => ratings[c.key] != null);
-  const avg = rated.length ? rated.reduce((s, c) => s + ratings[c.key], 0) / rated.length : null;
-  const complete = rated.length === PEER_COMPETENCIES.length && strengths.trim().length > 0;
+  const isDone = (q: (typeof PEER_QUESTIONS)[number]) =>
+    (answers[q.key] ?? "").trim().length > 0 && (!q.scale || overall != null);
+  const doneCount = PEER_QUESTIONS.filter(isDone).length;
+  const complete = doneCount === PEER_QUESTIONS.length;
+
+  // Validate first; the actual submit only runs after the confirmation dialog.
+  const askSubmit = () => {
+    if (!complete || overall == null) { setError("Please answer every question and pick the overall 1–5 rating."); return; }
+    setError("");
+    setShowConfirm(true);
+  };
 
   const submit = async () => {
-    if (!complete || avg == null) { setError("Rate every competency and add at least the strengths."); return; }
+    if (!complete || overall == null) { setError("Please answer every question and pick the overall 1–5 rating."); return; }
     setSaving(true);
     setError("");
     try {
+      const trimmed = Object.fromEntries(PEER_QUESTIONS.map((q) => [q.key, (answers[q.key] ?? "").trim()]));
       await performanceAssessments.update(assignment.id, {
-        data: { competencies: ratings, strengths: strengths.trim(), improvements: improvements.trim(), comment: comment.trim() },
-        total_score: Number(avg.toFixed(2)),
-        rating_band: bandForScore(avg),
+        data: { answers: trimmed, overall },
+        total_score: overall,
+        rating_band: bandForScore(overall),
         status: "submitted",
       });
       onDone();
@@ -208,55 +257,74 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
   return (
     <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Avatar name={assignment.subject_name} color={assignment.subject_color} />
-            <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 truncate">
-                {isManager ? "Manager review" : "Peer review"} · {assignment.subject_name}
-              </h2>
-              <p className="text-xs text-slate-500 truncate">
-                {isManager ? "Your authoritative review as reporting manager" : assignment.subject_role || ""}
-                {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
-              </p>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar name={assignment.subject_name} color={assignment.subject_color} />
+              <div className="min-w-0">
+                <h2 className="text-base font-extrabold text-slate-900 truncate">
+                  Peer review · {assignment.subject_name}
+                </h2>
+                <p className="text-xs text-slate-500 truncate">
+                  {assignment.subject_role || ""}
+                  {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
+                </p>
+              </div>
             </div>
+            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+              <X className="h-4.5 w-4.5" />
+            </button>
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
-            <X className="h-4.5 w-4.5" />
-          </button>
+          {/* Progress */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${(doneCount / PEER_QUESTIONS.length) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
+            </div>
+            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600" : "text-slate-400")}>
+              {doneCount}/{PEER_QUESTIONS.length} answered
+            </span>
+          </div>
         </div>
 
-        <div className="p-5 max-h-[60vh] overflow-y-auto space-y-4">
-          <div className="space-y-3">
-            {PEER_COMPETENCIES.map((c) => (
-              <div key={c.key}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[13px] font-semibold text-slate-700">{c.label} <span className="text-red-500">*</span></span>
-                  <span className="text-[11px] text-slate-400">{c.hint}</span>
+        <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
+          <p className="text-[12px] text-slate-500 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2">
+            All questions are required. Be honest, specific and constructive — your answers are shared with the reporting manager.
+          </p>
+
+          {PEER_QUESTIONS.map((q, i) => {
+            const done = isDone(q);
+            return (
+              <div key={q.key}
+                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-white")}>
+                <div className="flex items-start gap-3 mb-2.5">
+                  <span className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold text-white shrink-0 mt-0.5",
+                    done ? "bg-emerald-500" : "btn-gradient")}>
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{q.short}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 leading-snug">
+                      {q.question} <span className="text-red-500">*</span>
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-1.5">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} onClick={() => setRatings((p) => ({ ...p, [c.key]: n }))}
-                      className={cn("flex-1 h-9 rounded-lg border text-sm font-bold transition-all flex items-center justify-center gap-1",
-                        ratings[c.key] === n ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-400 hover:border-blue-200")}>
-                      <Star className="h-3 w-3" fill={ratings[c.key] != null && ratings[c.key] >= n ? "currentColor" : "none"} /> {n}
-                    </button>
-                  ))}
-                </div>
+
+                {q.scale && <ScalePicker value={overall} onSelect={setOverall} />}
+
+                <textarea value={answers[q.key] ?? ""} onChange={(e) => setAnswers((p) => ({ ...p, [q.key]: e.target.value }))}
+                  placeholder={q.placeholder} rows={3} required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               </div>
-            ))}
-          </div>
+            );
+          })}
 
-          <Field label="Strengths" required value={strengths} onChange={setStrengths} placeholder="What does this person do really well?" />
-          <Field label="Areas to improve" value={improvements} onChange={setImprovements} placeholder="Where could they grow? Be specific and constructive." />
-          <Field label="Anything else (optional)" value={comment} onChange={setComment} placeholder="Context, examples, overall impression…" />
-
-          {avg != null && (
+          {overall != null && (
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-              <span className="stat-number text-2xl font-extrabold text-slate-900">{avg.toFixed(2)}</span>
-              <span className="text-[11px] text-slate-400 font-medium">overall / 5.0</span>
-              <span className="ml-auto"><Band band={bandForScore(avg)} /></span>
+              <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
+              <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+              <span className="ml-auto"><Band band={bandForScore(overall)} /></span>
             </div>
           )}
           {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
@@ -264,7 +332,7 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
 
         <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
           <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
-          <button onClick={submit} disabled={!complete || saving}
+          <button onClick={askSubmit} disabled={!complete || saving}
             className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
               complete && !saving ? "btn-gradient shadow-glow-blue" : "bg-slate-300 cursor-not-allowed")}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -272,11 +340,219 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
           </button>
         </div>
       </div>
+      {showConfirm && (
+        <SubmitConfirmDialog
+          label="peer review"
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={() => { setShowConfirm(false); submit(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Manager review form ───────────────────────────────────────────────────────
+/**
+ * The authoritative appraisal a reporting manager writes. Every question needs
+ * a 1–5 rating AND a written answer; the behavioural-parameters question swaps
+ * the single scale for a 5-parameter grid; the overall question's rating
+ * becomes the review's total score.
+ */
+export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
+  const [texts, setTexts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(MANAGER_QUESTIONS.map((q) => [q.key, initial?.managerAnswers?.[q.key]?.text ?? ""])));
+  const [ratings, setRatings] = useState<Record<string, number>>(() => {
+    const r: Record<string, number> = {};
+    for (const q of MANAGER_QUESTIONS) {
+      const v = initial?.managerAnswers?.[q.key]?.rating;
+      if (v != null) r[q.key] = v;
+    }
+    return r;
+  });
+  const [params, setParams] = useState<Record<string, number>>(initial?.parameters ?? {});
+  const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState("");
+
+  const isDone = (q: (typeof MANAGER_QUESTIONS)[number]) => {
+    if (!(texts[q.key] ?? "").trim()) return false;
+    if (q.grid) return MANAGER_PARAMETERS.every((p) => params[p.key] != null);
+    return ratings[q.key] != null;
+  };
+  const doneCount = MANAGER_QUESTIONS.filter(isDone).length;
+  const complete = doneCount === MANAGER_QUESTIONS.length;
+  const overall = ratings.overall ?? null;
+
+  // Validate first; the actual submit only runs after the confirmation dialog.
+  const askSubmit = () => {
+    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
+    setError("");
+    setShowConfirm(true);
+  };
+
+  const submit = async () => {
+    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const managerAnswers = Object.fromEntries(MANAGER_QUESTIONS.map((q) => [q.key, {
+        ...(q.grid ? {} : { rating: ratings[q.key] }),
+        text: (texts[q.key] ?? "").trim(),
+      }]));
+      await performanceAssessments.update(assignment.id, {
+        data: { managerAnswers, parameters: params, overall },
+        total_score: overall,
+        rating_band: bandForScore(overall),
+        status: "submitted",
+      });
+      onDone();
+    } catch {
+      setError("Couldn't submit — please try again.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-indigo-100 bg-gradient-to-b from-indigo-50/60 to-white rounded-t-2xl">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar name={assignment.subject_name} color={assignment.subject_color} />
+              <div className="min-w-0">
+                <h2 className="text-base font-extrabold text-slate-900 truncate flex items-center gap-2">
+                  Manager review · {assignment.subject_name}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
+                    <Crown className="h-3 w-3" /> Authoritative
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 truncate">
+                  Your appraisal as reporting manager{assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+          {/* Progress */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-indigo-100/70 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${(doneCount / MANAGER_QUESTIONS.length) * 100}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }} />
+            </div>
+            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600" : "text-slate-400")}>
+              {doneCount}/{MANAGER_QUESTIONS.length} answered
+            </span>
+          </div>
+        </div>
+
+        <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
+          <p className="text-[12px] text-indigo-900/70 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2">
+            Every question needs a 1–5 rating and a written answer. This is the authoritative review —
+            the overall summary is shared with the employee during the appraisal discussion.
+          </p>
+
+          {MANAGER_QUESTIONS.map((q, i) => {
+            const done = isDone(q);
+            return (
+              <div key={q.key}
+                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-white")}>
+                <div className="flex items-start gap-3 mb-2.5">
+                  <span className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold text-white shrink-0 mt-0.5",
+                    done ? "bg-emerald-500" : "bg-gradient-to-br from-indigo-500 to-violet-500")}>
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400">{q.short}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 leading-snug">
+                      {q.question} <span className="text-red-500">*</span>
+                    </p>
+                  </div>
+                </div>
+
+                {q.grid ? (
+                  <div className="space-y-2 mb-2.5 rounded-lg bg-slate-50/80 border border-slate-100 p-3">
+                    {MANAGER_PARAMETERS.map((p) => (
+                      <div key={p.key} className="flex items-center gap-3">
+                        <span className="flex-1 text-[13px] font-medium text-slate-600">{p.label} <span className="text-red-500">*</span></span>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button key={n} type="button" title={PEER_SCALE_LABELS[n - 1]}
+                              onClick={() => setParams((prev) => ({ ...prev, [p.key]: n }))}
+                              className={cn("h-8 w-8 rounded-lg border text-[13px] font-bold transition-all",
+                                params[p.key] === n ? "border-indigo-500 bg-indigo-50 text-indigo-600 shadow-sm"
+                                  : "border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-500")}>
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ScalePicker value={ratings[q.key] ?? null} onSelect={(n) => setRatings((prev) => ({ ...prev, [q.key]: n }))} accent="indigo" />
+                )}
+
+                <textarea value={texts[q.key] ?? ""} onChange={(e) => setTexts((prev) => ({ ...prev, [q.key]: e.target.value }))}
+                  placeholder={q.placeholder} rows={3} required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+              </div>
+            );
+          })}
+
+          {overall != null && (
+            <div className="flex items-center gap-3 rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3">
+              <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
+              <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+              <span className="ml-auto"><Band band={bandForScore(overall)} /></span>
+            </div>
+          )}
+          {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
+        </div>
+
+        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+          <button onClick={askSubmit} disabled={!complete || saving}
+            className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
+              complete && !saving ? "bg-gradient-to-r from-indigo-500 to-violet-500 shadow-lg shadow-indigo-200" : "bg-slate-300 cursor-not-allowed")}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            {saving ? "Submitting…" : "Submit manager review"}
+          </button>
+        </div>
+      </div>
+      {showConfirm && (
+        <SubmitConfirmDialog
+          label="manager review"
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={() => { setShowConfirm(false); submit(); }}
+        />
+      )}
     </div>
   );
 }
 
 // ── Bits ──────────────────────────────────────────────────────────────────────
+/** 1–5 selector with the band label under each option. */
+function ScalePicker({ value, onSelect, accent = "blue" }: { value: number | null; onSelect: (n: number) => void; accent?: "blue" | "indigo" }) {
+  const on  = accent === "indigo" ? "border-indigo-500 bg-indigo-50 text-indigo-600 shadow-sm" : "border-blue-500 bg-blue-50 text-blue-600 shadow-sm";
+  const off = accent === "indigo" ? "border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-500" : "border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500";
+  return (
+    <div className="grid grid-cols-5 gap-1.5 mb-2.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" onClick={() => onSelect(n)} title={PEER_SCALE_LABELS[n - 1]}
+          className={cn("rounded-lg border py-2 transition-all flex flex-col items-center gap-0.5", value === n ? on : off)}>
+          <span className="flex items-center gap-1 text-sm font-bold">
+            <Star className="h-3.5 w-3.5" fill={value != null && value >= n ? "currentColor" : "none"} /> {n}
+          </span>
+          <span className="text-[9px] font-semibold leading-none text-center px-0.5">{PEER_SCALE_LABELS[n - 1]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Avatar({ name, color, small }: { name?: string | null; color?: string | null; small?: boolean }) {
   return (
     <div className={cn("rounded-full flex items-center justify-center font-bold text-white shrink-0 ring-2 ring-white shadow-sm",
@@ -292,18 +568,6 @@ function Band({ band }: { band?: string | null }) {
   return (
     <span className="inline-flex items-center text-[13px] font-bold px-3 py-1 rounded-full whitespace-nowrap"
       style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}40` }}>{band || "Unrated"}</span>
-  );
-}
-
-function Field({ label, value, onChange, placeholder, required }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; required?: boolean }) {
-  return (
-    <div>
-      <label className="block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={2}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-    </div>
   );
 }
 

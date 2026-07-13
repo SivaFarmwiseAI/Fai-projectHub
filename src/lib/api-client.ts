@@ -553,6 +553,8 @@ export interface User {
   avatar_color: string;
   manager_id?: string | null;
   manager_name?: string | null;
+  employee_no?: string | null;
+  date_of_joining?: string | null; // ISO date (yyyy-mm-dd)
   is_active?: boolean;
   created_at?: string;
   projects?: Project[];
@@ -1517,6 +1519,7 @@ export interface TeamReportRow {
 export interface EmployeeReportPeer {
   id: string;
   status: string;
+  kind?: string | null;            // peer | manager (older backends may omit)
   author_name?: string | null;
   author_color?: string | null;
   author_role?: string | null;
