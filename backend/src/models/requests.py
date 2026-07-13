@@ -33,6 +33,8 @@ class UpdateUserRequest(BaseModel):
     department: Optional[str] = None
     avatar_color: Optional[str] = None
     manager_id: Optional[UUID] = None
+    employee_no: Optional[str] = None
+    date_of_joining: Optional[date] = None
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────

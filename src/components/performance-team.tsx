@@ -7,16 +7,22 @@
  */
 
 import { useEffect, useState } from "react";
-import { Users2, Loader2, FileText, ShieldAlert, CheckCircle2, Clock } from "lucide-react";
-import { performanceAssessments, type TeamReportRow } from "@/lib/api-client";
+import { Users2, Loader2, FileText, ShieldAlert, CheckCircle2, Clock, PenLine } from "lucide-react";
+import { performanceAssessments, type TeamReportRow, type PeerReviewAssignment } from "@/lib/api-client";
 import { bandColor, fmtScore } from "@/lib/performance";
 import { EmployeeReportModal } from "@/components/performance-report";
+import { ManagerReviewForm } from "@/components/performance-reviews";
 import { PerfLoader } from "@/components/performance-loader";
 
 export function PerformanceTeam() {
   const [reports, setReports] = useState<TeamReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openSubject, setOpenSubject] = useState<string | null>(null);
+  /** Pending manager reviews assigned to me, keyed by subject user id — lets a
+   *  TL write the manager review straight from this list. */
+  const [managerTasks, setManagerTasks] = useState<Record<string, PeerReviewAssignment>>({});
+  const [writing, setWriting] = useState<PeerReviewAssignment | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -24,8 +30,18 @@ export function PerformanceTeam() {
       .then((r) => { if (alive) setReports(r.reports || []); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
+    performanceAssessments.myReviews("pending")
+      .then((r) => {
+        if (!alive) return;
+        const map: Record<string, PeerReviewAssignment> = {};
+        for (const a of r.reviews || []) {
+          if (a.kind === "manager" && a.subject_id) map[a.subject_id] = a;
+        }
+        setManagerTasks(map);
+      })
+      .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey]);
 
   if (loading) {
     return <PerfLoader label="Loading your team…" />;
@@ -59,9 +75,12 @@ export function PerformanceTeam() {
         {reports.map((r, i) => {
           const color = bandColor(r.rating_band);
           const submitted = r.self_status === "submitted";
+          const task = managerTasks[r.id];
           return (
-            <button key={r.id} onClick={() => setOpenSubject(r.id)}
-              className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 transition-colors animate-fade-in-up"
+            <div key={r.id} role="button" tabIndex={0}
+              onClick={() => setOpenSubject(r.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenSubject(r.id); } }}
+              className="w-full text-left px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300 transition-colors animate-fade-in-up"
               style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
               <div className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ring-2 ring-white shadow-sm"
                 style={{ backgroundColor: r.avatar_color || "#3b82f6" }}>
@@ -86,16 +105,26 @@ export function PerformanceTeam() {
                 Peers {r.peer_done}/{r.peer_total}
               </span>
 
-              {/* Manager review status */}
-              <span className={`hidden lg:inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${
-                r.manager_status === "submitted"
-                  ? "text-indigo-700 bg-indigo-50 border border-indigo-200"
-                  : r.manager_status === "pending"
-                  ? "text-amber-700 bg-amber-50 border border-amber-200"
-                  : "text-slate-400 bg-slate-100"}`}>
-                {r.manager_status === "submitted" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                Manager {r.manager_status === "submitted" ? "done" : r.manager_status === "pending" ? "pending" : "—"}
-              </span>
+              {/* Manager review — direct write action when it's assigned to me,
+                  otherwise the passive status chip */}
+              {task ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setWriting(task); }}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-3.5 py-2 text-[13px] font-semibold shadow-glow-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                >
+                  <PenLine className="h-3.5 w-3.5" /> Write manager review
+                </button>
+              ) : (
+                <span className={`hidden lg:inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${
+                  r.manager_status === "submitted"
+                    ? "text-indigo-700 bg-indigo-50 border border-indigo-200"
+                    : r.manager_status === "pending"
+                    ? "text-amber-700 bg-amber-50 border border-amber-200"
+                    : "text-slate-400 bg-slate-100"}`}>
+                  {r.manager_status === "submitted" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                  Manager {r.manager_status === "submitted" ? "done" : r.manager_status === "pending" ? "pending" : "—"}
+                </span>
+              )}
 
               {/* Band + score */}
               {submitted && r.rating_band ? (
@@ -104,12 +133,25 @@ export function PerformanceTeam() {
               ) : null}
               <span className="stat-number text-lg font-bold text-slate-900 w-14 text-right">{fmtScore(r.total_score)}</span>
               <FileText className="h-5 w-5 text-slate-300 shrink-0" />
-            </button>
+            </div>
           );
         })}
       </div>
 
       {openSubject && <EmployeeReportModal subjectId={openSubject} onClose={() => setOpenSubject(null)} />}
+
+      {/* Manager review form, opened straight from a team row */}
+      {writing && (
+        <ManagerReviewForm
+          assignment={writing}
+          onClose={() => setWriting(null)}
+          onDone={() => {
+            setWriting(null);
+            // Refresh rows + pending assignments so the status flips to done.
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      )}
 
       {loading && <Loader2 className="h-4 w-4 animate-spin text-slate-300" />}
     </div>

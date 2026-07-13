@@ -39,6 +39,7 @@ def _list_users(event, origin):
         SELECT
           u.id, u.name, u.role, u.role_type, u.department,
           u.avatar_color, u.is_active, u.email, u.created_at,
+          u.employee_no, u.date_of_joining,
           u.manager_id, m.name AS manager_name,
           COALESCE(ts.active_tasks, 0)        AS active_tasks,
           COALESCE(ts.completed_tasks, 0)     AS completed_tasks,
@@ -68,7 +69,9 @@ def _get_user(event, origin, user_id):
 
 def _update_user(event, origin, user_id):
     current_user = get_current_user(event)
-    if user_id != current_user["id"] and current_user["role_type"] not in ("CEO", "Admin"):
+    # HR maintains employee records (employee number, joining date, …) but
+    # still can't elevate role_type / reassign managers (stripped below).
+    if user_id != current_user["id"] and current_user["role_type"] not in ("CEO", "Admin", "HR"):
         raise HTTPError(403, "Cannot update another user")
     body = UpdateUserRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -83,7 +86,8 @@ def _update_user(event, origin, user_id):
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     updated = execute_returning(
         f"UPDATE users SET {set_clause}, updated_at = NOW() WHERE id = %s "
-        f"RETURNING id, name, email, role, role_type, department, avatar_color, manager_id, updated_at",
+        f"RETURNING id, name, email, role, role_type, department, avatar_color, manager_id, "
+        f"employee_no, date_of_joining, updated_at",
         list(fields.values()) + [user_id],
     )
     if not updated:

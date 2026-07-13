@@ -14,6 +14,7 @@ Visibility model:
   - Team Leads (and any manager) see their direct + indirect reports.
   - Everyone sees their own assessments and reviews assigned to them.
 """
+import json
 import logging
 
 from .base import PARAM, get_body, get_query, make_handler, resp
@@ -55,6 +56,30 @@ def _is_full(user: dict) -> bool:
     return user["role_type"] in FULL_ACCESS
 
 
+# migrations/019 defines role_areas as TEXT[], but some environments carry the
+# column as JSONB — probe once and adapt every cast to what this DB actually has.
+_ROLE_AREAS_JSONB = None  # None = not probed yet
+
+
+def _role_areas_is_jsonb() -> bool:
+    global _ROLE_AREAS_JSONB
+    if _ROLE_AREAS_JSONB is None:
+        row = fetchone("""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = 'performance_assessments' AND column_name = 'role_areas'
+        """)
+        _ROLE_AREAS_JSONB = bool(row and row.get("data_type") == "jsonb")
+    return _ROLE_AREAS_JSONB
+
+
+def _role_areas_param(values):
+    """(sql_cast, bind_param) for writing role_areas with this DB's column type."""
+    vals = [str(x) for x in values] if values else []
+    if _role_areas_is_jsonb():
+        return "%s::jsonb", json.dumps(vals)
+    return "%s::text[]", vals
+
+
 def _is_manager_of(manager_id: str, subject_id: str) -> bool:
     """True when `manager_id` is anywhere up `subject_id`'s reporting chain."""
     row = fetchone("""
@@ -68,6 +93,49 @@ def _is_manager_of(manager_id: str, subject_id: str) -> bool:
         SELECT 1 AS hit FROM chain WHERE manager_id = %s LIMIT 1
     """, (subject_id, manager_id))
     return bool(row)
+
+
+def _backfill_manager_stubs(manager_id: str, subject_id: str = None, notify_manager: bool = False) -> int:
+    """Create the pending manager-review stubs the submit-time hook missed.
+
+    The stub is normally created when the employee submits their
+    self-assessment — but only if users.manager_id was already set at that
+    moment. A report whose manager was assigned in the org tree *after* they
+    submitted would otherwise never get a manager review. Called when a
+    manager opens My Reviews and when HR sets a manager in the org tree.
+    Returns how many stubs were created."""
+    conds = ["u.manager_id = %s", "pa.subject_user_id <> %s"]
+    params = [manager_id, manager_id]
+    if subject_id:
+        conds.append("pa.subject_user_id = %s")
+        params.append(subject_id)
+    rows = fetchall(f"""
+        SELECT pa.id, pa.employee_name, pa.subject_user_id, pa.designation,
+               pa.review_period, pa.career_level, pa.cycle_id
+        FROM performance_assessments pa
+        JOIN users u ON u.id = pa.subject_user_id
+        WHERE pa.kind = 'self' AND pa.status = 'submitted'
+          AND {' AND '.join(conds)}
+          AND NOT EXISTS (
+            SELECT 1 FROM performance_assessments m
+            WHERE m.kind = 'manager' AND m.subject_user_id = pa.subject_user_id
+              AND m.cycle_id IS NOT DISTINCT FROM pa.cycle_id
+          )
+    """, tuple(params))
+    for r in rows:
+        execute("""
+            INSERT INTO performance_assessments
+              (employee_name, subject_user_id, author_user_id, nominated_by, designation,
+               review_period, career_level, kind, status, cycle_id, filled_by)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,'manager','pending',%s,'rev')
+        """, (r["employee_name"], r["subject_user_id"], manager_id, r["subject_user_id"],
+              r["designation"], r["review_period"], r["career_level"], r["cycle_id"]))
+        if notify_manager:
+            notify(manager_id, "performance", "Manager review due",
+                   f"{r['employee_name']} submitted a self-assessment — your manager review is due.",
+                   related_entity_type="performance_assessment",
+                   related_entity_id=str(r["id"]))
+    return len(rows)
 
 
 # ── Static routes FIRST ───────────────────────────────────────────────────────
@@ -99,9 +167,13 @@ def _analysis(event, origin):
         GROUP BY pa.rating_band ORDER BY COUNT(*) DESC
     """, tuple(params))
 
+    unnest_areas = (
+        "jsonb_array_elements_text(pa.role_areas)" if _role_areas_is_jsonb()
+        else "UNNEST(pa.role_areas)"
+    )
     by_role = fetchall(f"""
         SELECT area AS key, COUNT(*) AS count, ROUND(AVG(pa.total_score), 2) AS avg_total
-        FROM performance_assessments pa, UNNEST(pa.role_areas) AS area
+        FROM performance_assessments pa, {unnest_areas} AS area
         WHERE pa.kind = 'self' {cyc}
         GROUP BY area ORDER BY COUNT(*) DESC
     """, tuple(params))
@@ -132,6 +204,9 @@ def _analysis(event, origin):
 def _my_reviews(event, origin):
     """Peer/manager reviews the current user has been asked to write."""
     user = get_current_user(event)
+    # Self-heal: reports who submitted before this user became their manager
+    # have no manager-review stub — create those now so they appear below.
+    _backfill_manager_stubs(user["id"])
     status = get_query(event).get("status")
     st, params = ("AND pa.status = %s", [user["id"], status]) if status else ("", [user["id"]])
     rows = fetchall(f"""
@@ -379,6 +454,11 @@ def _set_manager(event, origin):
     count = execute("UPDATE users SET manager_id = %s, updated_at = NOW() WHERE id = %s", (manager_id, user_id))
     if count == 0:
         raise HTTPError(404, "User not found")
+    # If this user already submitted a self-assessment, assign the manager
+    # review to the new manager right away (the submit-time hook only fires
+    # when a manager is already set).
+    if manager_id:
+        _backfill_manager_stubs(manager_id, subject_id=user_id, notify_manager=True)
     return resp({"ok": True}, origin=origin)
 
 
@@ -423,11 +503,12 @@ def _create(event, origin):
     subject_id = str(body.subject_user_id) if body.subject_user_id else None
     cycle_id = str(body.cycle_id) if body.cycle_id else None
 
+    ra_cast, ra_param = _role_areas_param(body.role_areas)
     common = (
         body.employee_name,
         str(body.employee_user_id) if body.employee_user_id else None,
         body.designation, body.review_period, body.career_level, body.filled_by,
-        [str(x) for x in body.role_areas] if body.role_areas else [],
+        ra_param,
         body.individual_score, body.team_score, body.org_score, body.culture_score,
         body.total_score, body.rating_band, body.severity, body.capped, body.data,
     )
@@ -441,24 +522,24 @@ def _create(event, origin):
         """, (subject_id, cycle_id))
 
     if existing:
-        assessment = execute_returning("""
+        assessment = execute_returning(f"""
             UPDATE performance_assessments SET
               employee_name = %s, employee_user_id = %s, designation = %s, review_period = %s,
-              career_level = %s, filled_by = %s, role_areas = %s::text[],
+              career_level = %s, filled_by = %s, role_areas = {ra_cast},
               individual_score = %s, team_score = %s, org_score = %s, culture_score = %s,
               total_score = %s, rating_band = %s, severity = %s, capped = %s, data = %s::jsonb,
               status = 'submitted', submitted_by = %s, submitted_at = NOW(), updated_at = NOW()
             WHERE id = %s RETURNING *
         """, common + (user["id"], existing["id"]))
     else:
-        assessment = execute_returning("""
+        assessment = execute_returning(f"""
             INSERT INTO performance_assessments
               (employee_name, employee_user_id, designation, review_period, career_level,
                filled_by, role_areas, individual_score, team_score, org_score, culture_score,
                total_score, rating_band, severity, capped, data,
                kind, subject_user_id, cycle_id, reviewer_name, reviewer_user_id,
                status, submitted_by, submitted_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s::text[],%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,
+            VALUES (%s,%s,%s,%s,%s,%s,{ra_cast},%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,
                     %s,%s,%s,%s,%s,'submitted',%s,NOW())
             RETURNING *
         """, common + (
@@ -545,6 +626,9 @@ def _update(event, origin, assessment_id):
     is_own_self = row.get("kind") == "self" and row.get("subject_user_id") == user["id"]
     if not (_is_full(user) or is_author or is_own_self):
         raise HTTPError(403, "Only the assigned reviewer can update this review")
+    # Submitted reviews are final — no edits after submission.
+    if row.get("kind") in ("peer", "manager") and row.get("status") == "submitted":
+        raise HTTPError(403, "This review was already submitted and can no longer be edited")
 
     body = UpdatePerformanceAssessmentRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -554,7 +638,8 @@ def _update(event, origin, assessment_id):
     set_parts, params = [], []
     for k, v in fields.items():
         if k == "role_areas":
-            set_parts.append("role_areas = %s::text[]"); params.append([str(x) for x in v])
+            cast, param = _role_areas_param(v)
+            set_parts.append(f"role_areas = {cast}"); params.append(param)
         elif k == "data":
             set_parts.append("data = %s::jsonb"); params.append(v)
         else:

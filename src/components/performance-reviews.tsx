@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Pencil, Crown } from "lucide-react";
+import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Lock, Crown } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
 import { bandColor, bandForScore, fmtScore, fmtDate, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS } from "@/lib/performance";
 import { cn } from "@/lib/utils";
@@ -45,18 +45,8 @@ export function PerformanceReviews() {
   const [received, setReceived] = useState<ReviewReceived[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<PeerReviewAssignment | null>(null);
-  const [editInitial, setEditInitial] = useState<PeerData | undefined>(undefined);
 
-  const openWrite = (r: PeerReviewAssignment) => { setEditInitial(undefined); setActive(r); };
-  const openEdit = async (r: PeerReviewAssignment) => {
-    try {
-      const res = await performanceAssessments.get(r.id);
-      setEditInitial((res.assessment.data as PeerData) || {});
-    } catch {
-      setEditInitial(undefined);
-    }
-    setActive(r);
-  };
+  const openWrite = (r: PeerReviewAssignment) => setActive(r);
 
   const load = useCallback(() => {
     Promise.all([
@@ -144,10 +134,10 @@ export function PerformanceReviews() {
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
                 <span className="stat-number text-sm font-bold text-slate-700 w-10 text-right">{fmtScore(r.total_score)}</span>
-                <button onClick={() => openEdit(r)}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 text-slate-500 px-3 py-2 text-[13px] font-semibold hover:bg-slate-50 hover:text-slate-700">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </button>
+                <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100"
+                  title="Submitted reviews are final and can no longer be edited">
+                  <Lock className="h-3 w-3" /> Final
+                </span>
               </div>
             ))}
           </div>
@@ -182,8 +172,8 @@ export function PerformanceReviews() {
       )}
 
       {active && (isManagerKind(active.kind)
-        ? <ManagerReviewForm assignment={active} initial={editInitial} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />
-        : <PeerReviewForm assignment={active} initial={editInitial} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />)}
+        ? <ManagerReviewForm assignment={active} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />
+        : <PeerReviewForm assignment={active} onClose={() => setActive(null)} onDone={() => { setActive(null); load(); }} />)}
     </div>
   );
 }
@@ -199,16 +189,51 @@ function seedAnswers(d?: PeerData): Record<string, string> {
   return a;
 }
 
+/** "Are you sure?" gate shown before a review is submitted — submission is
+ *  final, so this is the reviewer's last chance to go back and edit. */
+function SubmitConfirmDialog({ label, onCancel, onConfirm }: { label: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onCancel}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-extrabold text-slate-900">Submit {label}?</h3>
+        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+          Once submitted, <strong className="text-slate-700">you cannot edit or make any changes</strong> to this review.
+        </p>
+        <p className="text-[13px] text-slate-400 mt-1.5">Are you sure you want to submit?</p>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button onClick={onCancel}
+            className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">
+            Go back &amp; review
+          </button>
+          <button onClick={onConfirm}
+            className="inline-flex items-center gap-1.5 rounded-xl btn-gradient text-white px-4 py-2 text-sm font-semibold shadow-glow-blue">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Yes, submit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>(() => seedAnswers(initial));
   const [overall, setOverall] = useState<number | null>(initial?.overall ?? null);
   const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
 
   const isDone = (q: (typeof PEER_QUESTIONS)[number]) =>
     (answers[q.key] ?? "").trim().length > 0 && (!q.scale || overall != null);
   const doneCount = PEER_QUESTIONS.filter(isDone).length;
   const complete = doneCount === PEER_QUESTIONS.length;
+
+  // Validate first; the actual submit only runs after the confirmation dialog.
+  const askSubmit = () => {
+    if (!complete || overall == null) { setError("Please answer every question and pick the overall 1–5 rating."); return; }
+    setError("");
+    setShowConfirm(true);
+  };
 
   const submit = async () => {
     if (!complete || overall == null) { setError("Please answer every question and pick the overall 1–5 rating."); return; }
@@ -307,7 +332,7 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
 
         <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
           <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
-          <button onClick={submit} disabled={!complete || saving}
+          <button onClick={askSubmit} disabled={!complete || saving}
             className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
               complete && !saving ? "btn-gradient shadow-glow-blue" : "bg-slate-300 cursor-not-allowed")}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -315,6 +340,13 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
           </button>
         </div>
       </div>
+      {showConfirm && (
+        <SubmitConfirmDialog
+          label="peer review"
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={() => { setShowConfirm(false); submit(); }}
+        />
+      )}
     </div>
   );
 }
@@ -326,7 +358,7 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
  * the single scale for a 5-parameter grid; the overall question's rating
  * becomes the review's total score.
  */
-function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
+export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
   const [texts, setTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(MANAGER_QUESTIONS.map((q) => [q.key, initial?.managerAnswers?.[q.key]?.text ?? ""])));
   const [ratings, setRatings] = useState<Record<string, number>>(() => {
@@ -339,6 +371,7 @@ function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignmen
   });
   const [params, setParams] = useState<Record<string, number>>(initial?.parameters ?? {});
   const [saving, setSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
 
   const isDone = (q: (typeof MANAGER_QUESTIONS)[number]) => {
@@ -349,6 +382,13 @@ function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignmen
   const doneCount = MANAGER_QUESTIONS.filter(isDone).length;
   const complete = doneCount === MANAGER_QUESTIONS.length;
   const overall = ratings.overall ?? null;
+
+  // Validate first; the actual submit only runs after the confirmation dialog.
+  const askSubmit = () => {
+    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
+    setError("");
+    setShowConfirm(true);
+  };
 
   const submit = async () => {
     if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
@@ -474,7 +514,7 @@ function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignmen
 
         <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
           <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
-          <button onClick={submit} disabled={!complete || saving}
+          <button onClick={askSubmit} disabled={!complete || saving}
             className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
               complete && !saving ? "bg-gradient-to-r from-indigo-500 to-violet-500 shadow-lg shadow-indigo-200" : "bg-slate-300 cursor-not-allowed")}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -482,6 +522,13 @@ function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignmen
           </button>
         </div>
       </div>
+      {showConfirm && (
+        <SubmitConfirmDialog
+          label="manager review"
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={() => { setShowConfirm(false); submit(); }}
+        />
+      )}
     </div>
   );
 }

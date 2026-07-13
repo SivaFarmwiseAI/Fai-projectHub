@@ -16,8 +16,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Award, Users, TrendingUp, AlertTriangle, X, Loader2, Inbox,
-  ClipboardList, BarChart3, ShieldAlert, RefreshCw,
+  ClipboardList, BarChart3, ShieldAlert, RefreshCw, FileSpreadsheet,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
+import { downloadPerformanceRatingsExcel } from "@/lib/performance-export";
 import {
   performanceAssessments,
   type PerformanceAnalysisData,
@@ -26,6 +28,7 @@ import {
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { PerfLoader } from "@/components/performance-loader";
+import { ContributionCard, EmployeeReportModal, type Contribution } from "@/components/performance-report";
 
 // ── Display maps (mirror the assessment form) ────────────────────────────────
 const BAND_COLOR: Record<string, string> = {
@@ -52,6 +55,16 @@ const LEVEL_LABEL: Record<string, string> = {
   senior: "Senior / Lead",
 };
 
+const CULT_LABEL: Record<string, string> = {
+  punct: "Punctuality",
+  attend: "Attendance & regularity",
+  deliver: "Delivers on time",
+  team: "Team-friendly & respectful",
+  conduct: "Professional conduct",
+  commit: "Commitment & ownership",
+  hours: "Workload within hours",
+};
+
 const LN = ["Exceptional", "Exceeds", "Meets", "Below", "Unsatisfactory"];
 const NUM = [5, 4, 3, 2, 1];
 const ratingLabel = (n: number | null | undefined) =>
@@ -69,10 +82,6 @@ const fmtDate = (s: string) => {
 };
 
 // Loose shape of the stored `data` snapshot (mirrors the form's gather()).
-interface Contribution {
-  title?: string; area?: string; self?: number | null; reviewer?: number | null;
-  value?: string; changed?: string; impacts?: string[];
-}
 interface Entry { rating?: number | null; text?: string; remark?: string }
 interface Snapshot {
   mode?: string; sev?: string; level?: string; facets?: string[];
@@ -87,6 +96,23 @@ export function PerformanceAnalysis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<PerformanceAssessmentRow | null>(null);
+  const { isCEO, isHR, isAdmin } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const canExport = isCEO || isHR || isAdmin;
+
+  const exportExcel = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      await downloadPerformanceRatingsExcel();
+    } catch (e) {
+      console.error("ratings export failed", e);
+      setExportError("Couldn't build the Excel export — please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -141,6 +167,28 @@ export function PerformanceAnalysis() {
 
   return (
     <div className="space-y-5">
+      {/* Ratings Excel export — CEO / HR / Admin only */}
+      {canExport && (
+        <div className="flex items-center justify-end gap-3">
+          {exportError && (
+            <span className="text-xs font-medium text-red-600">{exportError}</span>
+          )}
+          <button
+            onClick={exportExcel}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors"
+            title="Download the Performance Review Ratings sheet (Self / Peers / RM / CR / percentiles / hike bands)"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
+            {exporting ? "Preparing…" : "Download Ratings Excel"}
+          </button>
+        </div>
+      )}
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard icon={<ClipboardList className="h-5 w-5" />} color="#3b82f6"
@@ -234,7 +282,18 @@ export function PerformanceAnalysis() {
         </div>
       </div>
 
-      {selected && <DetailModal row={selected} onClose={() => setSelected(null)} />}
+      {/* Full 360° report (self + manager review + peer reviews) whenever the
+          submission is tied to a subject user; the thin snapshot modal only
+          remains for legacy rows without one. */}
+      {selected && (selected.subject_user_id ? (
+        <EmployeeReportModal
+          subjectId={selected.subject_user_id}
+          cycleId={selected.cycle_id ?? undefined}
+          onClose={() => setSelected(null)}
+        />
+      ) : (
+        <DetailModal row={selected} onClose={() => setSelected(null)} />
+      ))}
     </div>
   );
 }
@@ -341,7 +400,7 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
   return (
     <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
@@ -378,7 +437,7 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
         </div>
 
         {/* Body */}
-        <div className="p-5 max-h-[55vh] overflow-y-auto">
+        <div className="p-5 max-h-[65vh] overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-10 text-slate-400 gap-2 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading full assessment…
@@ -397,18 +456,9 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
 
               <Section title={`Individual contributions${snap.contributions?.length ? ` (${snap.contributions.length})` : ""}`}>
                 {(snap.contributions ?? []).length === 0 ? <Muted>No contributions recorded.</Muted> : (
-                  <div className="space-y-2.5">
+                  <div className="space-y-3">
                     {snap.contributions!.map((c, i) => (
-                      <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-[13px] font-bold text-slate-800">{c.title || `Contribution #${i + 1}`}</p>
-                          <span className="text-[13px] font-semibold text-slate-500 shrink-0">{ratingLabel(c.self)}</span>
-                        </div>
-                        {c.area && <p className="text-[13px] text-indigo-600 font-medium mt-0.5">{roleLabel(c.area)}</p>}
-                        {(c.value || c.changed) && (
-                          <p className="text-[13.5px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">{c.value || c.changed}</p>
-                        )}
-                      </div>
+                      <ContributionCard key={c.id ?? i} c={c} index={i} />
                     ))}
                   </div>
                 )}
@@ -424,7 +474,7 @@ function DetailModal({ row, onClose }: { row: PerformanceAssessmentRow; onClose:
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(snap.cultRatings).map(([k, v]) => (
                       <span key={k} className="text-[13px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
-                        {k}: <b className="text-slate-900">{v}</b>
+                        {CULT_LABEL[k] ?? k}: <b className="text-slate-900">{v} / 5</b>
                       </span>
                     ))}
                   </div>
@@ -477,11 +527,14 @@ function EntrySection({ title, entries }: { title: string; entries?: Entry[] }) 
   return (
     <Section title={title}>
       {(entries ?? []).length === 0 ? <Muted>None recorded.</Muted> : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {entries!.map((e, i) => (
             <div key={i} className="flex items-start gap-2 text-[13.5px]">
               <span className="font-bold text-slate-700 shrink-0">{ratingLabel(e.rating)}</span>
-              <span className="text-slate-500 line-clamp-2">{e.text || "—"}</span>
+              <span className="min-w-0">
+                <span className="text-slate-500 block whitespace-pre-wrap">{e.text || "—"}</span>
+                {e.remark && <span className="text-slate-400 italic block mt-0.5 whitespace-pre-wrap">{e.remark}</span>}
+              </span>
             </div>
           ))}
         </div>
