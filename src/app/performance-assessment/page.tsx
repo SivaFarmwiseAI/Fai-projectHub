@@ -1031,15 +1031,19 @@ export default function PerformanceAssessmentPage() {
   );
 
   const indScore = useCallback(() => {
-    let best: number | null = null;
+    // Average across all rated contributions (an Exceptional missing full
+    // proof still counts as 4 via contribEff before averaging).
+    let sum = 0;
+    let n = 0;
     let anyDown = false;
     contributions.forEach((c) => {
       const { eff, down } = contribEff(c);
       if (eff == null) return;
       if (down) anyDown = true;
-      if (best === null || eff > best) best = eff;
+      sum += eff;
+      n += 1;
     });
-    return { best, anyDown };
+    return { avg: n ? Number((sum / n).toFixed(2)) : null, anyDown };
   }, [contributions, contribEff]);
 
   const avgOf = (arr: Entry[]) => {
@@ -1062,8 +1066,8 @@ export default function PerformanceAssessmentPage() {
   const ind = indScore();
 
   const totalScore =
-    ind.best != null && tAvg != null && oAvg != null && cAvg != null
-      ? (ind.best * W.ind + tAvg * W.team + oAvg * W.org + cAvg * W.culture) /
+    ind.avg != null && tAvg != null && oAvg != null && cAvg != null
+      ? (ind.avg * W.ind + tAvg * W.team + oAvg * W.org + cAvg * W.culture) /
         100
       : null;
 
@@ -1587,7 +1591,7 @@ export default function PerformanceAssessmentPage() {
       reviewer_name: rev.trim() || null,
       reviewer_user_id: user?.id ?? null,
       role_areas: [...facets],
-      individual_score: ind.best,
+      individual_score: ind.avg,
       team_score: tAvg,
       org_score: oAvg,
       culture_score: cAvg,
@@ -3307,10 +3311,10 @@ export default function PerformanceAssessmentPage() {
                       <div className="ms">
                         <span>Individual</span>
                         <b>
-                          {ind.best != null
+                          {ind.avg != null
                             ? ind.anyDown
-                              ? ind.best + "*"
-                              : ind.best
+                              ? ind.avg.toFixed(1) + "*"
+                              : ind.avg.toFixed(1)
                             : "–"}
                         </b>
                       </div>
@@ -3551,7 +3555,7 @@ export default function PerformanceAssessmentPage() {
                   <div className="blockhead">
                     <h4>Individual Contributions</h4>
                     <span className="avg-pill">
-                      Best: {ind.best != null ? `${ind.best} / 5` : "—"}
+                      Average: {ind.avg != null ? `${ind.avg.toFixed(1)} / 5` : "—"}
                     </span>
                   </div>
                   {contributions.length === 0 ? (
