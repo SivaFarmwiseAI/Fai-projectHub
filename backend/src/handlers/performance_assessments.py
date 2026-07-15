@@ -557,9 +557,14 @@ def _create(event, origin):
     nominated = 0
     manager_assigned = False
     if body.kind == "self" and subject_id:
-        # Peer review stubs for each nominated reviewer.
+        mgr = fetchone("SELECT manager_id FROM users WHERE id = %s", (subject_id,))
+        manager_id = mgr and mgr.get("manager_id")
+
+        # Peer review stubs for each nominated reviewer. The reporting manager
+        # already writes the authoritative manager review — never also a peer.
         for rid in {str(x) for x in body.reviewer_ids}:
-            if rid == subject_id or _stub_exists("peer", subject_id, rid, cycle_id):
+            if rid == subject_id or rid == str(manager_id or "") \
+                    or _stub_exists("peer", subject_id, rid, cycle_id):
                 continue
             execute("""
                 INSERT INTO performance_assessments
@@ -575,8 +580,6 @@ def _create(event, origin):
                    related_entity_id=str(assessment["id"]))
 
         # Authoritative manager review stub.
-        mgr = fetchone("SELECT manager_id FROM users WHERE id = %s", (subject_id,))
-        manager_id = mgr and mgr.get("manager_id")
         if manager_id and manager_id != subject_id:
             manager_assigned = True
             if not _stub_exists("manager", subject_id, manager_id, cycle_id):

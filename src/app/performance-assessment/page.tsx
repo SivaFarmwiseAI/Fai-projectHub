@@ -644,6 +644,22 @@ export default function PerformanceAssessmentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOrgUsers]);
 
+  // The signed-in user's reporting manager (from the org directory) — excluded
+  // from peer nomination since they already write the manager review.
+  const myManagerId = useMemo(
+    () => orgUsers.find((u) => u.id === user?.id)?.manager_id ?? null,
+    [orgUsers, user?.id],
+  );
+
+  // Drafts saved before the manager was excluded may still nominate them —
+  // drop that selection so the "x / 2 selected" count matches visible cards.
+  useEffect(() => {
+    if (!myManagerId) return;
+    setReviewerIds((prev) =>
+      prev.includes(myManagerId) ? prev.filter((x) => x !== myManagerId) : prev,
+    );
+  }, [myManagerId]);
+
   const toggleReviewer = useCallback((id: string) => {
     setReviewerIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -3265,8 +3281,9 @@ export default function PerformanceAssessmentPage() {
                           for <b>{activeCycle.name}</b>
                         </>
                       ) : null}
-                      . Your team lead and leadership see both your
-                      self-assessment and their reviews.
+                      . Your reporting manager isn&apos;t listed — they complete
+                      a separate manager review. Your team lead and leadership
+                      see both your self-assessment and their reviews.
                     </p>
                     {!activeCycle && (
                       <div className="note">
@@ -3310,6 +3327,9 @@ export default function PerformanceAssessmentPage() {
                         .filter(
                           (u) =>
                             u.id !== user?.id &&
+                            // The reporting manager writes the authoritative
+                            // manager review — they can't also be a peer.
+                            u.id !== myManagerId &&
                             u.name
                               .toLowerCase()
                               .includes(reviewerSearch.toLowerCase()),
