@@ -6,9 +6,10 @@ import { differenceInDays, addDays, format } from "date-fns";
 import {
   FolderKanban, CheckCircle2, Clock, TrendingUp, ArrowRight,
   Activity, MessageSquare, AlertTriangle, Target, ListTodo,
-  ChevronRight, Zap, Users, Loader2,
+  ChevronRight, Zap, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { BrandLoader } from "@/components/brand-loader";
 import {
   projects as projectsApi, tasks as tasksApi,
   standup as standupApi, discussions as discussionsApi,
@@ -72,11 +73,7 @@ export function MemberDashboard() {
   }, [user?.id]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading your dashboard…" />;
   }
 
   // Derived data

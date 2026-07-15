@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { capture as captureApi, projects as projectsApi } from "@/lib/api-client";
 import type { CaptureItem, CaptureSession, Project } from "@/lib/api-client";
+import { BrandLoader } from "@/components/brand-loader";
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string; icon: React.ElementType }> = {
   todo:            { label: "To-Do",       color: "text-blue-700",   bgColor: "bg-blue-50",   borderColor: "border-blue-200",   icon: ListTodo },
@@ -98,11 +99,7 @@ export default function CapturePage() {
   }, [displayItems]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading captures…" />;
   }
 
   return (

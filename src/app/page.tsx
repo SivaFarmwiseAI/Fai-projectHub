@@ -25,6 +25,7 @@ import type {
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { BrandLoader } from "@/components/brand-loader";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
   if (!startDate) return 0;
@@ -188,11 +189,7 @@ export default function DashboardPage() {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading your command center…" />;
   }
 
   return (
@@ -314,7 +311,7 @@ export default function DashboardPage() {
           })()}
 
           {/* Swimlane */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {PIPELINE_STAGES.map((stage, stageIdx) => {
               const stageProjects = pipelineProjects.filter(
                 p => pipelineStage(p.current_phase) === stageIdx

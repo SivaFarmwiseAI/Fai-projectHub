@@ -13,6 +13,7 @@ import type { Discussion, DiscussionMessage, Project } from "@/lib/api-client";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import { EditDiscussionDialog } from "@/components/edit-discussion-dialog";
 import { showToast } from "@/lib/toast";
+import { BrandLoader } from "@/components/brand-loader";
 import { useConfirm } from "@/components/confirm-provider";
 
 /* ─── Thread Card Component ─────────────────────────────────── */
@@ -361,11 +362,7 @@ export default function DiscussionsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading discussions…" />;
   }
 
   return (

@@ -11,6 +11,7 @@ import {
   submissions as submissionsApi, discussions as discussionsApi,
   ai as aiApi,
 } from "@/lib/api-client";
+import { BrandLoader } from "@/components/brand-loader";
 import type {
   DashboardStats, Project, AiInsight, StandupEntry, Submission, Discussion,
 } from "@/lib/api-client";
@@ -118,11 +119,7 @@ export function BriefingClient() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading briefing…" />;
   }
 
   // Derived standup data

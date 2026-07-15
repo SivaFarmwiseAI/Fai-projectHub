@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { BrandLoader } from "@/components/brand-loader";
 import {
   Handshake,
   Plus,
@@ -178,9 +179,7 @@ export default function CommitmentsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <BrandLoader label="Loading commitments…" />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="text-center py-16 text-muted-foreground">
@@ -541,7 +540,7 @@ function ViewCommitmentDialog({
             </div>
 
             {/* Status + Priority */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Status</span>
                 <Badge variant="outline" className={`w-fit ${statusColors[commitment.status] ?? ""}`}>
@@ -559,7 +558,7 @@ function ViewCommitmentDialog({
             {/* People + Project */}
             <div className="space-y-2.5">
               {(commitment.owner_name || commitment.assignee_name) && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {commitment.owner_name && (
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Owner</span>

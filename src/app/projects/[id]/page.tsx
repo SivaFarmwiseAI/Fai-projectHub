@@ -498,7 +498,7 @@ function AttachmentBar({
   if (currentValue) {
     return (
       <div
-        className={`flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}
+        className={`flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5 ${compact ? "text-[10px]" : "text-xs"}`}
       >
         <CheckCircle2
           className={
@@ -549,7 +549,7 @@ function AttachmentBar({
         <button
           type="button"
           onClick={() => setShowUpload(true)}
-          className={`flex items-center gap-1.5 text-blue-600 hover:text-blue-800 transition-colors ${compact ? "text-[10px]" : "text-[11px]"}`}
+          className={`flex items-center gap-1.5 text-blue-600 hover:text-blue-800 transition-colors ${compact ? "text-[10px]" : "text-xs"}`}
         >
           <Paperclip className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
           {label || "Attach file or link"}
@@ -605,7 +605,7 @@ function AttachmentBar({
                 value={linkInput}
                 onChange={(e) => setLinkInput(e.target.value)}
                 placeholder="https://…"
-                className="text-[11px] h-7"
+                className="text-xs h-7"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -778,7 +778,7 @@ function EditWithImpact({
       ) : submitted ? (
         <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-2 flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          <span className="text-[11px] text-emerald-700 font-medium">
+          <span className="text-xs text-emerald-700 font-medium">
             {viewRole === "ceo"
               ? "Change applied successfully"
               : "Submitted for approval"}
@@ -858,7 +858,7 @@ function AssigneeEditor({
   return (
     <div className="rounded-lg border border-border bg-white p-3 shadow-lg space-y-2 min-w-[180px]">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Assignees
         </span>
         <button
@@ -870,7 +870,7 @@ function AssigneeEditor({
       </div>
       <div className="space-y-1">
         {assignedMembers.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground px-1">No assignees</p>
+          <p className="text-xs text-muted-foreground px-1">No assignees</p>
         ) : (
           assignedMembers.map((user) => (
             <div
@@ -884,7 +884,7 @@ function AssigneeEditor({
                 {user.name[0]}
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium">{user.name}</p>
+                <p className="text-xs font-medium">{user.name}</p>
                 <p className="text-[9px] text-muted-foreground">{user.role}</p>
               </div>
             </div>
@@ -946,7 +946,7 @@ function ReviewTaskPanel({
       <div className="rounded-lg border border-emerald-300 bg-emerald-50/50 p-3 space-y-1.5">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          <span className="text-[11px] font-semibold text-emerald-700">
+          <span className="text-xs font-semibold text-emerald-700">
             Task Assigned Successfully
           </span>
         </div>
@@ -995,7 +995,7 @@ function ReviewTaskPanel({
         <label className="text-[10px] text-violet-600 font-medium">Task</label>
         <Input
           placeholder="e.g. Review this PR and provide feedback on error handling"
-          className="text-[11px] h-8 mt-0.5 border-violet-200 focus-visible:ring-violet-400"
+          className="text-xs h-8 mt-0.5 border-violet-200 focus-visible:ring-violet-400"
           value={taskDesc}
           onChange={(e) => setTaskDesc(e.target.value)}
         />
@@ -1026,7 +1026,7 @@ function ReviewTaskPanel({
               >
                 {user.name[0]}
               </div>
-              <span className="text-[11px] font-medium">{user.name}</span>
+              <span className="text-xs font-medium">{user.name}</span>
               <span className="text-[9px] text-muted-foreground">
                 ({user.role})
               </span>
@@ -1040,7 +1040,7 @@ function ReviewTaskPanel({
           <label className="text-[10px] text-violet-600 font-medium">Due</label>
           <Input
             placeholder="e.g. Apr 5, 2026"
-            className="text-[11px] h-7 mt-0.5 border-violet-200 focus-visible:ring-violet-400"
+            className="text-xs h-7 mt-0.5 border-violet-200 focus-visible:ring-violet-400"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
           />
@@ -1136,7 +1136,7 @@ function DeliverableCard({
 
       {/* Code deliverable */}
       {d.type === "code" && (d.code_pr_url || d.code_repo_url) && (
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center gap-2 text-xs">
           {d.code_pr_url && (
             <a
               href={d.code_pr_url}
@@ -1155,7 +1155,7 @@ function DeliverableCard({
 
       {/* Text / description content */}
       {d.description && (
-        <p className="text-[11px] text-muted-foreground bg-gray-50 rounded p-2">
+        <p className="text-xs text-muted-foreground bg-gray-50 rounded p-2">
           {d.description}
         </p>
       )}
@@ -1165,7 +1165,7 @@ function DeliverableCard({
         d.document_url && (
           <a
             href={d.document_url}
-            className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline"
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
           >
             <ExternalLink className="h-3 w-3" /> View{" "}
             {d.type === "ppt" ? "Presentation" : "Document"}
@@ -1229,7 +1229,7 @@ function DeliverableCard({
               </div>
               <Textarea
                 placeholder="Write your feedback on this deliverable..."
-                className="text-[11px] min-h-[60px] resize-none"
+                className="text-xs min-h-[60px] resize-none"
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
               />
@@ -1571,7 +1571,7 @@ function MilestoneSection({
             )}
           </div>
           {milestone.description && (
-            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
               {milestone.description}
             </p>
           )}
@@ -1631,7 +1631,7 @@ function MilestoneSection({
         <div className="px-3 pb-3 space-y-2.5 border-t border-border/50 pt-2.5">
           {/* Status badge + Update / History / Delete actions */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-2 text-xs">
               <Badge
                 variant="outline"
                 className={`text-[9px] ${statusColors[localStatus] ?? ""}`}
@@ -1733,7 +1733,7 @@ function MilestoneSection({
                       if (e.key === "-" || e.key === "e" || e.key === "+")
                         e.preventDefault();
                     }}
-                    className="h-7 w-20 text-[11px] px-1.5"
+                    className="h-7 w-20 text-xs px-1.5"
                   />
                 </label>
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
@@ -1751,7 +1751,7 @@ function MilestoneSection({
                       if (e.key === "-" || e.key === "e" || e.key === "+")
                         e.preventDefault();
                     }}
-                    className="h-7 w-20 text-[11px] px-1.5"
+                    className="h-7 w-20 text-xs px-1.5"
                   />
                 </label>
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
@@ -1760,7 +1760,7 @@ function MilestoneSection({
                     type="date"
                     value={updTargetDate}
                     onChange={(e) => setUpdTargetDate(e.target.value)}
-                    className="h-7 w-36 text-[11px] px-1.5"
+                    className="h-7 w-36 text-xs px-1.5"
                   />
                 </label>
               </div>
@@ -1775,7 +1775,7 @@ function MilestoneSection({
                   onChange={(e) => setUpdNote(e.target.value)}
                   placeholder="What changed / what was done…"
                   rows={2}
-                  className="text-[11px]"
+                  className="text-xs"
                 />
               </div>
 
@@ -1831,7 +1831,7 @@ function MilestoneSection({
                   size="sm"
                   onClick={submitUpdate}
                   disabled={savingUpdate}
-                  className="h-7 text-[11px] gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {savingUpdate ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -1844,7 +1844,7 @@ function MilestoneSection({
                   size="sm"
                   variant="outline"
                   onClick={() => setShowUpdate(false)}
-                  className="h-7 text-[11px]"
+                  className="h-7 text-xs"
                 >
                   Cancel
                 </Button>
@@ -1862,7 +1862,7 @@ function MilestoneSection({
                 {(milestone.success_criteria ?? []).map((sc, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
+                    className="flex items-start gap-1.5 text-xs text-muted-foreground"
                   >
                     <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{sc}</span>
@@ -1900,7 +1900,7 @@ function MilestoneSection({
 
           {/* Outcome */}
           {milestone.outcome && (
-            <div className="rounded p-2 text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-700">
+            <div className="rounded p-2 text-xs bg-emerald-50 border border-emerald-200 text-emerald-700">
               <span className="font-medium">Outcome: {milestone.outcome}</span>
               {milestone.outcome_notes && (
                 <p className="mt-0.5 opacity-80">{milestone.outcome_notes}</p>
@@ -2242,7 +2242,7 @@ function TaskCard({
         <div className="space-y-3">
           {/* Title */}
           <div>
-            <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
               Title
             </label>
             <Input
@@ -2255,7 +2255,7 @@ function TaskCard({
 
           {/* Description */}
           <div>
-            <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
               Description
             </label>
             <Textarea
@@ -2271,7 +2271,7 @@ function TaskCard({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Priority */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
                 Priority
               </label>
               <div className="flex gap-1">
@@ -2298,7 +2298,7 @@ function TaskCard({
 
             {/* Status */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
                 Status
               </label>
               <div className="flex gap-1 flex-wrap">
@@ -2324,7 +2324,7 @@ function TaskCard({
             {/* Hours (auto-summed from milestones, or manual override) */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-medium text-gray-500">
+                <label className="text-xs font-medium text-gray-500">
                   Hours (est / actual)
                 </label>
                 {totalMilestones > 0 && (
@@ -2403,7 +2403,7 @@ function TaskCard({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Multi-Assignee Selection */}
             <div>
-              <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
                 Assignees{" "}
                 {editAssigneeIds.length > 0 && (
                   <span className="text-blue-600 font-semibold">
@@ -2472,7 +2472,7 @@ function TaskCard({
             {/* Phase Selection */}
             {phases && phases.length > 0 && (
               <div>
-                <label className="text-[11px] font-medium text-gray-500 mb-1 block">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">
                   Phase
                 </label>
                 <select
@@ -2804,7 +2804,7 @@ function TaskCard({
             >
               {!showComplete ? (
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {totalMilestones > 0 ? (
                       allMilestonesComplete ? (
                         <span className="text-emerald-700 font-medium flex items-center gap-1">
@@ -2833,7 +2833,7 @@ function TaskCard({
                       );
                       setShowComplete(true);
                     }}
-                    className={`text-[11px] h-7 gap-1 ${allMilestonesComplete ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
+                    className={`text-xs h-7 gap-1 ${allMilestonesComplete ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
                   >
                     <CheckCircle2 className="h-3 w-3" /> Complete Task
                   </Button>
@@ -2841,7 +2841,7 @@ function TaskCard({
               ) : (
                 <div className="flex items-end gap-2 flex-wrap">
                   {hoursAuto ? (
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-blue-500" />
                       <span>
                         <span className="font-semibold text-gray-700">
@@ -2882,7 +2882,7 @@ function TaskCard({
                     size="sm"
                     onClick={completeTask}
                     disabled={savingComplete}
-                    className="h-8 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700"
+                    className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
                   >
                     {savingComplete ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -2895,7 +2895,7 @@ function TaskCard({
                     size="sm"
                     variant="outline"
                     onClick={() => setShowComplete(false)}
-                    className="h-8 text-[11px]"
+                    className="h-8 text-xs"
                   >
                     Cancel
                   </Button>
@@ -2904,7 +2904,7 @@ function TaskCard({
             </div>
           )}
           {isCompleted && task.actual_hours != null && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-2.5 text-[11px] text-emerald-700 flex items-center gap-1.5">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-2.5 text-xs text-emerald-700 flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" /> Completed ·{" "}
               {task.actual_hours}h spent
               {task.estimated_hours
@@ -2917,7 +2917,7 @@ function TaskCard({
           {/* ── Task Description ── */}
           {task.description && (
             <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Description
               </p>
               <p className="text-sm text-gray-700 leading-relaxed">
@@ -2999,7 +2999,7 @@ function TaskCard({
                     }}
                   >
                     <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Steps ({completedSteps}/{(task.steps ?? []).length})
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono tracking-tight">
@@ -3077,7 +3077,7 @@ function TaskCard({
                             {step.expected_outcome && (
                               <div className="flex items-start gap-1.5 pl-6">
                                 <Target className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
-                                <span className="text-[11px] text-muted-foreground leading-snug">
+                                <span className="text-xs text-muted-foreground leading-snug">
                                   {step.expected_outcome}
                                 </span>
                               </div>
@@ -3111,7 +3111,7 @@ function TaskCard({
           {/* ── Success & Kill Criteria (inline, compact) ── */}
           {((task.success_criteria?.length ?? 0) > 0 ||
             (task.kill_criteria?.length ?? 0) > 0) && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(task.success_criteria?.length ?? 0) > 0 && (
                 <div>
                   <h6 className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 mb-1 flex items-center gap-1">
@@ -3177,7 +3177,7 @@ function TaskCard({
             {showAddMilestoneForm && (
               <Card className="p-3 mb-3 border-blue-200 bg-blue-50/20 space-y-3">
                 <div className="flex items-center justify-between border-b border-blue-100 pb-1.5">
-                  <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
                     <Plus className="h-3 w-3" /> New Task Milestone
                   </span>
                   <button
@@ -3225,7 +3225,7 @@ function TaskCard({
                   </div>
 
                   {/* Grid for Deliverable Type & Estimated Hours */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
                         Deliverable Type<span className="text-red-500">*</span>
@@ -3289,7 +3289,7 @@ function TaskCard({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* Assignee */}
                     <div>
                       <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Assignee</label>
@@ -3441,7 +3441,7 @@ function TaskCard({
                             );
                           });
                       }}
-                      className="text-[11px] h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="text-xs h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       <CheckCircle2 className="h-3 w-3" /> Save Milestone
                     </Button>
@@ -3452,7 +3452,7 @@ function TaskCard({
                         setShowAddMilestoneForm(false);
                         setMilestoneErrors({});
                       }}
-                      className="text-[11px] h-7"
+                      className="text-xs h-7"
                     >
                       Cancel
                     </Button>
@@ -3532,7 +3532,7 @@ function TaskCard({
                           {de.status}
                         </Badge>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {de.reason_detail}
                       </p>
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
@@ -3597,7 +3597,7 @@ function TaskCard({
             <h5 className="text-sm font-semibold text-gray-800">
               Activity &amp; History
             </h5>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               status changes, progress notes &amp; uploaded files
             </span>
           </div>
@@ -3606,7 +3606,7 @@ function TaskCard({
           {(task.updates ?? []).length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Progress Updates
                 </h5>
               </div>
@@ -3623,7 +3623,7 @@ function TaskCard({
                         <span className="font-medium text-xs">
                           {updUser?.name}
                         </span>
-                        <span className="text-[11px] text-muted-foreground ml-auto">
+                        <span className="text-xs text-muted-foreground ml-auto">
                           {formatShortDate(upd.created_at)}
                         </span>
                       </div>
@@ -3683,7 +3683,7 @@ function TaskCard({
               {/* Note */}
               <Textarea
                 placeholder="Describe your progress, blockers, or changes..."
-                className="text-[11px] min-h-[60px] resize-none"
+                className="text-xs min-h-[60px] resize-none"
                 value={updateText}
                 onChange={(e) => setUpdateText(e.target.value)}
               />
@@ -3744,7 +3744,7 @@ function TaskCard({
                       !updateText.trim() &&
                       taskUpdAttachments.length === 0)
                   }
-                  className="text-[11px] h-7 gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                  className="text-xs h-7 gap-1 bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   {savingTaskUpdate ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -3757,7 +3757,7 @@ function TaskCard({
                   size="sm"
                   variant="outline"
                   onClick={() => setShowAddUpdate(false)}
-                  className="text-[11px] h-7"
+                  className="text-xs h-7"
                 >
                   Cancel
                 </Button>
@@ -3970,7 +3970,7 @@ function TaskCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-[11px] h-7 gap-1"
+                  className="text-xs h-7 gap-1"
                   onClick={() => setShowReview(true)}
                 >
                   <ShieldCheck className="h-3 w-3" /> Review
@@ -3987,7 +3987,7 @@ function TaskCard({
                   <div className="flex gap-1.5">
                     <Button
                       size="sm"
-                      className="text-[11px] h-7 gap-1 bg-emerald-600 hover:bg-emerald-700"
+                      className="text-xs h-7 gap-1 bg-emerald-600 hover:bg-emerald-700"
                       onClick={() => {
                         updateTaskReviewStatus(
                           projectId,
@@ -4006,7 +4006,7 @@ function TaskCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-[11px] h-7 gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                      className="text-xs h-7 gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
                       onClick={() => {
                         updateTaskReviewStatus(
                           projectId,
@@ -4025,7 +4025,7 @@ function TaskCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-[11px] h-7 gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                      className="text-xs h-7 gap-1 text-red-600 border-red-300 hover:bg-red-50"
                       onClick={() => {
                         updateTaskReviewStatus(
                           projectId,
@@ -4044,7 +4044,7 @@ function TaskCard({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-[11px] h-7"
+                      className="text-xs h-7"
                       onClick={() => setShowReview(false)}
                     >
                       Cancel
@@ -4323,7 +4323,7 @@ function ProjectDocumentsSection({
                     setActiveDocId(doc.id);
                     setActiveTab("sections");
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
                     isActive
                       ? typeConf.color + " ring-1 ring-offset-1 ring-current"
                       : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
@@ -4369,7 +4369,7 @@ function ProjectDocumentsSection({
             })}
             {/* <button
               onClick={() => setShowAddDocument(!showAddDocument)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-indigo-600 border border-dashed border-indigo-300 hover:bg-indigo-50 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-indigo-600 border border-dashed border-indigo-300 hover:bg-indigo-50 transition-colors"
             >
               <Plus className="h-3 w-3" /> Add Document
             </button> */}
@@ -4379,7 +4379,7 @@ function ProjectDocumentsSection({
           {showAddDocument && (
             <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">
                   New Document
                 </span>
                 <button
@@ -4415,7 +4415,7 @@ function ProjectDocumentsSection({
                 </label>
                 <Input
                   placeholder="e.g. Architecture Decision Record"
-                  className="text-[11px] h-8 mt-0.5 border-indigo-200 focus-visible:ring-indigo-400"
+                  className="text-xs h-8 mt-0.5 border-indigo-200 focus-visible:ring-indigo-400"
                   value={newDocTitle}
                   onChange={(e) => setNewDocTitle(e.target.value)}
                 />
@@ -4426,7 +4426,7 @@ function ProjectDocumentsSection({
                 </label>
                 <Textarea
                   placeholder="Brief description of the document purpose..."
-                  className="text-[11px] min-h-[50px] resize-none mt-0.5 border-indigo-200 focus-visible:ring-indigo-400"
+                  className="text-xs min-h-[50px] resize-none mt-0.5 border-indigo-200 focus-visible:ring-indigo-400"
                   value={newDocDesc}
                   onChange={(e) => setNewDocDesc(e.target.value)}
                 />
@@ -4491,7 +4491,7 @@ function ProjectDocumentsSection({
                     {formatShortDate(activeDoc.lastUpdated)}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {activeDoc.description}
                 </p>
                 {activeDoc.file_url && (
@@ -4499,7 +4499,7 @@ function ProjectDocumentsSection({
                     href={activeDoc.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline"
+                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
                   >
                     <FileText className="h-3 w-3" />
                     {activeDoc.file_name || "View file"}
@@ -4620,7 +4620,7 @@ function ProjectDocumentsSection({
                         {editingSectionId === section.id ? (
                           <div className="space-y-2">
                             <Textarea
-                              className="text-[11px] min-h-[80px] resize-none border-indigo-200"
+                              className="text-xs min-h-[80px] resize-none border-indigo-200"
                               value={editSectionContent}
                               onChange={(e) =>
                                 setEditSectionContent(e.target.value)
@@ -4645,7 +4645,7 @@ function ProjectDocumentsSection({
                           </div>
                         ) : (
                           <div>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                            <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
                               {section.content}
                             </p>
                             <div className="mt-1">
@@ -4669,7 +4669,7 @@ function ProjectDocumentsSection({
                   {/* {!showAddSection ? (
                     <button
                       onClick={() => setShowAddSection(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 w-full rounded-lg border border-dashed border-indigo-300 text-[11px] font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-2 w-full rounded-lg border border-dashed border-indigo-300 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
                     >
                       <Plus className="h-3 w-3" /> Add Section
                     </button>
@@ -4683,13 +4683,13 @@ function ProjectDocumentsSection({
                       </div>
                       <Input
                         placeholder="Section title"
-                        className="text-[11px] h-7 border-indigo-200"
+                        className="text-xs h-7 border-indigo-200"
                         value={newSectionTitle}
                         onChange={e => setNewSectionTitle(e.target.value)}
                       />
                       <Textarea
                         placeholder="Section content..."
-                        className="text-[11px] min-h-[60px] resize-none border-indigo-200"
+                        className="text-xs min-h-[60px] resize-none border-indigo-200"
                         value={newSectionContent}
                         onChange={e => setNewSectionContent(e.target.value)}
                       />
@@ -4752,10 +4752,10 @@ function ProjectDocumentsSection({
                                 {formatShortDate(change.createdAt)}
                               </span>
                             </div>
-                            <p className="text-[11px] font-medium">
+                            <p className="text-xs font-medium">
                               {change.title}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {change.description}
                             </p>
                             {changer && (
@@ -4868,7 +4868,7 @@ function ProjectDocumentsSection({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-[11px] h-8 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        className="text-xs h-8 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
                         onClick={() => setShowProposeChange(true)}
                       >
                         <Plus className="h-3.5 w-3.5" />{" "}
@@ -4877,7 +4877,7 @@ function ProjectDocumentsSection({
                     ) : (
                       <div className="rounded-lg border border-amber-300 bg-amber-50/30 p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
                             <GitCommit className="h-3.5 w-3.5" />
                             {viewRole === "ceo"
                               ? "Add Change"
@@ -4897,7 +4897,7 @@ function ProjectDocumentsSection({
                           </label>
                           <Input
                             placeholder="e.g. Update API response format"
-                            className="text-[11px] h-8 mt-0.5 border-amber-200 focus-visible:ring-amber-400"
+                            className="text-xs h-8 mt-0.5 border-amber-200 focus-visible:ring-amber-400"
                             value={proposeTitle}
                             onChange={(e) => setProposeTitle(e.target.value)}
                           />
@@ -4909,13 +4909,13 @@ function ProjectDocumentsSection({
                           </label>
                           <Textarea
                             placeholder="Describe the change and why it is needed..."
-                            className="text-[11px] min-h-[60px] resize-none mt-0.5 border-amber-200 focus-visible:ring-amber-400"
+                            className="text-xs min-h-[60px] resize-none mt-0.5 border-amber-200 focus-visible:ring-amber-400"
                             value={proposeDesc}
                             onChange={(e) => setProposeDesc(e.target.value)}
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-[10px] text-amber-700 font-medium">
                               Change Type
@@ -4978,7 +4978,7 @@ function ProjectDocumentsSection({
 
                         {/* Impact Analysis Callout */}
                         <div
-                          className={`rounded-lg border p-2.5 text-[11px] ${
+                          className={`rounded-lg border p-2.5 text-xs ${
                             proposeImpact === "none"
                               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                               : proposeImpact === "design_only"
@@ -5037,14 +5037,14 @@ function ProjectDocumentsSection({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-[10px] text-amber-700 font-medium">
                               Previous Text
                             </label>
                             <Textarea
                               placeholder="Text being replaced (optional)"
-                              className="text-[11px] min-h-[50px] resize-none mt-0.5 border-amber-200"
+                              className="text-xs min-h-[50px] resize-none mt-0.5 border-amber-200"
                               value={proposePrevText}
                               onChange={(e) =>
                                 setProposePrevText(e.target.value)
@@ -5057,7 +5057,7 @@ function ProjectDocumentsSection({
                             </label>
                             <Textarea
                               placeholder="New or updated text (optional)"
-                              className="text-[11px] min-h-[50px] resize-none mt-0.5 border-amber-200"
+                              className="text-xs min-h-[50px] resize-none mt-0.5 border-amber-200"
                               value={proposeNewText}
                               onChange={(e) =>
                                 setProposeNewText(e.target.value)
@@ -5113,7 +5113,7 @@ function ProjectDocumentsSection({
                           {discUser && (
                             <Avatar userId={disc.userId} size="sm" />
                           )}
-                          <span className="text-[11px] font-medium">
+                          <span className="text-xs font-medium">
                             {discUser?.name}
                           </span>
                           <Badge
@@ -5146,7 +5146,7 @@ function ProjectDocumentsSection({
                             {formatShortDate(disc.createdAt)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
                           {disc.message}
                         </p>
 
@@ -5184,7 +5184,7 @@ function ProjectDocumentsSection({
                               <div className="rounded-lg border border-purple-200 bg-purple-50/30 p-2.5 space-y-2">
                                 <Textarea
                                   placeholder="Write your reply..."
-                                  className="text-[11px] min-h-[40px] resize-none border-purple-200"
+                                  className="text-xs min-h-[40px] resize-none border-purple-200"
                                   value={replyText}
                                   onChange={(e) => setReplyText(e.target.value)}
                                 />
@@ -5220,7 +5220,7 @@ function ProjectDocumentsSection({
                           ? "Add feedback or approve changes..."
                           : "Submit a refinement or question..."
                       }
-                      className="text-[11px] min-h-[50px] resize-none"
+                      className="text-xs min-h-[50px] resize-none"
                       value={newDiscussion}
                       onChange={(e) => setNewDiscussion(e.target.value)}
                     />
@@ -5498,7 +5498,7 @@ function PhasesTimelineSection({
                     <div className="px-3 pb-3 space-y-3 border-t border-border/50 pt-2.5">
                       {/* Phase Description */}
                       {phase.description && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {phase.description}
                         </p>
                       )}
@@ -5513,7 +5513,7 @@ function PhasesTimelineSection({
                             {phase.checklist.map((item, i) => (
                               <div
                                 key={i}
-                                className="flex items-center gap-2 text-[11px]"
+                                className="flex items-center gap-2 text-xs"
                               >
                                 <Checkbox checked={item.done} disabled />
                                 <span
@@ -5550,7 +5550,7 @@ function PhasesTimelineSection({
                                     {discUser && (
                                       <Avatar userId={disc.user_id} size="sm" />
                                     )}
-                                    <span className="text-[11px] font-medium">
+                                    <span className="text-xs font-medium">
                                       {discUser?.name}
                                     </span>
                                     <Badge
@@ -5563,7 +5563,7 @@ function PhasesTimelineSection({
                                       {formatShortDate(disc.created_at)}
                                     </span>
                                   </div>
-                                  <p className="text-[11px] text-muted-foreground">
+                                  <p className="text-xs text-muted-foreground">
                                     {disc.message}
                                   </p>
                                 </div>
@@ -5598,7 +5598,7 @@ function PhasesTimelineSection({
                                 return (
                                   <div
                                     key={att.id}
-                                    className="flex items-center gap-2 text-[11px] p-1.5 rounded border border-border bg-white"
+                                    className="flex items-center gap-2 text-xs p-1.5 rounded border border-border bg-white"
                                   >
                                     <Badge
                                       variant="outline"
@@ -5718,7 +5718,7 @@ function PhasesTimelineSection({
                           </div>
                           <Textarea
                             placeholder="Add a question, clarification, or comment..."
-                            className="text-[11px] min-h-[50px] resize-none border-purple-200"
+                            className="text-xs min-h-[50px] resize-none border-purple-200"
                             value={phaseDiscText}
                             onChange={(e) => setPhaseDiscText(e.target.value)}
                           />
@@ -5789,7 +5789,7 @@ function PhasesTimelineSection({
                             </label>
                             <Input
                               placeholder="Attachment title"
-                              className="text-[11px] h-8 mt-0.5 border-blue-200 focus-visible:ring-blue-400"
+                              className="text-xs h-8 mt-0.5 border-blue-200 focus-visible:ring-blue-400"
                               value={phaseAttTitle}
                               onChange={(e) => setPhaseAttTitle(e.target.value)}
                             />
@@ -5946,7 +5946,7 @@ function AIPlanSection({
                 AI Summary
               </span>
             </div>
-            <p className="text-[11px] text-purple-900/80 leading-relaxed">
+            <p className="text-xs text-purple-900/80 leading-relaxed">
               {summary}
             </p>
           </div>
@@ -5979,7 +5979,7 @@ function AIPlanSection({
                     </div>
                     <div className="flex items-start gap-1.5 pl-5">
                       <Lightbulb className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {risk.mitigation}
                       </span>
                     </div>
@@ -6018,7 +6018,7 @@ function AIPlanSection({
                         </label>
                         <Input
                           placeholder="Describe the risk..."
-                          className="text-[11px] h-8 mt-0.5 border-red-200 focus-visible:ring-red-400"
+                          className="text-xs h-8 mt-0.5 border-red-200 focus-visible:ring-red-400"
                           value={newRiskDesc}
                           onChange={(e) => setNewRiskDesc(e.target.value)}
                         />
@@ -6053,7 +6053,7 @@ function AIPlanSection({
                         </label>
                         <Textarea
                           placeholder="How to mitigate this risk..."
-                          className="text-[11px] min-h-[40px] resize-none mt-0.5 border-red-200"
+                          className="text-xs min-h-[40px] resize-none mt-0.5 border-red-200"
                           value={newRiskMitigation}
                           onChange={(e) => setNewRiskMitigation(e.target.value)}
                         />
@@ -6091,7 +6091,7 @@ function AIPlanSection({
                 {killCriteria.map((kc, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-1.5 text-[11px] text-red-800"
+                    className="flex items-start gap-1.5 text-xs text-red-800"
                   >
                     <XCircle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
                     <span>{kc}</span>
@@ -6115,7 +6115,7 @@ function AIPlanSection({
                     <div className="flex items-center gap-2 mt-1">
                       <Input
                         placeholder="Enter kill criterion..."
-                        className="text-[11px] h-8 border-red-200 focus-visible:ring-red-400 flex-1"
+                        className="text-xs h-8 border-red-200 focus-visible:ring-red-400 flex-1"
                         value={newKillCriteria}
                         onChange={(e) => setNewKillCriteria(e.target.value)}
                       />
@@ -6213,7 +6213,7 @@ function CheckpointsSection({
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
           {checkpoints.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground text-center py-4">
+            <p className="text-xs text-muted-foreground text-center py-4">
               No checkpoints recorded yet
             </p>
           ) : (
@@ -6263,7 +6263,7 @@ function CheckpointsSection({
                             {formatShortDate(cp.created_at)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-gray-700 leading-relaxed">
+                        <p className="text-xs text-gray-700 leading-relaxed">
                           {cp.notes}
                         </p>
                         {cp.ai_insights && (
@@ -6312,7 +6312,7 @@ function CheckpointsSection({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-[11px] h-8 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                  className="text-xs h-8 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
                   onClick={() => setShowAddCheckpoint(true)}
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Checkpoint
@@ -6320,7 +6320,7 @@ function CheckpointsSection({
               ) : (
                 <div className="rounded-lg border border-amber-300 bg-amber-50/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
                       <Zap className="h-3.5 w-3.5" /> Record Checkpoint
                     </span>
                     <button
@@ -6340,7 +6340,7 @@ function CheckpointsSection({
                         <button
                           key={d}
                           onClick={() => setCpDecision(d)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all border-2 ${
+                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border-2 ${
                             cpDecision === d
                               ? d === "continue"
                                 ? "bg-emerald-100 border-emerald-400 text-emerald-800"
@@ -6366,7 +6366,7 @@ function CheckpointsSection({
                     </label>
                     <Textarea
                       placeholder="Describe the checkpoint decision rationale..."
-                      className="text-[11px] min-h-[60px] resize-none mt-0.5 border-amber-200 focus-visible:ring-amber-400"
+                      className="text-xs min-h-[60px] resize-none mt-0.5 border-amber-200 focus-visible:ring-amber-400"
                       value={cpNotes}
                       onChange={(e) => setCpNotes(e.target.value)}
                     />
@@ -6378,7 +6378,7 @@ function CheckpointsSection({
                     </label>
                     <Textarea
                       placeholder="Add any AI-generated insights or analysis..."
-                      className="text-[11px] min-h-[40px] resize-none mt-0.5 border-amber-200"
+                      className="text-xs min-h-[40px] resize-none mt-0.5 border-amber-200"
                       value={cpInsights}
                       onChange={(e) => setCpInsights(e.target.value)}
                     />
@@ -6390,7 +6390,7 @@ function CheckpointsSection({
                     </label>
                     <Textarea
                       placeholder="e.g. Review design docs, Update timeline, Notify stakeholders"
-                      className="text-[11px] min-h-[40px] resize-none mt-0.5 border-amber-200"
+                      className="text-xs min-h-[40px] resize-none mt-0.5 border-amber-200"
                       value={cpActions}
                       onChange={(e) => setCpActions(e.target.value)}
                     />
@@ -6518,12 +6518,12 @@ function TaskOutcomeSection({
         </Badge>
       </div>
 
-      <p className="text-[11px] text-gray-700">{outcome.expectedDeliverable}</p>
+      <p className="text-xs text-gray-700">{outcome.expectedDeliverable}</p>
 
       {/* Code outcome details */}
       {outcome.type === "code" &&
         (outcome.codeRepoUrl || outcome.codePrUrl || outcome.codeBranch) && (
-          <div className="flex items-center gap-3 text-[11px] flex-wrap">
+          <div className="flex items-center gap-3 text-xs flex-wrap">
             {outcome.codeRepoUrl && (
               <a
                 href={outcome.codeRepoUrl}
@@ -6551,7 +6551,7 @@ function TaskOutcomeSection({
       {/* Document outcome */}
       {outcome.type === "document" &&
         (outcome.documentTitle || outcome.documentUrl) && (
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-xs">
             {outcome.documentTitle && (
               <span className="font-medium">{outcome.documentTitle}</span>
             )}
@@ -6568,7 +6568,7 @@ function TaskOutcomeSection({
 
       {/* Text outcome */}
       {outcome.textContent && (
-        <div className="rounded p-2 bg-white border border-gray-200 text-[11px] text-muted-foreground">
+        <div className="rounded p-2 bg-white border border-gray-200 text-xs text-muted-foreground">
           {outcome.textContent.length > 200
             ? outcome.textContent.substring(0, 200) + "..."
             : outcome.textContent}
@@ -6647,7 +6647,7 @@ function TaskOutcomeSection({
             <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-2.5 space-y-2">
               <Textarea
                 placeholder="Provide feedback on this outcome..."
-                className="text-[11px] min-h-[50px] resize-none border-amber-200"
+                className="text-xs min-h-[50px] resize-none border-amber-200"
                 value={outcomeFeedbackText}
                 onChange={(e) => setOutcomeFeedbackText(e.target.value)}
               />
@@ -6702,7 +6702,7 @@ function TaskOutcomeSection({
                 </label>
                 <Textarea
                   placeholder="Describe your outcome / deliverable..."
-                  className="text-[11px] min-h-[50px] resize-none mt-0.5 border-blue-200"
+                  className="text-xs min-h-[50px] resize-none mt-0.5 border-blue-200"
                   value={submitOutcomeDesc}
                   onChange={(e) => setSubmitOutcomeDesc(e.target.value)}
                 />
@@ -7042,11 +7042,11 @@ function ProjectOutcomeSection({
                       </div>
                       <Input
                         placeholder="Deliverable title"
-                        className="text-[11px] h-8"
+                        className="text-xs h-8"
                       />
                       <Textarea
                         placeholder="Description of the final deliverable..."
-                        className="text-[11px] min-h-[60px]"
+                        className="text-xs min-h-[60px]"
                       />
                       {/* Type-specific fields based on expected outcome type */}
                       {(
@@ -7264,11 +7264,11 @@ function ProjectOutcomeSection({
                 </div>
                 <Input
                   placeholder="Submission title (e.g. Draft Report v2)"
-                  className="text-[11px] h-8 border-purple-200"
+                  className="text-xs h-8 border-purple-200"
                 />
                 <Textarea
                   placeholder="What is this submission about?"
-                  className="text-[11px] min-h-[50px] border-purple-200"
+                  className="text-xs min-h-[50px] border-purple-200"
                 />
                 <div className="flex gap-2 items-center">
                   <span className="text-[10px] text-purple-600 font-medium">
@@ -7410,7 +7410,7 @@ function ProjectOutcomeSection({
             )}
 
             {subs.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground text-center py-4">
+              <p className="text-xs text-muted-foreground text-center py-4">
                 No intermediate submissions yet
               </p>
             ) : (
@@ -7475,7 +7475,7 @@ function ProjectOutcomeSection({
 
                           {/* Description */}
                           {sub.description && (
-                            <p className="text-[11px] text-gray-600 leading-relaxed">
+                            <p className="text-xs text-gray-600 leading-relaxed">
                               {sub.description}
                             </p>
                           )}
@@ -7569,7 +7569,7 @@ function ProjectOutcomeSection({
                                 <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-2.5 space-y-2">
                                   <Textarea
                                     placeholder="Provide feedback on this submission..."
-                                    className="text-[11px] min-h-[50px] resize-none border-blue-200"
+                                    className="text-xs min-h-[50px] resize-none border-blue-200"
                                     value={subFeedbackText}
                                     onChange={(e) =>
                                       setSubFeedbackText(e.target.value)
@@ -8099,7 +8099,7 @@ export default function ProjectDetailPage({
           </Button>
           <a
             href={`/projects/${project.id}/kanban`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
           >
             <Kanban className="h-3.5 w-3.5" /> Kanban Board
           </a>
@@ -8210,7 +8210,7 @@ export default function ProjectDetailPage({
           <div className="flex items-center gap-1 rounded-lg border border-border bg-white p-0.5 shadow-sm">
             <button
               onClick={() => setViewRole("ceo")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 viewRole === "ceo"
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-gray-100"
@@ -8220,7 +8220,7 @@ export default function ProjectDetailPage({
             </button>
             <button
               onClick={() => setViewRole("team_member")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 viewRole === "team_member"
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-gray-100"
@@ -8241,7 +8241,7 @@ export default function ProjectDetailPage({
               {pendingExtensions.length} deadline extension
               {pendingExtensions.length > 1 ? "s" : ""} awaiting your decision
             </p>
-            <p className="text-[11px] text-amber-600">
+            <p className="text-xs text-amber-600">
               Scroll to the relevant task below to approve or reject
             </p>
           </div>
@@ -8283,9 +8283,9 @@ export default function ProjectDetailPage({
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* ── Summary Cards ── */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-[11px] mb-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                 <Target className="h-3.5 w-3.5" /> Task Progress
               </div>
               <p className="text-2xl font-bold">{taskProgress}%</p>
@@ -8297,7 +8297,7 @@ export default function ProjectDetailPage({
 
             <Card className="p-3">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <Clock className="h-3.5 w-3.5" /> Time Remaining
                 </div>
                 {canEditTimeline && !editingTimeline && (
@@ -8320,7 +8320,7 @@ export default function ProjectDetailPage({
                       type="datetime-local"
                       value={timelineStart}
                       onChange={(e) => setTimelineStart(e.target.value)}
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                     />
                   </div>
                   <div>
@@ -8332,7 +8332,7 @@ export default function ProjectDetailPage({
                       value={timelineEnd}
                       min={timelineStart || undefined}
                       onChange={(e) => setTimelineEnd(e.target.value)}
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                     />
                   </div>
                   <div className="flex gap-1 pt-0.5">
@@ -8379,7 +8379,7 @@ export default function ProjectDetailPage({
 
             <Card className="p-3">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <Users className="h-3.5 w-3.5" /> Team
                 </div>
                 <button
@@ -8453,7 +8453,7 @@ export default function ProjectDetailPage({
             </Card>
 
             <Card className="p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-[11px] mb-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                 <Activity className="h-3.5 w-3.5" /> Status
               </div>
               <div className="space-y-1 mt-1">
@@ -8613,7 +8613,7 @@ export default function ProjectDetailPage({
             </h2>
             <div className="flex items-center gap-2">
               {taskGroups.length > 1 && (
-                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <button
                     type="button"
                     className="hover:text-foreground hover:underline"
@@ -8672,7 +8672,7 @@ export default function ProjectDetailPage({
                           if (newTaskErrors.phase)
                             setNewTaskErrors((p) => ({ ...p, phase: "" }));
                         }}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${newTaskPhaseId === ph.id ? "bg-indigo-600 text-white" : newTaskErrors.phase ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${newTaskPhaseId === ph.id ? "bg-indigo-600 text-white" : newTaskErrors.phase ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                       >
                         {ph.order_index + 1}. {ph.phase_name}
                       </button>
@@ -8722,7 +8722,7 @@ export default function ProjectDetailPage({
                     rows={2}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">
                       Priority
@@ -8732,7 +8732,7 @@ export default function ProjectDetailPage({
                         <button
                           key={p}
                           onClick={() => setNewTaskPriority(p)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${newTaskPriority === p ? (p === "high" ? "bg-red-500 text-white" : p === "medium" ? "bg-amber-400 text-white" : "bg-slate-400 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${newTaskPriority === p ? (p === "high" ? "bg-red-500 text-white" : p === "medium" ? "bg-amber-400 text-white" : "bg-slate-400 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                         >
                           {p}
                         </button>
@@ -8748,7 +8748,7 @@ export default function ProjectDetailPage({
                         <button
                           key={s}
                           onClick={() => setNewTaskStatus(s)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${newTaskStatus === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${newTaskStatus === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                         >
                           {s.replace("_", " ")}
                         </button>
@@ -8881,7 +8881,7 @@ export default function ProjectDetailPage({
                     className="text-sm w-32"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">
                       Start Date
@@ -8929,7 +8929,7 @@ export default function ProjectDetailPage({
                       <button
                         key={ot}
                         onClick={() => setNewTaskOutcomeType(ot)}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${newTaskOutcomeType === ot ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${newTaskOutcomeType === ot ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                       >
                         {ot}
                       </button>
@@ -9043,7 +9043,7 @@ export default function ProjectDetailPage({
                     <span className="text-sm font-semibold truncate">
                       {group.name}
                     </span>
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {done}/{group.tasks.length} done
                     </span>
                     <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -9053,7 +9053,7 @@ export default function ProjectDetailPage({
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-semibold text-muted-foreground bg-gray-200/70 rounded-full px-2 py-0.5">
+                      <span className="text-xs font-semibold text-muted-foreground bg-gray-200/70 rounded-full px-2 py-0.5">
                         {group.tasks.length}
                       </span>
                     </div>
@@ -9245,7 +9245,7 @@ export default function ProjectDetailPage({
                     className="text-sm w-48"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="text-[10px] font-medium text-gray-600 block mb-0.5">
                       Start Date<span className="text-red-500">*</span>
@@ -9466,7 +9466,7 @@ export default function ProjectDetailPage({
                             </p>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] font-medium text-gray-600 block mb-0.5">
                               Start Date<span className="text-red-500">*</span>

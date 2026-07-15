@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Loader2, CalendarDays, FileText, CheckCircle2, Clock, Pause, XCircle,
+  CalendarDays, FileText, CheckCircle2, Clock, Pause, XCircle,
   ClipboardList, MessageSquare, Layers, ArrowLeft, FileUp, ListChecks,
   ZoomIn, ZoomOut,
 } from "lucide-react";
+import { BrandLoader } from "@/components/brand-loader";
 import {
   projects as projectsApi,
   tasks as tasksApi,
@@ -294,11 +295,7 @@ export function SingleProjectTimeline({
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading timeline…" />;
   }
 
   if (!project) {

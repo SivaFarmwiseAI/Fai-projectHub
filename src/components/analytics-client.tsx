@@ -9,11 +9,12 @@ import {
 import {
   BarChart3, TrendingUp, Users, Zap, CheckCircle2,
   AlertTriangle, Clock, Printer, Target, Activity, Download,
-  ArrowUp, ArrowDown, Minus, Loader2,
+  ArrowUp, ArrowDown, Minus,
 } from "lucide-react";
 import {
   analytics as analyticsApi, projects as projectsApi,
 } from "@/lib/api-client";
+import { BrandLoader } from "@/components/brand-loader";
 import type {
   DashboardStats, TeamHealthRow, VelocityRow, WorkloadRow, Project,
 } from "@/lib/api-client";
@@ -145,11 +146,7 @@ export function AnalyticsClient() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading analytics…" />;
   }
 
   // Derived chart data

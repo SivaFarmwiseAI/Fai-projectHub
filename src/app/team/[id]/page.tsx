@@ -1470,14 +1470,14 @@ export default function TeamMemberPage({
       {/* ===== Section 1: Profile Header ===== */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 flex-wrap">
             <div
               className="h-20 w-20 rounded-full flex items-center justify-center text-2xl font-bold text-white shrink-0"
               style={{ backgroundColor: user.avatar_color }}
             >
               {user.name[0]}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-[180px]">
               <h1 className="text-2xl font-bold">{user.name}</h1>
               <p className="text-muted-foreground">{user.role}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
@@ -1487,7 +1487,7 @@ export default function TeamMemberPage({
             </div>
 
             {/* Quick stats */}
-            <div className="grid grid-cols-4 gap-6 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center w-full sm:w-auto">
               <div className="space-y-1">
                 <div className="flex items-center justify-center">
                   <FolderKanban className="h-4 w-4 text-blue-600" />

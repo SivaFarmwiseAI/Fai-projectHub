@@ -684,7 +684,7 @@ export default function NewProjectPage() {
                       Project Outcome Type<span className="text-red-500">*</span>
                       <span className="text-xs text-muted-foreground font-normal ml-2">What kind of project is this?</span>
                     </Label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {OUTCOME_TYPES.map(ot => (
                         <div
                           key={ot.value}

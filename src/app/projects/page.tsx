@@ -18,12 +18,12 @@ import {
   Plus,
   Clock,
   Sparkles,
-  Loader2,
   Search,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { projects as projectsApi, users as usersApi } from "@/lib/api-client";
+import { BrandLoader } from "@/components/brand-loader";
 import type { Project, User } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { useConfirm } from "@/components/confirm-provider";
@@ -153,11 +153,7 @@ export default function ProjectsPage() {
   }, [projectList, typeFilter, statusFilter, selectedPerson, sortBy, searchQuery]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading projects…" />;
   }
 
   return (

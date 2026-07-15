@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Clock,
   Mail,
-  Loader2,
   Activity,
   AlertCircle,
   Search,
@@ -19,6 +18,7 @@ import {
 import { users as usersApi } from "@/lib/api-client";
 import type { User } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
+import { BrandLoader } from "@/components/brand-loader";
 
 function getScoreColor(score: number): string {
   if (score >= 90) return "bg-green-500";
@@ -70,11 +70,7 @@ export default function TeamPage() {
   }, [visibleMembers, search]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading team…" />;
   }
 
   if (error) {

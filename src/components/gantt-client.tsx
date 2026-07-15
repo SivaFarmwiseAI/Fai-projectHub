@@ -4,12 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import {
   CalendarDays, ZoomIn, ZoomOut,
   CheckCircle2, Clock, Pause, XCircle,
-  Loader2, ChevronDown, Search, X,
+  ChevronDown, Search, X,
 } from "lucide-react";
 import { projects as projectsApi } from "@/lib/api-client";
 import type { Project } from "@/lib/api-client";
 import { format, addDays, differenceInDays, startOfMonth, startOfYear, addMonths, addYears } from "date-fns";
 import { SingleProjectTimeline } from "@/components/single-project-timeline";
+import { BrandLoader } from "@/components/brand-loader";
 import { UserLink } from "@/components/user-link";
 
 function getDaysRemaining(startDate: string | undefined, timeboxDays: number): number {
@@ -103,11 +104,7 @@ export function GanttClient() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading gantt chart…" />;
   }
 
   // Single-project drill-down view

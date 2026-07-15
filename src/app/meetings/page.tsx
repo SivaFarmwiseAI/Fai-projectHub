@@ -249,7 +249,7 @@ export default function MeetingsPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatTile
           label="Total"
           value={counts.total}
@@ -758,7 +758,7 @@ function MeetingFormDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Scope</Label>
               <Select
@@ -822,7 +822,7 @@ function MeetingFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="m-when">
                 Date &amp; time <span className="text-red-500">*</span>

@@ -188,7 +188,7 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
               });
 
               return (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Type (days)</p>
                     <div className="h-32">

@@ -13,6 +13,7 @@ import { projects as projectsApi, tasks as tasksApi } from "@/lib/api-client";
 import type { Project, Task, TaskMilestone, Deliverable } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
 import { fireSideCannons } from "@/lib/confetti";
+import { BrandLoader } from "@/components/brand-loader";
 import { formatDistanceToNow } from "date-fns";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -728,9 +729,7 @@ function TaskDetailSheet({
         </div>
 
         {loading && !task ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-          </div>
+          <BrandLoader label="Loading task…" />
         ) : task ? (
           <div className="px-5 py-4 space-y-5">
             {/* description / approach */}
@@ -1034,7 +1033,7 @@ export function KanbanClient({ projectId }: { projectId: string }) {
   };
 
   if (loading)
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return <BrandLoader label="Loading board…" />;
   if (!project) return null;
 
   /* ── overview metrics ─────────────────────────────────────── */

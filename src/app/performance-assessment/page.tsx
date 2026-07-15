@@ -38,6 +38,7 @@ import { PerformanceReviews } from "@/components/performance-reviews";
 import { PerformanceTeam } from "@/components/performance-team";
 import { PerformanceCycles } from "@/components/performance-cycles";
 import { OrgTreeEditor } from "@/components/org-tree-editor";
+import { BrandLoader } from "@/components/brand-loader";
 
 type PerfView = "self" | "reviews" | "team" | "analysis" | "cycles" | "org";
 
@@ -291,7 +292,8 @@ const PA_CSS = `
 .pa .opening .big{font-size:16px;font-weight:800;letter-spacing:-.01em;color:#1e3a8a}
 .pa .formula{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border-radius:14px;padding:18px 20px;text-align:center;font-size:18px;font-weight:800;letter-spacing:.3px;margin:14px 0;box-shadow:0 4px 20px rgba(59,130,246,.18)}
 .pa .formula small{display:block;font-weight:500;font-size:12.5px;opacity:.9;margin-top:6px;letter-spacing:0}
-.pa .gb{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0 20px}
+.pa .gb{display:grid;grid-template-columns:1fr;gap:16px;margin:12px 0 20px}
+@media (min-width:640px){.pa .gb{grid-template-columns:1fr 1fr}}
 .pa .ex{border-radius:14px;padding:18px 20px;font-size:13.5px;line-height:1.65}
 .pa .ex .tag{display:block;width:fit-content;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border-radius:9999px;margin-bottom:10px}
 .pa .bad{background:#fef2f2;border:1px solid #fecaca}.pa .bad .tag{background:var(--red);color:#fff}
@@ -299,17 +301,23 @@ const PA_CSS = `
 .pa .hier{border-left:3px solid var(--accent);background:#f8fafc;border-radius:0 12px 12px 0;padding:12px 16px;margin:8px 0;font-size:13px}
 .pa .hier h4{margin:0 0 4px;font-size:13.5px;font-weight:700}.pa .hier .q{font-style:italic;color:var(--muted);font-size:12.5px;margin:2px 0 6px}
 .pa .hier .lv{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
-.pa table.matrix{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:13px}
+.pa .matrix-wrap{overflow-x:auto;margin:10px 0 16px;-webkit-overflow-scrolling:touch}
+.pa table.matrix{width:100%;min-width:420px;border-collapse:collapse;margin:0;font-size:13px}
 .pa table.matrix th,.pa table.matrix td{border:1px solid var(--line);padding:9px 12px;text-align:left}
 .pa table.matrix th{background:var(--leaf-soft);color:var(--leaf);font-weight:700}
 .pa table.matrix td.m{color:var(--red);font-weight:700}.pa table.matrix td.p{color:var(--muted);font-weight:600}
-.pa .tmpl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0 14px}
+.pa .tmpl{display:grid;grid-template-columns:1fr;gap:10px;margin:10px 0 14px}
+@media (min-width:640px){.pa .tmpl{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1024px){.pa .tmpl{grid-template-columns:repeat(3,1fr)}}
 .pa .tmpl div{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:13px}.pa .tmpl b{color:var(--accent)}
 .pa .ack{background:var(--leaf-soft);border:1px dashed #c7d2fe;border-radius:16px;padding:18px}
 .pa .ack label{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-bottom:12px;cursor:pointer}
 .pa .ack input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:0 0 auto;cursor:pointer;accent-color:#4f46e5}
-.pa .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.pa .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pa .grid2{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:640px){.pa .grid2{grid-template-columns:1fr 1fr}}
+.pa .grid4{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:640px){.pa .grid4{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1024px){.pa .grid4{grid-template-columns:repeat(4,1fr)}}
 .pa label.fld{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
 .pa input:not([type=checkbox]):not([type=file]),.pa select,.pa textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit;transition:box-shadow .2s ease,border-color .2s ease}
 .pa input:not([type=checkbox]):not([type=file]):focus,.pa select:focus,.pa textarea:focus{outline:none;border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
@@ -341,10 +349,13 @@ const PA_CSS = `
 .pa input[type=file]{font-size:13px;padding:6px}
 .pa .hint{font-size:12.5px;color:var(--muted);margin:0 0 10px}
 .pa .facets{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
-.pa .facet{border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;font-size:13px;width:calc(50% - 5px);transition:all .18s cubic-bezier(.16,1,.3,1)}
+.pa .facet{border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;font-size:13px;width:100%;transition:all .18s cubic-bezier(.16,1,.3,1)}
+@media (min-width:640px){.pa .facet{width:calc(50% - 5px)}}
 .pa .facet:hover{border-color:#c7d2fe;background:#fafbff}.pa .facet.on{border-color:var(--leaf);background:var(--leaf-soft);box-shadow:0 0 0 1px var(--leaf)}
 .pa .facet b{display:block;margin-bottom:3px;font-size:13px;font-weight:700}.pa .facet span{color:var(--muted);font-size:13px}
-.pa .rate{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:8px 0}
+.pa .rate{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:8px 0}
+@media (min-width:480px){.pa .rate{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:768px){.pa .rate{grid-template-columns:repeat(5,1fr)}}
 .pa .rb{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);transition:all .14s cubic-bezier(.16,1,.3,1)}
 .pa .rb:hover{border-color:#bfdbfe;background:#f8fafc}.pa .rb.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .pa .rb b{display:block;font-size:15px;font-weight:800;margin-bottom:2px;color:inherit}
@@ -426,7 +437,9 @@ const PA_CSS = `
 .pa .req-star{color:#ef4444;font-size:11px;vertical-align:super;line-height:0;margin-left:1px}
 .pa .err-msg{font-size:12.5px;color:#dc2626;margin-top:3px;display:block;line-height:1.4}
 .pa .top-err{font-size:12.5px;padding:9px 13px;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:10px;margin-bottom:12px}
-@media (max-width:760px){.pa .gb,.pa .grid2,.pa .tmpl,.pa .rate{grid-template-columns:1fr}.pa .facet{width:100%}}
+/* Grids are mobile-first above (base = 1/2 col, widening via min-width
+   queries), so no max-width override is needed here anymore. */
+@media (max-width:480px){.pa .card{padding:18px 16px}}
 @media print{
   /* A4 page geometry with consistent margins */
   @page{size:A4 portrait;margin:14mm}
@@ -1761,19 +1774,8 @@ export default function PerformanceAssessmentPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (booting) {
     return (
-      <div className="max-w-[1440px] mx-auto w-full flex items-center justify-center py-32 animate-fade-in-up">
-        <div className="flex flex-col items-center gap-5">
-          <div
-            className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-md"
-            style={{ background: "linear-gradient(135deg,#3b82f6,#6366f1)" }}
-          >
-            <Award className="h-7 w-7 text-white" />
-          </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading performance
-            assessment…
-          </div>
-        </div>
+      <div className="max-w-[1440px] mx-auto w-full">
+        <BrandLoader label="Loading performance assessment…" />
       </div>
     );
   }
@@ -2157,6 +2159,7 @@ export default function PerformanceAssessmentPage() {
                 ))}
 
                 <h3 className="sec">Impact Evidence Matrix</h3>
+                <div className="matrix-wrap">
                 <table className="matrix">
                   <tbody>
                     <tr>
@@ -2188,6 +2191,7 @@ export default function PerformanceAssessmentPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
 
                 <h3 className="sec">Exceptional Rating Template</h3>
                 <p>
@@ -3076,6 +3080,7 @@ export default function PerformanceAssessmentPage() {
                     answers.
                   </p>
                   {topErr && <div className="top-err">{topErr}</div>}
+                  <div className="matrix-wrap">
                   <table className="matrix">
                     <tbody>
                       <tr>
@@ -3119,6 +3124,7 @@ export default function PerformanceAssessmentPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   <div className="hint">
                     Section average:{" "}
                     {cAvg == null ? "—" : cAvg.toFixed(1) + " / 5"}

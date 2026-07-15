@@ -330,7 +330,7 @@ export function NewProjectClient({ users: initialUsers }: { users: User[] }) {
               {detailErrors.title && <p className="text-xs text-red-500">{detailErrors.title}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Project Type <span className="text-red-500">*</span></Label>
                 <Select
@@ -480,7 +480,7 @@ export function NewProjectClient({ users: initialUsers }: { users: User[] }) {
             </div>
 
             {selectedUsers.length > 0 && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Owner</Label>
                   <Select
@@ -936,7 +936,7 @@ export function NewProjectClient({ users: initialUsers }: { users: User[] }) {
             </div>
           </div>
           <div className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Title:</span>
                 <p className="font-medium">{title}</p>

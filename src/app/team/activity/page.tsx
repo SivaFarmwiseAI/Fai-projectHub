@@ -8,11 +8,12 @@ import {
 } from "date-fns";
 import {
   Activity, CheckCircle2, AlertTriangle, MessageSquare, FileText, GitCommit,
-  Users, Filter, Loader2, ArrowLeft, ChevronDown, ListChecks, ExternalLink,
+  Users, Filter, ArrowLeft, ChevronDown, ListChecks, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BrandLoader } from "@/components/brand-loader";
 import {
   users as usersApi,
   projects as projectsApi,
@@ -296,11 +297,7 @@ export default function TeamActivityPage() {
     setSelectedUserIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading activity…" />;
   }
 
   return (

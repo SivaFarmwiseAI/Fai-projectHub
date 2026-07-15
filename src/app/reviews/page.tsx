@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { BrandLoader } from "@/components/brand-loader";
 import {
   Dialog,
   DialogContent,
@@ -284,11 +285,7 @@ export default function ReviewsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BrandLoader label="Loading reviews…" />;
   }
 
   return (
@@ -546,7 +543,7 @@ function ViewReviewDialog({
             </div>
 
             {/* Meta grid */}
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 text-xs border rounded-lg p-3 bg-gray-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs border rounded-lg p-3 bg-gray-50">
               {review.assignee_name && (
                 <div>
                   <p className="text-muted-foreground mb-0.5">Assigned To</p>
