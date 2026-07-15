@@ -130,7 +130,6 @@ const STEPS = [
   "Team",
   "Organization",
   "Culture",
-  "Integrity Gate",
   "Review & Submit",
 ];
 
@@ -249,17 +248,6 @@ const SCALE5 = [
   "2 — Inconsistent",
   "1 — Poor",
 ];
-const GATE_FLAGS = [
-  "Shared confidential info",
-  "Internal politics",
-  "Gossip / rumours",
-  "Misrepresentation of work",
-  "Repeated attendance issues",
-  "Lack of accountability",
-  "Disrespectful behaviour",
-  "Harmed team morale",
-  "Policy violation",
-];
 const W = { ind: 60, team: 20, org: 10, culture: 10 };
 const DRAFT_KEY = "fw_assessment_draft_v2";
 const INJECT =
@@ -374,11 +362,6 @@ const PA_CSS = `
 .pa .blockh .stepn{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
 .pa .addbtn{background:var(--leaf-soft);color:var(--leaf);border:1px dashed #c7d2fe;border-radius:14px;padding:13px;width:100%;font-size:14px;cursor:pointer;font-weight:700;margin-top:4px;transition:all .18s}
 .pa .addbtn:hover{background:#e0e7ff;border-color:var(--leaf)}
-.pa .gatebox{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
-.pa .gv{border:1px solid var(--line);border-radius:9999px;padding:7px 13px;font-size:12.5px;cursor:pointer;user-select:none;transition:all .14s}.pa .gv.on{background:#fef2f2;border-color:var(--red);color:var(--red);font-weight:600}
-.pa .sev{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:4px}
-.pa .sev button{border-radius:0;background:#fff;color:var(--muted);padding:8px 15px;font-size:13px;cursor:pointer;border:none;font-weight:600}
-.pa .sev button.on{background:var(--red);color:#fff}
 .pa .toggle{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f1f5f9;padding:3px;gap:3px}
 .pa .toggle button{border-radius:7px;background:transparent;color:var(--muted);padding:7px 15px;font-size:13.5px;cursor:pointer;border:none;font-weight:600;transition:all .15s}
 .pa .toggle button.on{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -519,11 +502,9 @@ export default function PerformanceAssessmentPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
   const [mode, setModeState] = useState<"self" | "rev">("self");
-  const [sev, setSevState] = useState<"none" | "concern" | "serious">("none");
   const [level, setLevelState] = useState<"junior" | "mid" | "senior">("mid");
   const [draftFound, setDraftFound] = useState(false);
   const [flash, setFlash] = useState("");
-  const [gateFlags, setGateFlags] = useState<Set<string>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
   const [pendingStep, setPendingStep] = useState<number | null>(null);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
@@ -647,7 +628,7 @@ export default function PerformanceAssessmentPage() {
               }
             })
             .catch(() => {})
-            .finally(() => setStep(7));
+            .finally(() => setStep(6));
         }
       }),
     ]).finally(() => setBooting(false));
@@ -915,17 +896,6 @@ export default function PerformanceAssessmentPage() {
     [clearErr],
   );
 
-  // ── Gate flags ────────────────────────────────────────────────────────────
-  const toggleGate = useCallback((flag: string) => {
-    setGateFlags((p) => {
-      const n = new Set(p);
-      if (n.has(flag)) n.delete(flag);
-      else n.add(flag);
-      return n;
-    });
-    setIsDirty(true);
-  }, []);
-
   // ── Suggest (computed per render) ─────────────────────────────────────────
   const computeSuggested = useCallback(
     (c: Contribution) => {
@@ -1071,12 +1041,7 @@ export default function PerformanceAssessmentPage() {
         100
       : null;
 
-  let displayIdx = totalScore != null ? catIndexOf(totalScore) : -1;
-  let capped = false;
-  if (sev === "serious" && displayIdx >= 0 && displayIdx < 3) {
-    displayIdx++;
-    capped = true;
-  }
+  const displayIdx = totalScore != null ? catIndexOf(totalScore) : -1;
 
   // ── Warnings ──────────────────────────────────────────────────────────────
   const warnings: string[] = [];
@@ -1455,7 +1420,6 @@ export default function PerformanceAssessmentPage() {
   const gather = useCallback(
     () => ({
       mode,
-      sev,
       level,
       facets: [...facets],
       emp,
@@ -1467,12 +1431,10 @@ export default function PerformanceAssessmentPage() {
       orgEntries,
       cultRatings,
       cultComment,
-      gateFlags: [...gateFlags],
       reviewerIds,
     }),
     [
       mode,
-      sev,
       level,
       facets,
       emp,
@@ -1484,7 +1446,6 @@ export default function PerformanceAssessmentPage() {
       orgEntries,
       cultRatings,
       cultComment,
-      gateFlags,
       reviewerIds,
     ],
   );
@@ -1503,7 +1464,6 @@ export default function PerformanceAssessmentPage() {
     (d: Record<string, unknown>) => {
       const dd = d as Record<string, never>;
       setModeState((dd.mode as "self" | "rev") || "self");
-      setSevState((dd.sev as "none" | "concern" | "serious") || "none");
       setLevelState((dd.level as "junior" | "mid" | "senior") || "mid");
       setFacets(new Set((dd.facets as string[]) || []));
       setEmp(dd.emp || "");
@@ -1527,7 +1487,6 @@ export default function PerformanceAssessmentPage() {
       );
       setCultRatings((dd.cultRatings as Record<string, number>) || {});
       setCultComment(dd.cultComment || "");
-      setGateFlags(new Set((dd.gateFlags as string[]) || []));
       setReviewerIds((dd.reviewerIds as string[]) || []);
       onAck(true);
       setIsDirty(false);
@@ -1597,8 +1556,6 @@ export default function PerformanceAssessmentPage() {
       culture_score: cAvg,
       total_score: totalScore,
       rating_band: band,
-      severity: sev,
-      capped,
       data: gather(),
     };
 
@@ -1920,11 +1877,11 @@ export default function PerformanceAssessmentPage() {
               {STEPS.map((s, i) => (
                 <div
                   key={i}
-                  className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${(i > 0 && !unlocked) || (submitted && i !== 7) ? "locked" : ""}`}
+                  className={`sn ${step === i ? "active" : ""} ${i < step ? "done" : ""} ${(i > 0 && !unlocked) || (submitted && i !== 6) ? "locked" : ""}`}
                   onClick={() => {
                     if (i === step) return;
                     // Submitted assessments are view-only — stay on Review & Submit.
-                    if (submitted && i !== 7) {
+                    if (submitted && i !== 6) {
                       showFlash("✓ Assessment submitted — view only");
                       return;
                     }
@@ -2256,11 +2213,13 @@ export default function PerformanceAssessmentPage() {
 
                 <h3 className="sec">Culture &amp; Integrity Gate</h3>
                 <p>
-                  Where there are serious concerns around confidentiality,
-                  internal politics, gossip, misrepresentation of work, repeated
-                  attendance issues, accountability, respect, or policy, the
-                  rating is gently capped one band: Exceptional → Exceeds ·
-                  Exceeds → Meets · Meets → Below.
+                  Culture and integrity are assessed by your reporting manager
+                  as part of their manager review. Where there are serious
+                  concerns around confidentiality, internal politics, gossip,
+                  misrepresentation of work, repeated attendance issues,
+                  accountability, respect, or policy, the final rating is
+                  gently capped one band: Exceptional → Exceeds · Exceeds →
+                  Meets · Meets → Below.
                 </p>
 
                 <div className="ack">
@@ -3198,79 +3157,6 @@ export default function PerformanceAssessmentPage() {
                         className="primary"
                         onClick={() => gotoValidated(5, 6)}
                       >
-                        Next: Integrity Gate →
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── STEP 6: INTEGRITY GATE ───────────────────────────────────── */}
-            {step === 6 && (
-              <>
-                <div className="card">
-                  <h2>
-                    Culture &amp; Integrity Gate{" "}
-                    <span className="breakdown" style={{ fontWeight: 400 }}>
-                      (reviewer)
-                    </span>
-                  </h2>
-                  <p className="hint">
-                    Completed by the reviewer. If a concern is marked{" "}
-                    <b>serious</b>, the final rating is gently capped one band
-                    lower — best raised openly and constructively in the
-                    conversation.
-                  </p>
-                  <div className="gatebox">
-                    {GATE_FLAGS.map((flag) => (
-                      <span
-                        key={flag}
-                        className={`gv ${gateFlags.has(flag) ? "on" : ""}`}
-                        onClick={() => toggleGate(flag)}
-                      >
-                        {flag}
-                      </span>
-                    ))}
-                  </div>
-                  <label className="fld" style={{ marginTop: 12 }}>
-                    Severity
-                  </label>
-                  <div className="sev">
-                    {(["none", "concern", "serious"] as const).map((s) => (
-                      <button
-                        key={s}
-                        className={sev === s ? "on" : ""}
-                        onClick={() => {
-                          setSevState(s);
-                          setIsDirty(true);
-                        }}
-                      >
-                        {s === "none"
-                          ? "None"
-                          : s === "concern"
-                            ? "Concern noted"
-                            : "Serious (cap)"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="card">
-                  <div className="navbtns">
-                    <button className="ghost" onClick={() => goto(5)}>
-                      ← Back
-                    </button>
-                    <span style={{ display: "flex", gap: 8 }}>
-                      <button
-                        className="pa-save-btn"
-                        onClick={() => {
-                          saveDraft();
-                          showFlash("💾 Draft saved");
-                        }}
-                      >
-                        💾 Save Draft
-                      </button>
-                      <button className="primary" onClick={() => goto(7)}>
                         Review &amp; Submit →
                       </button>
                     </span>
@@ -3279,8 +3165,8 @@ export default function PerformanceAssessmentPage() {
               </>
             )}
 
-            {/* ── STEP 7: REVIEW & SUBMIT ──────────────────────────────────── */}
-            {step === 7 && (
+            {/* ── STEP 6: REVIEW & SUBMIT ──────────────────────────────────── */}
+            {step === 6 && (
               <div className="card" id="pa-print">
                 <h2>Review &amp; Submit</h2>
 
@@ -3337,20 +3223,6 @@ export default function PerformanceAssessmentPage() {
                       {warnings.map((w, i) => (
                         <div key={i}>{w}</div>
                       ))}
-                    </div>
-                  )}
-                  {capped && (
-                    <div className="cap-note">
-                      Integrity Gate: because a serious concern was flagged, the
-                      rating is gently capped one band lower (now{" "}
-                      <b>{displayIdx >= 0 ? CATS[displayIdx].name : ""}</b>).
-                      Worth discussing openly in the conversation.
-                    </div>
-                  )}
-                  {sev === "concern" && !capped && (
-                    <div className="cap-note">
-                      Note: a culture concern was flagged (no cap applied).
-                      Address it in the conversation.
                     </div>
                   )}
                 </div>
@@ -3738,32 +3610,6 @@ export default function PerformanceAssessmentPage() {
                   )}
                 </div>
 
-                <div className="rev-block">
-                  <div className="blockhead">
-                    <h4>Integrity Gate</h4>
-                    <span
-                      className={`rb-pill${
-                        sev === "none" ? " g" : sev === "concern" ? " o" : " r"
-                      }`}
-                    >
-                      {sev === "none"
-                        ? "No concerns"
-                        : sev === "concern"
-                          ? "Concern flagged"
-                          : "Serious concern"}
-                    </span>
-                  </div>
-                  {gateFlags.size > 0 && (
-                    <div className="chips">
-                      {[...gateFlags].map((f) => (
-                        <span key={f} className="chip">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 <div
                   style={{
                     marginTop: 16,
@@ -3792,7 +3638,7 @@ export default function PerformanceAssessmentPage() {
                   {submitted ? (
                     <span />
                   ) : (
-                    <button className="ghost" onClick={() => goto(6)}>
+                    <button className="ghost" onClick={() => goto(5)}>
                       ← Back
                     </button>
                   )}

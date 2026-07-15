@@ -198,7 +198,7 @@ export function PerformanceAnalysis() {
         <KpiCard icon={<TrendingUp className="h-5 w-5" />} color="#16a34a"
           value={fmtScore(totals!.avg_total)} label="Average score" sub="weighted, out of 5.0" stagger="stagger-3" />
         <KpiCard icon={<ShieldAlert className="h-5 w-5" />} color={totals!.flagged > 0 ? "#ef4444" : "#64748b"}
-          value={totals!.flagged} label="Integrity flags" sub="culture concerns raised" stagger="stagger-4" />
+          value={totals!.flagged} label="Integrity flags" sub="raised in manager reviews" stagger="stagger-4" />
       </div>
 
       {/* Rating-band distribution */}

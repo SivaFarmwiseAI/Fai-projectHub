@@ -105,13 +105,43 @@ export const MANAGER_PARAMETERS: { key: string; label: string }[] = [
   { key: "accountability", label: "Accountability and reliability" },
 ];
 
+/** Behaviours the manager can flag in the Culture & Integrity Gate question. */
+export const GATE_FLAGS = [
+  "Shared confidential info",
+  "Internal politics",
+  "Gossip / rumours",
+  "Misrepresentation of work",
+  "Repeated attendance issues",
+  "Lack of accountability",
+  "Disrespectful behaviour",
+  "Harmed team morale",
+  "Policy violation",
+];
+
+/** Severity choices for the Culture & Integrity Gate question. */
+export const GATE_SEVERITIES: { key: "none" | "concern" | "serious"; label: string }[] = [
+  { key: "none",    label: "None" },
+  { key: "concern", label: "Concern noted" },
+  { key: "serious", label: "Serious (cap)" },
+];
+
+const BAND_ORDER = ["Exceptional", "Exceeds Expectation", "Meets Expectation", "Below Expectation", "Not Satisfactory"];
+
+/** Integrity-gate cap: drop a band one step (Exceptional → Exceeds · Exceeds → Meets · Meets → Below). */
+export function capOneBand(band: string): string {
+  const i = BAND_ORDER.indexOf(band);
+  return i >= 0 && i < 3 ? BAND_ORDER[i + 1] : band;
+}
+
 /**
  * Manager (authoritative) review questionnaire. Every question requires BOTH a
  * 1–5 rating and a written answer. The `grid` question swaps the single scale
- * for the MANAGER_PARAMETERS grid (each parameter rated 1–5). The `overall`
- * question's rating becomes the review's total score.
+ * for the MANAGER_PARAMETERS grid (each parameter rated 1–5). The `gate`
+ * question swaps it for the Culture & Integrity Gate (GATE_FLAGS + severity;
+ * a serious concern caps the final band one step). The `overall` question's
+ * rating becomes the review's total score.
  */
-export const MANAGER_QUESTIONS: { key: string; short: string; question: string; placeholder: string; grid?: boolean; overall?: boolean }[] = [
+export const MANAGER_QUESTIONS: { key: string; short: string; question: string; placeholder: string; grid?: boolean; gate?: boolean; overall?: boolean }[] = [
   {
     key: "selfappraisal",
     short: "Self-appraisal accuracy",
@@ -160,6 +190,13 @@ export const MANAGER_QUESTIONS: { key: string; short: string; question: string; 
     question: "Rate the employee on the following parameters on a scale of 1 to 5.",
     placeholder: "Context or examples behind these parameter ratings…",
     grid: true,
+  },
+  {
+    key: "integrity",
+    short: "Culture & integrity gate",
+    question: "Have you observed any culture or integrity concerns with this employee during the year — confidentiality, internal politics, gossip, misrepresentation of work, repeated attendance issues, accountability, respect, or policy? Flag anything that applies and mark how serious it is. A serious concern caps the final rating one band lower.",
+    placeholder: "Context behind any flags raised — or note that there were no concerns…",
+    gate: true,
   },
   {
     key: "overall",

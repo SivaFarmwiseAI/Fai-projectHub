@@ -1347,9 +1347,9 @@ export interface PerformanceAssessment {
   culture_score?: number | null;
   total_score?: number | null;
   rating_band?: string | null;     // Exceptional | Exceeds Expectation | …
-  severity: string;                // none | concern | serious
+  severity: string;                // none | concern | serious (integrity gate — set by the manager review)
   capped: boolean;
-  data: Record<string, unknown>;   // full form snapshot (contributions, entries, culture, gate)
+  data: Record<string, unknown>;   // full form snapshot (contributions, entries, culture)
   submitted_by?: string | null;
   submitted_by_name?: string | null;
   created_at: string;
@@ -1525,6 +1525,9 @@ export interface EmployeeReportPeer {
   author_role?: string | null;
   total_score?: number | null;
   rating_band?: string | null;
+  /** Integrity gate (manager review only): none | concern | serious. */
+  severity?: string | null;
+  capped?: boolean;
   data: Record<string, unknown>;
   created_at: string;
   submitted_at?: string | null;

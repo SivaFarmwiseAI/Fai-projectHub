@@ -71,6 +71,9 @@ interface PeerData {
   /** Manager-review shape: per-question rating + narrative, behavioural grid. */
   managerAnswers?: Record<string, { rating?: number; text?: string }>;
   parameters?: Record<string, number>;
+  /** Culture & Integrity Gate (manager review): flagged behaviours + severity. */
+  gateFlags?: string[];
+  severity?: string;
   /** Legacy shape from the old competency-based form. */
   competencies?: Record<string, number>;
   strengths?: string;
@@ -1097,7 +1100,8 @@ function PeerReviewBody({
           (q) =>
             (ma[q.key]?.text ?? "").trim() ||
             ma[q.key]?.rating != null ||
-            (q.grid && d.parameters),
+            (q.grid && d.parameters) ||
+            (q.gate && (d.severity || (d.gateFlags?.length ?? 0) > 0)),
         ).map((q) => (
           <div
             key={q.key}
@@ -1132,6 +1136,37 @@ function PeerReviewBody({
                     </span>
                   </div>
                 ))}
+              </div>
+            ) : q.gate ? (
+              <div className="mt-3 space-y-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1 rounded-full ${
+                    !d.severity || d.severity === "none"
+                      ? "text-emerald-700 bg-emerald-50 border border-emerald-200"
+                      : "text-red-700 bg-red-50 border border-red-200"
+                  }`}
+                >
+                  {(d.severity ?? "none") !== "none" && (
+                    <ShieldAlert className="h-3 w-3" />
+                  )}
+                  {!d.severity || d.severity === "none"
+                    ? "No concerns"
+                    : d.severity === "concern"
+                      ? "Concern noted"
+                      : "Serious concern — rating capped one band"}
+                </span>
+                {(d.gateFlags?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {d.gateFlags!.map((f) => (
+                      <span
+                        key={f}
+                        className="text-[12px] font-semibold text-red-700 bg-white border border-red-200 px-2.5 py-0.5 rounded-full"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               ma[q.key]?.rating != null && (

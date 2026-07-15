@@ -460,6 +460,8 @@ class CreatePerformanceAssessmentRequest(BaseModel):
     culture_score: Optional[float] = None
     total_score: Optional[float] = None
     rating_band: Optional[str] = None
+    # Legacy: the integrity gate moved from the self-assessment into the
+    # manager review; self submissions no longer send these (defaults apply).
     severity: str = "none"             # none | concern | serious
     capped: bool = False
     data: dict = Field(default_factory=dict)
@@ -467,7 +469,7 @@ class CreatePerformanceAssessmentRequest(BaseModel):
 
 class UpdatePerformanceAssessmentRequest(BaseModel):
     """PATCH /api/performance-assessments/<id> — a nominated reviewer filling in
-    (or revising) their assigned peer review."""
+    (or revising) their assigned peer/manager review."""
     role_areas: Optional[List[str]] = None
     individual_score: Optional[float] = None
     team_score: Optional[float] = None
@@ -475,7 +477,9 @@ class UpdatePerformanceAssessmentRequest(BaseModel):
     culture_score: Optional[float] = None
     total_score: Optional[float] = None
     rating_band: Optional[str] = None
-    severity: Optional[str] = None
+    # Culture & Integrity Gate — set by the manager review; a 'serious'
+    # severity caps rating_band one band (computed client-side, echoed here).
+    severity: Optional[str] = None      # none | concern | serious
     capped: Optional[bool] = None
     data: Optional[dict] = None
     status: Optional[str] = None        # pending | submitted
