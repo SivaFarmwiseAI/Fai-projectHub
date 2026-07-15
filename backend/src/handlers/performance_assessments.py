@@ -153,7 +153,9 @@ def _analysis(event, origin):
           COUNT(*) FILTER (WHERE pa.kind = 'self')                            AS submissions,
           COUNT(DISTINCT pa.subject_user_id) FILTER (WHERE pa.kind = 'self')  AS employees,
           ROUND(AVG(pa.total_score) FILTER (WHERE pa.kind = 'self' AND pa.status = 'submitted'), 2) AS avg_total,
-          COUNT(*) FILTER (WHERE pa.kind = 'self' AND pa.severity <> 'none')  AS flagged,
+          -- Integrity-gate flags now come from the manager review; legacy self
+          -- submissions that carried the gate are still counted.
+          COUNT(*) FILTER (WHERE pa.kind IN ('self','manager') AND pa.severity <> 'none') AS flagged,
           COUNT(*) FILTER (WHERE pa.kind IN ('peer','manager'))               AS peer_reviews,
           COUNT(*) FILTER (WHERE pa.kind IN ('peer','manager') AND pa.status = 'pending') AS peer_pending
         FROM performance_assessments pa
@@ -276,7 +278,10 @@ def _team(event, origin):
         )
         SELECT
           t.id, t.name, t.avatar_color, t.role, t.department, t.depth,
-          s.id AS self_id, s.total_score, s.rating_band, s.severity,
+          s.id AS self_id, s.total_score, s.rating_band,
+          -- Integrity-gate severity lives on the manager review now; fall back
+          -- to legacy self submissions that carried the gate themselves.
+          COALESCE(NULLIF(m.severity, 'none'), NULLIF(s.severity, 'none'), 'none') AS severity,
           s.status AS self_status,
           COALESCE(pc.done, 0)  AS peer_done,
           COALESCE(pc.total, 0) AS peer_total,
@@ -294,7 +299,7 @@ def _team(event, origin):
           WHERE pa.kind = 'peer' AND pa.subject_user_id = t.id {cyc}
         ) pc ON TRUE
         LEFT JOIN LATERAL (
-          SELECT pa.status
+          SELECT pa.status, pa.severity
           FROM performance_assessments pa
           WHERE pa.kind = 'manager' AND pa.subject_user_id = t.id {cyc}
           ORDER BY pa.created_at DESC LIMIT 1
@@ -342,8 +347,8 @@ def _report(event, origin, subject_id):
     """, tuple([subject_id] + cyc_params))
 
     manager = fetchone(f"""
-        SELECT pa.id, pa.status, pa.total_score, pa.rating_band, pa.data,
-               pa.created_at, pa.submitted_at,
+        SELECT pa.id, pa.status, pa.total_score, pa.rating_band, pa.severity, pa.capped,
+               pa.data, pa.created_at, pa.submitted_at,
                au.name AS author_name, au.avatar_color AS author_color, au.role AS author_role
         FROM performance_assessments pa
         LEFT JOIN users au ON au.id = pa.author_user_id

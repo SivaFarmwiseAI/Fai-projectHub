@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Inbox, Loader2, PenLine, CheckCircle2, X, Star, ShieldCheck, Lock, Crown } from "lucide-react";
 import { performanceAssessments, type PeerReviewAssignment, type ReviewReceived } from "@/lib/api-client";
-import { bandColor, bandForScore, fmtScore, fmtDate, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS } from "@/lib/performance";
+import { bandColor, bandForScore, capOneBand, fmtScore, fmtDate, PEER_QUESTIONS, PEER_SCALE_LABELS, MANAGER_QUESTIONS, MANAGER_PARAMETERS, GATE_FLAGS, GATE_SEVERITIES } from "@/lib/performance";
 import { cn } from "@/lib/utils";
 import { PerfLoader } from "@/components/performance-loader";
 
@@ -21,6 +21,9 @@ interface PeerData {
   /** Manager-review shape: per-question rating + narrative, behavioural grid. */
   managerAnswers?: Record<string, ManagerAnswer>;
   parameters?: Record<string, number>;
+  /** Culture & Integrity Gate (manager review): flagged behaviours + severity. */
+  gateFlags?: string[];
+  severity?: string;
   /** Legacy shape from the old competency-based form. */
   competencies?: Record<string, number>;
   strengths?: string;
@@ -355,8 +358,10 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
 /**
  * The authoritative appraisal a reporting manager writes. Every question needs
  * a 1–5 rating AND a written answer; the behavioural-parameters question swaps
- * the single scale for a 5-parameter grid; the overall question's rating
- * becomes the review's total score.
+ * the single scale for a 5-parameter grid; the Culture & Integrity Gate
+ * question swaps it for behaviour flags + a severity call (a serious concern
+ * caps the final band one step); the overall question's rating becomes the
+ * review's total score.
  */
 export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { assignment: PeerReviewAssignment; initial?: PeerData; onClose: () => void; onDone: () => void }) {
   const [texts, setTexts] = useState<Record<string, string>>(() =>
@@ -370,11 +375,24 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
     return r;
   });
   const [params, setParams] = useState<Record<string, number>>(initial?.parameters ?? {});
+  const [gateFlags, setGateFlags] = useState<Set<string>>(() => new Set(initial?.gateFlags ?? []));
+  const [severity, setSeverity] = useState<"none" | "concern" | "serious" | null>(() =>
+    initial?.severity === "none" || initial?.severity === "concern" || initial?.severity === "serious" ? initial.severity : null);
   const [saving, setSaving] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
 
+  const toggleGateFlag = (flag: string) => setGateFlags((p) => {
+    const n = new Set(p);
+    if (n.has(flag)) n.delete(flag);
+    else n.add(flag);
+    return n;
+  });
+
   const isDone = (q: (typeof MANAGER_QUESTIONS)[number]) => {
+    // Gate question: an explicit severity call is required; the written context
+    // only becomes mandatory once a concern is raised.
+    if (q.gate) return severity != null && (severity === "none" || (texts[q.key] ?? "").trim().length > 0);
     if (!(texts[q.key] ?? "").trim()) return false;
     if (q.grid) return MANAGER_PARAMETERS.every((p) => params[p.key] != null);
     return ratings[q.key] != null;
@@ -382,27 +400,32 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
   const doneCount = MANAGER_QUESTIONS.filter(isDone).length;
   const complete = doneCount === MANAGER_QUESTIONS.length;
   const overall = ratings.overall ?? null;
+  const overallBand = overall != null ? bandForScore(overall) : null;
+  const capped = severity === "serious" && overallBand != null && capOneBand(overallBand) !== overallBand;
+  const finalBand = overallBand != null ? (severity === "serious" ? capOneBand(overallBand) : overallBand) : null;
 
   // Validate first; the actual submit only runs after the confirmation dialog.
   const askSubmit = () => {
-    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
+    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer, and the integrity gate needs a severity call."); return; }
     setError("");
     setShowConfirm(true);
   };
 
   const submit = async () => {
-    if (!complete || overall == null) { setError("Every question needs both a 1–5 rating and a written answer."); return; }
+    if (!complete || overall == null || finalBand == null) { setError("Every question needs both a 1–5 rating and a written answer, and the integrity gate needs a severity call."); return; }
     setSaving(true);
     setError("");
     try {
       const managerAnswers = Object.fromEntries(MANAGER_QUESTIONS.map((q) => [q.key, {
-        ...(q.grid ? {} : { rating: ratings[q.key] }),
+        ...(q.grid || q.gate ? {} : { rating: ratings[q.key] }),
         text: (texts[q.key] ?? "").trim(),
       }]));
       await performanceAssessments.update(assignment.id, {
-        data: { managerAnswers, parameters: params, overall },
+        data: { managerAnswers, parameters: params, overall, gateFlags: [...gateFlags], severity: severity ?? "none" },
         total_score: overall,
-        rating_band: bandForScore(overall),
+        rating_band: finalBand,
+        severity: severity ?? "none",
+        capped,
         status: "submitted",
       });
       onDone();
@@ -450,8 +473,9 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
 
         <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
           <p className="text-[12px] text-indigo-900/70 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2">
-            Every question needs a 1–5 rating and a written answer. This is the authoritative review —
-            the overall summary is shared with the employee during the appraisal discussion.
+            Every question needs a 1–5 rating and a written answer; the Culture &amp; Integrity Gate needs a
+            severity call instead. This is the authoritative review — the overall summary is shared with the
+            employee during the appraisal discussion.
           </p>
 
           {MANAGER_QUESTIONS.map((q, i) => {
@@ -491,22 +515,62 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
                       </div>
                     ))}
                   </div>
+                ) : q.gate ? (
+                  <div className="space-y-3 mb-2.5 rounded-lg bg-slate-50/80 border border-slate-100 p-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {GATE_FLAGS.map((flag) => (
+                        <button key={flag} type="button" onClick={() => toggleGateFlag(flag)}
+                          className={cn("rounded-full border px-3 py-1 text-[12px] font-semibold transition-all",
+                            gateFlags.has(flag) ? "border-red-400 bg-red-50 text-red-600"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:text-red-500")}>
+                          {flag}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Severity <span className="text-red-500">*</span></span>
+                      <div className="inline-flex rounded-lg border border-slate-200 bg-white overflow-hidden">
+                        {GATE_SEVERITIES.map((s) => (
+                          <button key={s.key} type="button" onClick={() => setSeverity(s.key)}
+                            className={cn("px-3.5 py-1.5 text-[12.5px] font-semibold transition-all",
+                              severity === s.key
+                                ? s.key === "none" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
+                                : "text-slate-500 hover:bg-slate-50")}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {severity === "serious" && (
+                      <p className="text-[12px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">
+                        Serious concern — the overall rating will be capped one band lower.
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <ScalePicker value={ratings[q.key] ?? null} onSelect={(n) => setRatings((prev) => ({ ...prev, [q.key]: n }))} accent="indigo" />
                 )}
 
                 <textarea value={texts[q.key] ?? ""} onChange={(e) => setTexts((prev) => ({ ...prev, [q.key]: e.target.value }))}
-                  placeholder={q.placeholder} rows={3} required
+                  placeholder={q.placeholder} rows={3} required={!q.gate || severity !== "none"}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
               </div>
             );
           })}
 
           {overall != null && (
-            <div className="flex items-center gap-3 rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3">
-              <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
-              <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
-              <span className="ml-auto"><Band band={bandForScore(overall)} /></span>
+            <div className="rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
+                <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+                <span className="ml-auto"><Band band={finalBand} /></span>
+              </div>
+              {capped && (
+                <p className="text-[12px] font-semibold text-red-600 mt-2">
+                  Integrity gate: a serious concern was flagged, so the rating is capped one band lower
+                  ({overallBand} → {finalBand}).
+                </p>
+              )}
             </div>
           )}
           {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
