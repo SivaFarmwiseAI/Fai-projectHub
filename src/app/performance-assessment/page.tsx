@@ -18,6 +18,7 @@ import {
   Network,
   Search,
   Check,
+  Star,
   Upload,
   X,
   Loader2,
@@ -362,6 +363,12 @@ const PA_CSS = `
 .pa .blockh .stepn{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
 .pa .addbtn{background:var(--leaf-soft);color:var(--leaf);border:1px dashed #c7d2fe;border-radius:14px;padding:13px;width:100%;font-size:14px;cursor:pointer;font-weight:700;margin-top:4px;transition:all .18s}
 .pa .addbtn:hover{background:#e0e7ff;border-color:var(--leaf)}
+/* Star rating (Culture & Discipline) — filled up to the selected value */
+.pa .stars{display:inline-flex;align-items:center;gap:1px}
+.pa .stars .star-btn{background:none;border:none;border-radius:6px;padding:3px;line-height:0;color:#cbd5e1;cursor:pointer;transition:color .12s ease,transform .12s ease}
+.pa .stars .star-btn:hover{transform:scale(1.18);color:#f59e0b}
+.pa .stars .star-btn.on{color:#f59e0b}
+.pa .stars .star-label{font-size:12px;font-weight:600;color:var(--muted);margin-left:8px;white-space:nowrap}
 .pa .toggle{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f1f5f9;padding:3px;gap:3px}
 .pa .toggle button{border-radius:7px;background:transparent;color:var(--muted);padding:7px 15px;font-size:13.5px;cursor:pointer;border:none;font-weight:600;transition:all .15s}
 .pa .toggle button.on{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -3080,39 +3087,54 @@ export default function PerformanceAssessmentPage() {
                     <tbody>
                       <tr>
                         <th>Item</th>
-                        <th style={{ width: 180 }}>Rating</th>
+                        <th style={{ width: 300 }}>Rating</th>
                       </tr>
                       {CULT_ITEMS.map(([k, label]) => (
                         <tr key={k}>
                           <td>{label}</td>
                           <td>
-                            <select
-                              className={errCls("b_culture_" + k)}
-                              value={cultRatings[k] ?? ""}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  setCultRatings((p) => ({
-                                    ...p,
-                                    [k]: +e.target.value,
-                                  }));
-                                } else {
-                                  setCultRatings((p) => {
-                                    const n = { ...p };
-                                    delete n[k];
-                                    return n;
-                                  });
-                                }
-                                clearErr("b_culture_" + k);
-                                setIsDirty(true);
-                              }}
+                            <div
+                              className={`stars ${errors["b_culture_" + k] ? "rate-err" : ""}`}
                             >
-                              <option value="">Awaiting Rating</option>
-                              {SCALE5.map((s, i) => (
-                                <option key={i} value={NUM[i]}>
-                                  {s}
-                                </option>
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  className={`star-btn ${cultRatings[k] != null && cultRatings[k] >= n ? "on" : ""}`}
+                                  title={SCALE5[NUM.indexOf(n)]}
+                                  aria-label={`${label}: ${SCALE5[NUM.indexOf(n)]}`}
+                                  onClick={() => {
+                                    setCultRatings((p) => {
+                                      // Clicking the current rating clears it
+                                      // (same as the old "Awaiting Rating").
+                                      if (p[k] === n) {
+                                        const rest = { ...p };
+                                        delete rest[k];
+                                        return rest;
+                                      }
+                                      return { ...p, [k]: n };
+                                    });
+                                    clearErr("b_culture_" + k);
+                                    setIsDirty(true);
+                                  }}
+                                >
+                                  <Star
+                                    style={{ width: 20, height: 20 }}
+                                    fill={
+                                      cultRatings[k] != null &&
+                                      cultRatings[k] >= n
+                                        ? "currentColor"
+                                        : "none"
+                                    }
+                                  />
+                                </button>
                               ))}
-                            </select>
+                              <span className="star-label">
+                                {cultRatings[k] != null
+                                  ? SCALE5[NUM.indexOf(cultRatings[k])]
+                                  : "Awaiting rating"}
+                              </span>
+                            </div>
                             <Err k={"b_culture_" + k} />
                           </td>
                         </tr>
