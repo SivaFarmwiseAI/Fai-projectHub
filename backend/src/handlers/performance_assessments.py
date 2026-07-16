@@ -508,6 +508,18 @@ def _create(event, origin):
     subject_id = str(body.subject_user_id) if body.subject_user_id else None
     cycle_id = str(body.cycle_id) if body.cycle_id else None
 
+    # Peer nomination is mandatory: a self-assessment needs two valid peer
+    # reviewers (the subject and their reporting manager don't count — the
+    # manager writes the separate authoritative review). Checked before any
+    # write so an invalid submission leaves nothing behind.
+    manager_id = None
+    if body.kind == "self" and subject_id:
+        mgr = fetchone("SELECT manager_id FROM users WHERE id = %s", (subject_id,))
+        manager_id = mgr and mgr.get("manager_id")
+        valid_peers = {str(x) for x in body.reviewer_ids} - {subject_id, str(manager_id or "")}
+        if len(valid_peers) < 2:
+            raise HTTPError(400, "Please nominate two peer reviewers before submitting")
+
     ra_cast, ra_param = _role_areas_param(body.role_areas)
     common = (
         body.employee_name,
@@ -557,9 +569,6 @@ def _create(event, origin):
     nominated = 0
     manager_assigned = False
     if body.kind == "self" and subject_id:
-        mgr = fetchone("SELECT manager_id FROM users WHERE id = %s", (subject_id,))
-        manager_id = mgr and mgr.get("manager_id")
-
         # Peer review stubs for each nominated reviewer. The reporting manager
         # already writes the authoritative manager review — never also a peer.
         for rid in {str(x) for x in body.reviewer_ids}:

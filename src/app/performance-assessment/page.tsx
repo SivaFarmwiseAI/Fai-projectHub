@@ -501,6 +501,7 @@ export default function PerformanceAssessmentPage() {
   >("loading");
   const [reviewerIds, setReviewerIds] = useState<string[]>([]);
   const [reviewerSearch, setReviewerSearch] = useState("");
+  const [reviewerErr, setReviewerErr] = useState("");
   const [activeCycle, setActiveCycle] = useState<ReviewCycle | null>(null);
   const [pendingReviews, setPendingReviews] = useState(0);
   const [existingSelf, setExistingSelf] =
@@ -666,6 +667,7 @@ export default function PerformanceAssessmentPage() {
       if (prev.length >= 2) return prev; // cap at 2 peer reviewers
       return [...prev, id];
     });
+    setReviewerErr("");
     setIsDirty(true);
   }, []);
 
@@ -1549,6 +1551,20 @@ export default function PerformanceAssessmentPage() {
       setHasSubmitAttempt(true);
       return;
     }
+    // Peer nomination is mandatory — both reviewers must be picked.
+    if (mode === "self" && reviewerIds.length < 2) {
+      setReviewerErr(
+        reviewerIds.length === 0
+          ? "Please nominate two peer reviewers before submitting."
+          : "Please nominate one more peer reviewer — two are required.",
+      );
+      setTimeout(() => {
+        document
+          .getElementById("nominate-peers")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 80);
+      return;
+    }
     setHasSubmitAttempt(false);
     setShowSubmitConfirm(true);
   };
@@ -1615,7 +1631,9 @@ export default function PerformanceAssessmentPage() {
     } catch (e) {
       console.error("performance assessment submit failed", e);
       showFlash(
-        "⚠️ Couldn't reach the server — saved on this device. Try Submit again, or use Print / PDF.",
+        e instanceof ApiError
+          ? `⚠️ ${e.message}`
+          : "⚠️ Couldn't reach the server — saved on this device. Try Submit again, or use Print / PDF.",
       );
     } finally {
       setSubmitting(false);
@@ -3267,13 +3285,24 @@ export default function PerformanceAssessmentPage() {
 
                 {/* ── Nominate peer reviewers (hidden once submitted) ──────── */}
                 {mode === "self" && !submitted && (
-                  <div className="card no-print" style={{ margin: "0 0 16px" }}>
+                  <div
+                    id="nominate-peers"
+                    className="card no-print"
+                    style={{
+                      margin: "0 0 16px",
+                      ...(reviewerErr
+                        ? { borderColor: "#fecaca", boxShadow: "0 0 0 1px #ef4444" }
+                        : {}),
+                    }}
+                  >
                     <h3 className="sec" style={{ marginTop: 0 }}>
-                      Nominate your peer reviewers
+                      Nominate your peer reviewers{" "}
+                      <span className="req-star">*</span>
                     </h3>
                     <p className="hint">
                       Pick <b>two colleagues</b> from anywhere in the
-                      organisation. They will be asked to complete a short peer
+                      organisation — this is <b>required</b> before you can
+                      submit. They will be asked to complete a short peer
                       review of you
                       {activeCycle ? (
                         <>
@@ -3313,6 +3342,11 @@ export default function PerformanceAssessmentPage() {
                     <div className="hint" style={{ marginBottom: 8 }}>
                       {reviewerIds.length} / 2 selected
                     </div>
+                    {reviewerErr && (
+                      <div className="top-err" style={{ marginBottom: 10 }}>
+                        {reviewerErr}
+                      </div>
+                    )}
                     <div
                       style={{
                         display: "grid",
