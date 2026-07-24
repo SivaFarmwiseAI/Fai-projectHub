@@ -22,18 +22,58 @@ type Props = {
 
 const MIN_LENGTH = 8;
 
+/** Password input with its own show/hide eye toggle. */
+function PasswordInput({
+  value,
+  onChange,
+  autoComplete,
+  show,
+  onToggle,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: string;
+  show: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        type={show ? "text" : "password"}
+        autoComplete={autoComplete}
+        className="h-9 text-sm mt-1 pr-9"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        tabIndex={-1}
+        className="absolute right-2 top-1/2 -translate-y-1/2 mt-0.5 text-slate-400 hover:text-slate-600"
+        aria-label={show ? "Hide password" : "Show password"}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
 export function ChangePasswordDialog({ open, onOpenChange }: Props) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNext, setShowNext] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setCurrent("");
     setNext("");
     setConfirm("");
-    setShow(false);
+    setShowCurrent(false);
+    setShowNext(false);
+    setShowConfirm(false);
   }
 
   function handleOpenChange(o: boolean) {
@@ -89,45 +129,35 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
         <div className="space-y-3">
           <div>
             <Label className="text-xs">Current password</Label>
-            <Input
-              type={show ? "text" : "password"}
-              autoComplete="current-password"
-              className="h-9 text-sm mt-1"
+            <PasswordInput
               value={current}
-              onChange={e => setCurrent(e.target.value)}
+              onChange={setCurrent}
+              autoComplete="current-password"
+              show={showCurrent}
+              onToggle={() => setShowCurrent(v => !v)}
             />
           </div>
 
           <div>
             <Label className="text-xs">New password</Label>
-            <div className="relative">
-              <Input
-                type={show ? "text" : "password"}
-                autoComplete="new-password"
-                className="h-9 text-sm mt-1 pr-9"
-                value={next}
-                onChange={e => setNext(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShow(v => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 mt-0.5 text-slate-400 hover:text-slate-600"
-                aria-label={show ? "Hide passwords" : "Show passwords"}
-              >
-                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            <PasswordInput
+              value={next}
+              onChange={setNext}
+              autoComplete="new-password"
+              show={showNext}
+              onToggle={() => setShowNext(v => !v)}
+            />
             <p className="text-[11px] text-slate-400 mt-1">At least {MIN_LENGTH} characters.</p>
           </div>
 
           <div>
             <Label className="text-xs">Confirm new password</Label>
-            <Input
-              type={show ? "text" : "password"}
-              autoComplete="new-password"
-              className="h-9 text-sm mt-1"
+            <PasswordInput
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={setConfirm}
+              autoComplete="new-password"
+              show={showConfirm}
+              onToggle={() => setShowConfirm(v => !v)}
             />
           </div>
 
