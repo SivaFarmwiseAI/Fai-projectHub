@@ -27,15 +27,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/lib/api-client";
+import type { Project, Task } from "@/lib/api-client";
 import type { OutcomeSummary, HoursAnalysis, DailyActivityItem, VerdictKey } from "./derive";
-import { DailyActivityList, fmtHrs, HoursBar, KpiTile, verdictMeta, WeekStat } from "./shared";
+import { DailyActivityList, deliverableTypeIcons, deliverableTypeLabels, fmtHrs, HoursBar, KpiTile, verdictMeta, WeekStat } from "./shared";
 
 export function OverviewTab({
   analysis,
   daily,
   outcomes,
   tasks,
+  projectById,
   completedTasks,
   totalTasks,
   onOpenOutcomes,
@@ -44,6 +45,7 @@ export function OverviewTab({
   daily: { yesterday: DailyActivityItem[]; today: DailyActivityItem[]; tomorrow: DailyActivityItem[] };
   outcomes: OutcomeSummary;
   tasks: Task[];
+  projectById: Record<string, Project>;
   completedTasks: number;
   totalTasks: number;
   onOpenOutcomes?: () => void;
@@ -93,6 +95,7 @@ export function OverviewTab({
         <OutcomeDeliveryCard
           outcomes={outcomes}
           tasks={tasks}
+          projectById={projectById}
           onOpenOutcomes={onOpenOutcomes}
         />
       )}
@@ -362,18 +365,51 @@ const SEGMENT_ORDER: VerdictKey[] = [
   "met", "partially_met", "not_met", "deferred", "unclassified", "unrecorded",
 ];
 
+const UNIT_STATUS_SEGMENTS = [
+  { key: "in_progress", label: "In progress", bar: "bg-blue-500" },
+  { key: "open", label: "Not started", bar: "bg-slate-300" },
+  { key: "blocked", label: "Blocked", bar: "bg-red-500" },
+  { key: "done", label: "Done", bar: "bg-emerald-500" },
+] as const;
+
+type UnitCounts = { in_progress: number; open: number; blocked: number; done: number };
+
+function UnitStatusBar({ c }: { c: UnitCounts }) {
+  const t = c.in_progress + c.open + c.blocked + c.done;
+  return (
+    <div className="flex h-2.5 flex-1 gap-0.5 rounded-full overflow-hidden bg-slate-100">
+      {t > 0 &&
+        UNIT_STATUS_SEGMENTS.map((s) => {
+          const v = c[s.key];
+          if (!v) return null;
+          return (
+            <div
+              key={s.key}
+              className={s.bar}
+              style={{ width: `${(v / t) * 100}%` }}
+              title={`${v} ${s.label.toLowerCase()}`}
+            />
+          );
+        })}
+    </div>
+  );
+}
+
 function OutcomeDeliveryCard({
   outcomes,
   tasks,
+  projectById,
   onOpenOutcomes,
 }: {
   outcomes: OutcomeSummary;
   tasks: Task[];
+  projectById: Record<string, Project>;
   onOpenOutcomes?: () => void;
 }) {
   const [period, setPeriod] = React.useState<Period>("week");
   // 0 = current window, -1 = previous, -2 = the one before, …
   const [offset, setOffset] = React.useState(0);
+  const [lens, setLens] = React.useState<"outcomes" | "status" | "project" | "deliverable">("outcomes");
   const win = periodWindow(period, offset);
   const inPeriod = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return false;
@@ -383,6 +419,45 @@ function OutcomeDeliveryCard({
   const pickPeriod = (p: Period) => {
     setPeriod(p);
     setOffset(0);
+  };
+
+  // ── Work units: each milestone, or the task itself when it has none ──
+  const normStatus = (s: string): "in_progress" | "open" | "blocked" | "completed" => {
+    if (s === "in_progress" || s === "blocked" || s === "completed") return s;
+    return "open";
+  };
+  type Unit = { id: string; status: string; projectId: string; completedAt?: string | null };
+  const units: Unit[] = [];
+  const evidenceRows: { id: string; type: string; submittedAt?: string | null }[] = [];
+  for (const t of tasks) {
+    const ms = t.milestones ?? [];
+    if (ms.length > 0) {
+      for (const m of ms) {
+        units.push({ id: m.id, status: m.status, projectId: t.project_id, completedAt: m.completed_at });
+        for (const d of m.deliverables ?? [])
+          evidenceRows.push({ id: d.id, type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+        for (const a of m.attachments ?? [])
+          if (a.url) evidenceRows.push({ id: a.id, type: "link", submittedAt: a.created_at });
+      }
+    } else {
+      units.push({ id: t.id, status: t.status, projectId: t.project_id, completedAt: t.completed_at });
+      for (const d of t.deliverables ?? [])
+        evidenceRows.push({ id: d.id, type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+      for (const a of t.attachments ?? [])
+        if (a.url) evidenceRows.push({ id: a.id, type: "link", submittedAt: a.created_at });
+    }
+  }
+  const segmentCounts = (list: Unit[]) => {
+    const c = { in_progress: 0, open: 0, blocked: 0, done: 0 };
+    for (const u of list) {
+      const s = normStatus(u.status);
+      if (s === "completed") {
+        if (inPeriod(u.completedAt)) c.done++;
+      } else {
+        c[s]++;
+      }
+    }
+    return c;
   };
 
   // Outcome rows completed inside the selected window.
@@ -408,29 +483,21 @@ function OutcomeDeliveryCard({
     ? Math.round((within / hourJudged.length) * 100)
     : null;
 
-  // Completions + evidence submitted inside the period (independent of rows,
-  // so a deliverable uploaded this week on older work still counts).
+  // Completions + evidence submitted inside the period.
   let msDone = 0;
   let tasksDone = 0;
   let evidence = 0;
   for (const t of tasks) {
     if (t.status === "completed" && inPeriod(t.completed_at)) tasksDone++;
-    for (const d of t.deliverables ?? []) {
-      if (inPeriod(d.submitted_at ?? d.created_at)) evidence++;
-    }
-    for (const a of t.attachments ?? []) {
-      if (a.url && inPeriod(a.created_at)) evidence++;
-    }
     for (const m of t.milestones ?? []) {
       if (m.status === "completed" && inPeriod(m.completed_at)) msDone++;
-      for (const d of m.deliverables ?? []) {
-        if (inPeriod(d.submitted_at ?? d.created_at)) evidence++;
-      }
-      for (const a of m.attachments ?? []) {
-        if (a.url && inPeriod(a.created_at)) evidence++;
-      }
     }
   }
+  for (const e of evidenceRows) if (inPeriod(e.submittedAt)) evidence++;
+
+  const statusCounts = segmentCounts(units);
+  const statusTotal =
+    statusCounts.in_progress + statusCounts.open + statusCounts.blocked + statusCounts.done;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-card overflow-hidden">
@@ -440,11 +507,33 @@ function OutcomeDeliveryCard({
             <Target className="h-3.5 w-3.5 text-indigo-600" />
           </span>
           Outcome &amp; Delivery Performance
-          <span className="text-[11px] font-normal text-muted-foreground">
-            {total} unit{total === 1 ? "" : "s"} completed
-          </span>
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Lens switch — same board language as the team page */}
+          <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+            {(
+              [
+                { id: "outcomes", label: "Outcomes" },
+                { id: "status", label: "Status" },
+                { id: "project", label: "Project" },
+                { id: "deliverable", label: "Deliverable" },
+              ] as const
+            ).map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => setLens(l.id)}
+                className={cn(
+                  "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  lens === l.id
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
+                )}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
             {PERIODS.map((p) => (
               <button
@@ -477,7 +566,7 @@ function OutcomeDeliveryCard({
               onClick={() => setOffset(0)}
               disabled={offset === 0}
               className={cn(
-                "min-w-[110px] rounded-md border px-2 py-1 text-center text-[11px] font-semibold",
+                "min-w-[104px] rounded-md border px-2 py-1 text-center text-[11px] font-semibold",
                 offset === 0
                   ? "border-slate-200 bg-slate-50 text-slate-600"
                   : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
@@ -507,41 +596,138 @@ function OutcomeDeliveryCard({
       </div>
 
       <div className="px-4 pb-4 pt-2 space-y-3">
-        {total === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 py-5 text-center text-xs text-muted-foreground">
-            Nothing completed in {win.label.toLowerCase()} — use ‹ › to step
-            through earlier {period}s or pick a longer period.
-          </div>
-        ) : (
+        {/* ── Lens: outcome verdicts ── */}
+        {lens === "outcomes" &&
+          (total === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 py-5 text-center text-xs text-muted-foreground">
+              Nothing completed in {win.label.toLowerCase()} — use ‹ › to step
+              through earlier {period}s or pick a longer period.
+            </div>
+          ) : (
+            <>
+              <div className="flex h-3.5 w-full gap-0.5 rounded-full overflow-hidden">
+                {segments.map((s) => (
+                  <div
+                    key={s.key}
+                    className={`${s.meta.dot} first:rounded-l-full last:rounded-r-full transition-all`}
+                    style={{ width: `${(s.count / total) * 100}%` }}
+                    title={`${s.count} ${s.meta.label}`}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                {segments.map((s) => (
+                  <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+                    <span className={`h-2 w-2 rounded-full ${s.meta.dot}`} />
+                    <span className="font-bold tabular-nums">{s.count}</span> {s.meta.label}
+                  </span>
+                ))}
+                {metShare !== null && (
+                  <span className="ml-auto text-[11px] font-semibold text-slate-500">
+                    {metShare}% fully met
+                  </span>
+                )}
+              </div>
+            </>
+          ))}
+
+        {/* ── Lens: current pipeline by status ── */}
+        {lens === "status" && (
           <>
-            {/* Stacked verdict distribution — the whole story in one bar */}
-            <div className="flex h-3.5 w-full gap-0.5 rounded-full overflow-hidden">
-              {segments.map((s) => (
-                <div
-                  key={s.key}
-                  className={`${s.meta.dot} first:rounded-l-full last:rounded-r-full transition-all`}
-                  style={{ width: `${(s.count / total) * 100}%` }}
-                  title={`${s.count} ${s.meta.label}`}
-                />
-              ))}
+            <div className="flex items-center gap-3">
+              <UnitStatusBar c={statusCounts} />
+              <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                {statusTotal} unit{statusTotal === 1 ? "" : "s"}
+              </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              {segments.map((s) => (
+              {UNIT_STATUS_SEGMENTS.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
-                  <span className={`h-2 w-2 rounded-full ${s.meta.dot}`} />
-                  <span className="font-bold tabular-nums">{s.count}</span> {s.meta.label}
+                  <span className={`h-2 w-2 rounded-full ${s.bar}`} />
+                  <span className="font-bold tabular-nums">
+                    {statusCounts[s.key]}
+                  </span>{" "}
+                  {s.key === "done" ? `Done (${win.label.toLowerCase()})` : s.label}
                 </span>
               ))}
-              {metShare !== null && (
-                <span className="ml-auto text-[11px] font-semibold text-slate-500">
-                  {metShare}% fully met
-                </span>
-              )}
             </div>
           </>
         )}
 
-        {/* Delivery metrics for the period */}
+        {/* ── Lens: per project ── */}
+        {lens === "project" && (
+          <div className="space-y-1.5">
+            {(() => {
+              const byProject = new Map<string, Unit[]>();
+              for (const u of units) {
+                if (!byProject.has(u.projectId)) byProject.set(u.projectId, []);
+                byProject.get(u.projectId)!.push(u);
+              }
+              const rows2 = [...byProject.entries()]
+                .map(([pid, list]) => ({ pid, c: segmentCounts(list) }))
+                .sort((a, b) => (b.c.done + b.c.in_progress) - (a.c.done + a.c.in_progress));
+              if (rows2.length === 0)
+                return <p className="py-5 text-center text-xs text-muted-foreground">No project work found.</p>;
+              return rows2.map(({ pid, c }) => (
+                <Link
+                  key={pid}
+                  href={`/projects/${pid}`}
+                  className="flex items-center gap-3 rounded-lg border border-slate-100 px-2.5 py-2 hover:border-slate-200 hover:bg-slate-50/60 transition-colors"
+                >
+                  <FolderKanban className="h-4 w-4 text-blue-500 shrink-0" />
+                  <span className="w-44 truncate text-xs font-medium text-slate-800 shrink-0">
+                    {projectById[pid]?.title ?? "Unknown project"}
+                  </span>
+                  <UnitStatusBar c={c} />
+                  <span className="w-28 text-right text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                    {c.done} done · {c.in_progress} active
+                  </span>
+                </Link>
+              ));
+            })()}
+          </div>
+        )}
+
+        {/* ── Lens: deliverable types submitted in window ── */}
+        {lens === "deliverable" && (
+          <div className="space-y-1.5">
+            {(() => {
+              const byType = new Map<string, number>();
+              for (const e of evidenceRows) {
+                if (!inPeriod(e.submittedAt)) continue;
+                byType.set(e.type, (byType.get(e.type) ?? 0) + 1);
+              }
+              const sorted = [...byType.entries()].sort((a, b) => b[1] - a[1]);
+              if (sorted.length === 0)
+                return (
+                  <p className="py-5 text-center text-xs text-muted-foreground">
+                    No deliverables submitted in {win.label.toLowerCase()} — use ‹ › to
+                    look at earlier {period}s.
+                  </p>
+                );
+              const max = sorted[0][1];
+              return sorted.map(([type, count]) => (
+                <div key={type} className="flex items-center gap-3 rounded-lg border border-slate-100 px-2.5 py-2">
+                  <span className="text-sm shrink-0">{deliverableTypeIcons[type] || "🔗"}</span>
+                  <span className="w-40 truncate text-xs font-medium text-slate-800 shrink-0">
+                    {type === "link" ? "File / Link" : deliverableTypeLabels[type] || type}
+                  </span>
+                  <div className="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                      style={{ width: `${(count / max) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-10 text-right text-xs font-bold text-slate-800 shrink-0 tabular-nums">
+                    {count}
+                  </span>
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+
+        {/* Delivery metrics for the period — shared across lenses */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-2 rounded-lg bg-indigo-50/60 border border-indigo-100 px-2.5 py-1.5">
             <Target className="h-3.5 w-3.5 text-indigo-500 shrink-0" />

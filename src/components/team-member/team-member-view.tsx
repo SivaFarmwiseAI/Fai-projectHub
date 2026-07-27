@@ -174,6 +174,7 @@ export function TeamMemberView({ data }: { data: TeamMemberData }) {
             daily={daily}
             outcomes={outcomes}
             tasks={tasks}
+            projectById={projectById}
             completedTasks={completedTasks}
             totalTasks={tasks.length}
             onOpenOutcomes={() => selectTab(canAppraise ? "appraisal" : "tasks")}
