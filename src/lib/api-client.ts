@@ -650,9 +650,13 @@ export interface Task {
   hours_overridden?: boolean;
   review_status?: string;
   review_feedback?: string;
+  /** Free-text result summary captured when the task is completed. */
+  outcome_notes?: string;
   steps?: TaskStep[];
   updates?: TaskUpdateEntry[];
   milestones?: TaskMilestone[];
+  /** Links/files attached to the task (aggregated from revision attachments) — includes the completion deliverable. */
+  attachments?: MilestoneAttachment[];
   deadline_extensions?: DeadlineExtension[];
   order_index: number;
   created_at: string;

@@ -1329,6 +1329,8 @@ function MilestoneSection({
   const [updAct, setUpdAct] = useState<number | "">(milestone.actual_hours ?? "");
   const [updTargetDate, setUpdTargetDate] = useState<string>(formatDateForInput(milestone.target_date ?? undefined));
   const [updNote, setUpdNote] = useState("");
+  // Outcome — a required result summary when the milestone is completed.
+  const [updOutcome, setUpdOutcome] = useState<string>(milestone.outcome_notes ?? "");
   const [updAttachments, setUpdAttachments] = useState<
     { url: string; fileName?: string }[]
   >([]);
@@ -1341,6 +1343,12 @@ function MilestoneSection({
   const [localEstHours, setLocalEstHours] = useState<number | null>(milestone.estimated_hours ?? null);
   const [localActHours, setLocalActHours] = useState<number | null>(milestone.actual_hours ?? null);
   const [localTargetDate, setLocalTargetDate] = useState<string | null>(milestone.target_date ?? null);
+  const [localOutcome, setLocalOutcome] = useState<string>(milestone.outcome_notes ?? "");
+  // A milestone already has a deliverable if it carries a deliverable record or
+  // an attached link/file. Used to decide whether completion must capture one.
+  const hasExistingDeliverable =
+    (milestone.deliverables?.length ?? 0) > 0 ||
+    (milestone.attachments?.length ?? 0) > 0;
 
   const config =
     deliverableTypeConfig[milestone.deliverable_type ?? "text"] ||
@@ -1360,6 +1368,7 @@ function MilestoneSection({
     setUpdAct(localActHours ?? "");
     setUpdTargetDate(formatDateForInput(localTargetDate ?? undefined));
     setUpdNote("");
+    setUpdOutcome(localOutcome);
     setUpdAttachments([]);
     setShowUpdate(true);
   };
@@ -1370,10 +1379,31 @@ function MilestoneSection({
       showToast.error("Title required", "Milestone name can't be empty.");
       return;
     }
+    // Completing a milestone requires both an outcome summary and a deliverable
+    // (an existing one, or a link/file attached in this panel).
+    const completing = updStatus === "completed" && localStatus !== "completed";
+    if (completing) {
+      if (!updOutcome.trim()) {
+        showToast.error(
+          "Outcome required",
+          "Describe what this milestone delivered before completing it.",
+        );
+        return;
+      }
+      if (!hasExistingDeliverable && updAttachments.length === 0) {
+        showToast.error(
+          "Deliverable required",
+          "Attach a file or paste a link to the deliverable before completing.",
+        );
+        return;
+      }
+    }
     setSavingUpdate(true);
     try {
       const estVal = updEst !== "" ? updEst : undefined;
       const actVal = updAct !== "" ? updAct : undefined;
+      const trimmedOutcome = updOutcome.trim();
+      const outcomeChanged = trimmedOutcome !== localOutcome;
       const titleChanged = trimmedTitle !== localTitle;
       const statusChanged = updStatus !== localStatus;
       const hoursChanged =
@@ -1382,13 +1412,14 @@ function MilestoneSection({
       const dateVal = updTargetDate || null;
       const dateChanged = dateVal !== localTargetDate;
 
-      // 1. Apply title + status + timing + date to the milestone itself.
+      // 1. Apply title + status + timing + date + outcome to the milestone.
       await tasksApi.updateMilestone(taskId, milestone.id, {
         title: trimmedTitle,
         status: updStatus,
         estimated_hours: estVal,
         actual_hours: actVal,
         target_date: dateVal,
+        outcome_notes: trimmedOutcome || undefined,
       });
 
       // 2. Record a revision (with attachments) so the change + evidence is
@@ -1400,6 +1431,7 @@ function MilestoneSection({
         statusChanged ||
         hoursChanged ||
         dateChanged ||
+        outcomeChanged ||
         updNote.trim() ||
         updAttachments.length
       ) {
@@ -1412,6 +1444,8 @@ function MilestoneSection({
           parts.push(`${actVal ?? 0}h spent / ${estVal ?? 0}h est`);
         if (dateChanged)
           parts.push(dateVal ? `Date → ${formatShortDate(dateVal)}` : "Date cleared");
+        if (outcomeChanged && trimmedOutcome)
+          parts.push(`Outcome: ${trimmedOutcome}`);
         const summary =
           updNote.trim() || parts.join(" · ") || "Progress update";
         try {
@@ -1441,6 +1475,7 @@ function MilestoneSection({
       setLocalEstHours(estVal ?? null);
       setLocalActHours(actVal ?? null);
       setLocalTargetDate(dateVal);
+      setLocalOutcome(trimmedOutcome);
       showToast.success("Milestone updated");
       setShowUpdate(false);
       onUpdate?.();
@@ -1765,6 +1800,23 @@ function MilestoneSection({
                 </label>
               </div>
 
+              {/* Outcome — required to complete */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                  Outcome{" "}
+                  {updStatus === "completed" && (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <Textarea
+                  value={updOutcome}
+                  onChange={(e) => setUpdOutcome(e.target.value)}
+                  placeholder="What did this milestone deliver? (required to complete)"
+                  rows={2}
+                  className="text-xs"
+                />
+              </div>
+
               {/* Note */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
@@ -1779,10 +1831,17 @@ function MilestoneSection({
                 />
               </div>
 
-              {/* Attachments */}
+              {/* Attachments — a deliverable is required to complete */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                  Attachments
+                  Deliverable{updStatus === "completed" && !hasExistingDeliverable && (
+                    <span className="text-red-500"> *</span>
+                  )}
+                  {updStatus === "completed" && hasExistingDeliverable && (
+                    <span className="ml-1 font-normal normal-case tracking-normal text-emerald-600">
+                      · deliverable on record
+                    </span>
+                  )}
                 </label>
                 {updAttachments.length > 0 && (
                   <div className="space-y-1 mb-1.5">
@@ -2008,9 +2067,34 @@ function TaskCard({
   const [completeHours, setCompleteHours] = useState<number>(
     task.actual_hours ?? task.estimated_hours ?? 0,
   );
+  // Completing a task requires an outcome summary + a deliverable.
+  const [completeOutcome, setCompleteOutcome] = useState<string>(
+    task.outcome_notes ?? "",
+  );
+  const [completeAttachments, setCompleteAttachments] = useState<
+    { url: string; fileName?: string }[]
+  >([]);
   const [savingComplete, setSavingComplete] = useState(false);
 
+  // A task already has a deliverable if it carries an attached link/file.
+  const taskHasExistingDeliverable = (task.attachments?.length ?? 0) > 0;
+
   const completeTask = async () => {
+    const trimmedOutcome = completeOutcome.trim();
+    if (!trimmedOutcome) {
+      showToast.error(
+        "Outcome required",
+        "Describe what this task delivered before completing it.",
+      );
+      return;
+    }
+    if (!taskHasExistingDeliverable && completeAttachments.length === 0) {
+      showToast.error(
+        "Deliverable required",
+        "Attach a file or paste a link to the deliverable before completing.",
+      );
+      return;
+    }
     setSavingComplete(true);
     try {
       // When hours roll up from milestones, the task's actual hours are already
@@ -2019,10 +2103,32 @@ function TaskCard({
       await tasksApi.update(task.id, {
         status: "completed",
         actual_hours: auto ? undefined : completeHours || undefined,
+        outcome_notes: trimmedOutcome,
       });
+      // Persist the deliverable link/file as a task revision attachment so it
+      // lands on the task history and the task's `attachments`. Best-effort:
+      // the completion above is the primary action and must stand even if the
+      // history write fails (e.g. revision tables not yet migrated).
+      if (completeAttachments.length) {
+        try {
+          await tasksApi.addRevision(task.id, {
+            summary: `Deliverable submitted on completion — ${trimmedOutcome}`,
+            change_type: "status_change",
+            details: trimmedOutcome,
+            attachments: completeAttachments.map((a) => ({
+              title: a.fileName || a.url,
+              type: a.fileName ? "document" : "url",
+              url: a.url,
+            })),
+          });
+        } catch (revErr) {
+          console.warn("Task deliverable revision not recorded:", revErr);
+        }
+      }
       fireMilestoneCelebration();
       showToast.success("Task completed");
       setShowComplete(false);
+      setCompleteAttachments([]);
       onReviewUpdate?.();
     } catch (e) {
       showToast.error(
@@ -2063,6 +2169,20 @@ function TaskCard({
   };
 
   const submitTaskUpdate = async () => {
+    // Completing a task must go through the "Complete Task" flow, which
+    // captures the required outcome + deliverable. Redirect there instead of
+    // silently closing the task from the lightweight update panel.
+    if (taskUpdStatus === "completed" && task.status !== "completed") {
+      setShowAddUpdate(false);
+      setTaskUpdStatus(task.status);
+      setCompleteHours(task.actual_hours ?? task.estimated_hours ?? 0);
+      setShowComplete(true);
+      showToast.info(
+        "Record the outcome & deliverable",
+        "Complete the task below to capture what it delivered.",
+      );
+      return;
+    }
     setSavingTaskUpdate(true);
     try {
       const statusChanged = taskUpdStatus !== task.status;
@@ -2839,7 +2959,77 @@ function TaskCard({
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-end gap-2 flex-wrap">
+                <div className="space-y-3">
+                  {/* Outcome — required */}
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                      Outcome <span className="text-red-500">*</span>
+                    </label>
+                    <Textarea
+                      autoFocus
+                      value={completeOutcome}
+                      onChange={(e) => setCompleteOutcome(e.target.value)}
+                      placeholder="What did this task deliver? (required to complete)"
+                      rows={2}
+                      className="text-xs"
+                    />
+                  </div>
+
+                  {/* Deliverable — required (existing or a new link/file) */}
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                      Deliverable
+                      {!taskHasExistingDeliverable ? (
+                        <span className="text-red-500"> *</span>
+                      ) : (
+                        <span className="ml-1 font-normal normal-case tracking-normal text-emerald-600">
+                          · deliverable on record
+                        </span>
+                      )}
+                    </label>
+                    {completeAttachments.length > 0 && (
+                      <div className="space-y-1 mb-1.5">
+                        {completeAttachments.map((a, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2 py-1 text-[10px]"
+                          >
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                            <a
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 truncate font-medium text-emerald-800 hover:underline"
+                            >
+                              {a.fileName || a.url}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCompleteAttachments((prev) =>
+                                  prev.filter((_, j) => j !== i),
+                                )
+                              }
+                              className="text-red-400 hover:text-red-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <AttachmentBar
+                      label="Attach file or paste a link"
+                      compact
+                      value={null}
+                      onChange={(v) => {
+                        if (v)
+                          setCompleteAttachments((prev) => [...prev, v]);
+                      }}
+                    />
+                  </div>
+
+                  {/* Hours */}
                   {hoursAuto ? (
                     <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-blue-500" />
@@ -2862,7 +3052,6 @@ function TaskCard({
                       <Input
                         type="number"
                         min={0}
-                        autoFocus
                         value={completeHours || ""}
                         onChange={(e) => {
                           const v = Number(e.target.value);
@@ -2878,27 +3067,31 @@ function TaskCard({
                       />
                     </div>
                   )}
-                  <Button
-                    size="sm"
-                    onClick={completeTask}
-                    disabled={savingComplete}
-                    className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    {savingComplete ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-3 w-3" />
-                    )}{" "}
-                    Mark Completed
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowComplete(false)}
-                    className="h-8 text-xs"
-                  >
-                    Cancel
-                  </Button>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      onClick={completeTask}
+                      disabled={savingComplete}
+                      className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      {savingComplete ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3 w-3" />
+                      )}{" "}
+                      Mark Completed
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowComplete(false)}
+                      className="h-8 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

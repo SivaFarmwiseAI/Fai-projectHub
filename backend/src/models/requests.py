@@ -147,6 +147,8 @@ class UpdateTaskRequest(BaseModel):
     kill_criteria: Optional[List[str]] = None
     order_index: Optional[int] = None
     phase_id: Optional[UUID] = None
+    # Free-text result summary captured when the task is completed.
+    outcome_notes: Optional[str] = None
 
 
 class CreateTaskStepRequest(BaseModel):
