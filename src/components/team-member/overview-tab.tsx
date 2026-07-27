@@ -644,9 +644,9 @@ function OutcomeDeliveryCard({
 
       {/* Lens + time controls on their own row */}
       <div className="flex items-center justify-between gap-2 flex-wrap px-4 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
           {/* Lens switch — same board language as the team page */}
-          <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
             {(
               [
                 { id: "outcomes", label: "Outcomes" },
@@ -670,7 +670,7 @@ function OutcomeDeliveryCard({
               </button>
             ))}
           </div>
-          <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
             {[...PERIODS, { id: "custom" as const, label: "Custom" }].map((p) => (
               <button
                 key={p.id}
