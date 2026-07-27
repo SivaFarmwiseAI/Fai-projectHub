@@ -185,29 +185,66 @@ export function OverviewTab({
               </span>
             </div>
 
-            {analysis.msDoneThisWeek.length === 0 && analysis.deliverablesThisWeek.length === 0 ? (
+            {analysis.msDoneThisWeek.length === 0 &&
+            analysis.deliverablesThisWeek.length === 0 &&
+            analysis.tasksDoneThisWeek.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-6 border rounded-lg border-dashed">
                 Nothing completed yet this week
               </div>
             ) : (
               <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {analysis.msDoneThisWeek.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                    <span className="font-medium text-slate-800 truncate flex-1">{m.title}</span>
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{m._taskTitle}</span>
-                    {m.completed_at && (
-                      <span className="text-[10px] text-emerald-600 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
-                    )}
-                  </div>
-                ))}
-                {analysis.deliverablesThisWeek.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50">
-                    <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                    <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
-                  </div>
-                ))}
+                {/* Grouped by category so tasks, milestones and deliverables
+                    never blur into one list */}
+                {analysis.tasksDoneThisWeek.length > 0 && (
+                  <>
+                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Tasks completed ({analysis.tasksDoneThisWeek.length})
+                    </p>
+                    {analysis.tasksDoneThisWeek.map((t) => (
+                      <div key={t.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="font-medium text-slate-800 truncate flex-1">{t.title}</span>
+                        {t.completed_at && (
+                          <span className="text-[10px] text-emerald-600 shrink-0">{format(parseISO(t.completed_at), "EEE")}</span>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+                {analysis.msDoneThisWeek.length > 0 && (
+                  <>
+                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                      <Target className="h-3 w-3" />
+                      Milestones completed ({analysis.msDoneThisWeek.length})
+                    </p>
+                    {analysis.msDoneThisWeek.map((m) => (
+                      <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-indigo-100 bg-indigo-50/40">
+                        <Target className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                        <span className="font-medium text-slate-800 truncate flex-1">{m.title}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{m._taskTitle}</span>
+                        {m.completed_at && (
+                          <span className="text-[10px] text-indigo-500 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+                {analysis.deliverablesThisWeek.length > 0 && (
+                  <>
+                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                      <FileText className="h-3 w-3" />
+                      Deliverables submitted ({analysis.deliverablesThisWeek.length})
+                    </p>
+                    {analysis.deliverablesThisWeek.map((d) => (
+                      <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50">
+                        <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </CardContent>
