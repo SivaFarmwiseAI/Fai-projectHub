@@ -327,8 +327,11 @@ export function computeHoursAnalysis(
   let totalActual = 0;
   const perProjectMap: Record<string, { title: string; planned: number; actual: number }> = {};
 
-  const msDoneThisWeek: Array<TaskMilestone & { _taskTitle: string; _projectId: string }> = [];
-  const deliverablesThisWeek: Array<{ id: string; title: string; type: string; msTitle: string }> = [];
+  const msDoneThisWeek: Array<TaskMilestone & { _taskTitle: string; _taskId: string; _projectId: string }> = [];
+  const deliverablesThisWeek: Array<{
+    id: string; title: string; type: string; msTitle: string;
+    _taskId: string; _projectId: string; url?: string;
+  }> = [];
   let updatesThisWeek = 0;
   let effortDeliveredThisWeek = 0;
   let actualDeliveredThisWeek = 0;
@@ -348,16 +351,32 @@ export function computeHoursAnalysis(
 
     for (const m of t.milestones ?? []) {
       if (m.status === "completed" && inWeek(m.completed_at)) {
-        msDoneThisWeek.push({ ...m, _taskTitle: t.title, _projectId: t.project_id });
+        msDoneThisWeek.push({ ...m, _taskTitle: t.title, _taskId: t.id, _projectId: t.project_id });
         effortDeliveredThisWeek += m.estimated_hours ?? 0;
         actualDeliveredThisWeek += m.actual_hours ?? 0;
       }
       for (const d of m.deliverables ?? []) {
-        if (inWeek(d.submitted_at)) deliverablesThisWeek.push({ id: d.id, title: d.title, type: d.type, msTitle: m.title });
+        if (inWeek(d.submitted_at)) {
+          deliverablesThisWeek.push({
+            id: d.id, title: d.title, type: d.type, msTitle: m.title,
+            _taskId: t.id, _projectId: t.project_id,
+            url: d.document_url || d.code_pr_url || d.code_repo_url || undefined,
+          });
+        }
       }
       for (const u of m.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
     }
     for (const u of t.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
+    // Task-level evidence (milestone-less tasks) counts too.
+    for (const d of t.deliverables ?? []) {
+      if (inWeek(d.submitted_at)) {
+        deliverablesThisWeek.push({
+          id: d.id, title: d.title, type: d.type, msTitle: t.title,
+          _taskId: t.id, _projectId: t.project_id,
+          url: d.document_url || d.code_pr_url || d.code_repo_url || undefined,
+        });
+      }
+    }
   }
 
   const tasksDoneThisWeek = tasks.filter((t) => t.status === "completed" && inWeek(t.completed_at));

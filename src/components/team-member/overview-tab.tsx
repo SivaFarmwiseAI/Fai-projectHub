@@ -21,12 +21,15 @@ import {
   startOfWeek,
   startOfYear,
 } from "date-fns";
+import Link from "next/link";
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
+  ExternalLink,
   FileText,
   FolderKanban,
   Sparkles,
@@ -60,6 +63,15 @@ export function OverviewTab({
   totalTasks: number;
   onOpenOutcomes?: () => void;
 }) {
+  // Collapsible category groups in "Delivered This Week".
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
+    tasks: true,
+    milestones: true,
+    deliverables: true,
+  });
+  const toggleGroup = (key: string) =>
+    setOpenGroups((g) => ({ ...g, [key]: !g[key] }));
+
   if (totalTasks === 0) {
     return (
       <div className="rounded-xl border-2 border-dashed border-slate-200 py-16 text-center">
@@ -193,56 +205,104 @@ export function OverviewTab({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {/* Grouped by category so tasks, milestones and deliverables
-                    never blur into one list */}
+                {/* Grouped by category; headers collapse, rows navigate */}
                 {analysis.tasksDoneThisWeek.length > 0 && (
                   <>
-                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup("tasks")}
+                      className="flex w-full items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-700"
+                    >
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", !openGroups.tasks && "-rotate-90")} />
                       <CheckCircle2 className="h-3 w-3" />
                       Tasks completed ({analysis.tasksDoneThisWeek.length})
-                    </p>
-                    {analysis.tasksDoneThisWeek.map((t) => (
-                      <div key={t.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
+                    </button>
+                    {openGroups.tasks && analysis.tasksDoneThisWeek.map((t) => (
+                      <Link
+                        key={t.id}
+                        href={`/projects/${t.project_id}?tab=tasks&task=${t.id}`}
+                        className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors"
+                        title="Open this task in its project"
+                      >
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                         <span className="font-medium text-slate-800 truncate flex-1">{t.title}</span>
                         {t.completed_at && (
                           <span className="text-[10px] text-emerald-600 shrink-0">{format(parseISO(t.completed_at), "EEE")}</span>
                         )}
-                      </div>
+                        <ChevronRight className="h-3 w-3 text-emerald-400 shrink-0" />
+                      </Link>
                     ))}
                   </>
                 )}
                 {analysis.msDoneThisWeek.length > 0 && (
                   <>
-                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup("milestones")}
+                      className="flex w-full items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600 hover:text-indigo-700"
+                    >
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", !openGroups.milestones && "-rotate-90")} />
                       <Target className="h-3 w-3" />
                       Milestones completed ({analysis.msDoneThisWeek.length})
-                    </p>
-                    {analysis.msDoneThisWeek.map((m) => (
-                      <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-indigo-100 bg-indigo-50/40">
+                    </button>
+                    {openGroups.milestones && analysis.msDoneThisWeek.map((m) => (
+                      <Link
+                        key={m.id}
+                        href={`/projects/${m._projectId}?tab=tasks&task=${m._taskId}`}
+                        className="flex items-center gap-2 text-xs p-2 rounded-lg border border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
+                        title={`Open task "${m._taskTitle}"`}
+                      >
                         <Target className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                         <span className="font-medium text-slate-800 truncate flex-1">{m.title}</span>
                         <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{m._taskTitle}</span>
                         {m.completed_at && (
                           <span className="text-[10px] text-indigo-500 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
                         )}
-                      </div>
+                        <ChevronRight className="h-3 w-3 text-indigo-400 shrink-0" />
+                      </Link>
                     ))}
                   </>
                 )}
                 {analysis.deliverablesThisWeek.length > 0 && (
                   <>
-                    <p className="flex items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup("deliverables")}
+                      className="flex w-full items-center gap-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
+                    >
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", !openGroups.deliverables && "-rotate-90")} />
                       <FileText className="h-3 w-3" />
                       Deliverables submitted ({analysis.deliverablesThisWeek.length})
-                    </p>
-                    {analysis.deliverablesThisWeek.map((d) => (
-                      <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50">
-                        <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                        <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
-                      </div>
-                    ))}
+                    </button>
+                    {openGroups.deliverables && analysis.deliverablesThisWeek.map((d) =>
+                      d.url ? (
+                        <a
+                          key={d.id}
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                          title="Open the deliverable"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
+                          <ExternalLink className="h-3 w-3 text-blue-400 shrink-0" />
+                        </a>
+                      ) : (
+                        <Link
+                          key={d.id}
+                          href={`/projects/${d._projectId}?tab=tasks&task=${d._taskId}`}
+                          className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                          title="Open the task this deliverable belongs to"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
+                          <ChevronRight className="h-3 w-3 text-blue-400 shrink-0" />
+                        </Link>
+                      ),
+                    )}
                   </>
                 )}
               </div>
