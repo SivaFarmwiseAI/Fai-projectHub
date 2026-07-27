@@ -956,7 +956,7 @@ function OutcomeDeliveryCard({
             <Target className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
             <span className="text-[11px] text-slate-600">
               <span className="stat-number font-extrabold text-slate-900">
-                {msDone}/{msUnits.length}
+                {msDone === 0 ? "0" : `${msDone}/${msUnits.length}`}
               </span>{" "}
               milestones done
             </span>
@@ -968,7 +968,7 @@ function OutcomeDeliveryCard({
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
             <span className="text-[11px] text-slate-600">
               <span className="stat-number font-extrabold text-slate-900">
-                {tasksDone}/{taskUnits.length}
+                {tasksDone === 0 ? "0" : `${tasksDone}/${taskUnits.length}`}
               </span>{" "}
               tasks done
             </span>
