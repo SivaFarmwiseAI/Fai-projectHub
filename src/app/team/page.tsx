@@ -19,6 +19,7 @@ import { users as usersApi } from "@/lib/api-client";
 import type { User } from "@/lib/api-client";
 import { useAuth } from "@/contexts/auth-context";
 import { BrandLoader } from "@/components/brand-loader";
+import { TeamDeliveryBoard } from "@/components/team-delivery-board";
 
 function getScoreColor(score: number): string {
   if (score >= 90) return "bg-green-500";
@@ -117,6 +118,10 @@ export default function TeamPage() {
           </Badge>
         </div>
       </div>
+
+      {/* Delivery board — status / project / deliverable lenses over the
+          visible members' work, with the day/week/month/year navigator */}
+      {visibleMembers.length > 0 && <TeamDeliveryBoard members={visibleMembers} />}
 
       {/* Empty state */}
       {filteredMembers.length === 0 && (
