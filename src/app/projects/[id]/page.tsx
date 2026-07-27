@@ -3362,10 +3362,6 @@ function TaskCard({
                         min={0}
                         step="0.5"
                         placeholder="8.5"
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "-" || e.key === "e" || e.key === "+")
-                            e.preventDefault();
-                        }}
                         value={milestoneEstimatedHours === 0 ? "" : milestoneEstimatedHours}
                         onChange={(e) => {
                           const v = Number(e.target.value);
@@ -9010,9 +9006,6 @@ export default function ProjectDetailPage({
                       value={newTaskStartDate}
                       onChange={(e) => setNewTaskStartDate(e.target.value)}
                       className="text-xs h-8 cursor-pointer"
-                      onClick={(e) =>
-                        (e.currentTarget as HTMLInputElement).showPicker?.()
-                      }
                     />
                   </div>
                   <div>
@@ -9024,9 +9017,6 @@ export default function ProjectDetailPage({
                       value={newTaskDueDate}
                       onChange={(e) => setNewTaskDueDate(e.target.value)}
                       className="text-xs h-8 cursor-pointer"
-                      onClick={(e) =>
-                        (e.currentTarget as HTMLInputElement).showPicker?.()
-                      }
                     />
                   </div>
                 </div>
@@ -9389,9 +9379,6 @@ export default function ProjectDetailPage({
                           setNewPhaseErrors((p) => ({ ...p, startDate: "" }));
                       }}
                       className={`text-xs h-7 cursor-pointer${newPhaseErrors.startDate ? " border-red-400" : ""}`}
-                      onClick={(e) =>
-                        (e.currentTarget as HTMLInputElement).showPicker?.()
-                      }
                     />
                     {newPhaseErrors.startDate && (
                       <p className="text-xs text-red-500 mt-1">
@@ -9412,9 +9399,6 @@ export default function ProjectDetailPage({
                           setNewPhaseErrors((p) => ({ ...p, endDate: "" }));
                       }}
                       className={`text-xs h-7 cursor-pointer${newPhaseErrors.endDate ? " border-red-400" : ""}`}
-                      onClick={(e) =>
-                        (e.currentTarget as HTMLInputElement).showPicker?.()
-                      }
                     />
                     {newPhaseErrors.endDate && (
                       <p className="text-xs text-red-500 mt-1">
@@ -9617,11 +9601,6 @@ export default function ProjectDetailPage({
                                   }));
                               }}
                               className={`text-xs h-7 cursor-pointer${editPhaseErrors.startDate ? " border-red-400" : ""}`}
-                              onClick={(e) =>
-                                (
-                                  e.currentTarget as HTMLInputElement
-                                ).showPicker?.()
-                              }
                             />
                             {editPhaseErrors.startDate && (
                               <p className="text-xs text-red-500 mt-1">
@@ -9649,11 +9628,6 @@ export default function ProjectDetailPage({
                                   }));
                               }}
                               className={`text-xs h-7 cursor-pointer${editPhaseErrors.endDate || editPhaseErrors.dateRange ? " border-red-400" : ""}`}
-                              onClick={(e) =>
-                                (
-                                  e.currentTarget as HTMLInputElement
-                                ).showPicker?.()
-                              }
                             />
                             {editPhaseErrors.endDate && (
                               <p className="text-xs text-red-500 mt-1">
