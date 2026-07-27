@@ -5,7 +5,12 @@
  */
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    /** Machine-readable error code from the backend (e.g. "MILESTONES_INCOMPLETE"). */
+    public code?: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -52,7 +57,7 @@ async function request<T>(
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     if (res.status === 401) handleUnauthorized(path);
-    throw new ApiError(res.status, err.detail || res.statusText);
+    throw new ApiError(res.status, err.detail || res.statusText, err.code);
   }
 
   if (res.status === 204) return undefined as T;
@@ -274,7 +279,7 @@ export const tasks = {
     get<{ tasks: Task[] }>(`/tasks${_qs(params)}`),
   create:  (data: CreateTaskPayload) => post<{ task: Task }>("/tasks", data),
   get:     (id: string) => get<{ task: Task }>(`/tasks/${id}`),
-  update:  (id: string, data: Partial<Task>) => patch<{ task: Task }>(`/tasks/${id}`, data),
+  update:  (id: string, data: UpdateTaskPayload) => patch<{ task: Task }>(`/tasks/${id}`, data),
   delete:  (id: string) => del<void>(`/tasks/${id}`),
 
   addStep:    (id: string, data: CreateStepPayload) =>
@@ -287,7 +292,7 @@ export const tasks = {
 
   addMilestone:    (id: string, data: CreateMilestonePayload) =>
     post<{ milestone: TaskMilestone }>(`/tasks/${id}/milestones`, data),
-  updateMilestone: (taskId: string, msId: string, data: Partial<TaskMilestone>) =>
+  updateMilestone: (taskId: string, msId: string, data: UpdateMilestonePayload) =>
     patch<{ milestone: TaskMilestone }>(`/tasks/${taskId}/milestones/${msId}`, data),
   deleteMilestone: (taskId: string, msId: string) =>
     del<void>(`/tasks/${taskId}/milestones/${msId}`),
@@ -619,6 +624,18 @@ export interface Phase {
   discussions?: PhaseDiscussion[];
 }
 
+/** Structured verdict recorded when a task/milestone is completed. */
+export type OutcomeVerdict = "met" | "partially_met" | "not_met" | "deferred";
+
+/** Deliverable evidence submitted inline with a completion request. */
+export interface DeliverableInput {
+  type: string; // deliverable_type enum value
+  title: string;
+  url?: string;
+  text_content?: string;
+  description?: string;
+}
+
 export interface TaskAssignee {
   id: string;
   name: string;
@@ -650,8 +667,15 @@ export interface Task {
   hours_overridden?: boolean;
   review_status?: string;
   review_feedback?: string;
+  /** Structured verdict captured when a milestone-less task is completed. */
+  outcome?: OutcomeVerdict | string;
   /** Free-text result summary captured when the task is completed. */
   outcome_notes?: string;
+  /** What this task is expected to produce (captured at creation). */
+  expected_outcome_type?: string;
+  expected_deliverable?: string;
+  /** Task-level deliverable evidence rows (milestone-less tasks). */
+  deliverables?: Deliverable[];
   steps?: TaskStep[];
   updates?: TaskUpdateEntry[];
   milestones?: TaskMilestone[];
@@ -708,7 +732,7 @@ export interface TaskMilestone {
   target_date?: string | null;
   estimated_hours?: number;
   actual_hours?: number;
-  outcome?: string;
+  outcome?: OutcomeVerdict | string;
   outcome_notes?: string;
   deliverables?: Deliverable[];
   updates?: MilestoneUpdateEntry[];
@@ -738,6 +762,7 @@ export interface Deliverable {
   document_url?: string;
   code_repo_url?: string;
   code_pr_url?: string;
+  text_content?: string;
   submitted_by?: string;
   submitted_at?: string;
   verified_by?: string;
@@ -1588,7 +1613,11 @@ export interface ExtractedDocument {
   timebox_days?: number;
 }
 export interface CreatePhasePayload { project_id: string; phase_name: string; description?: string; order_index?: number; sign_off_required?: boolean; checklist?: { item: string; done: boolean }[]; estimated_duration?: string; start_date?: string; end_date?: string }
-export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[] }
+export interface CreateTaskPayload { project_id: string; phase_id?: string; title: string; description?: string; assignee_id?: string; assignee_ids?: string[]; approach?: string; priority?: string; estimated_hours?: number; success_criteria?: string[]; kill_criteria?: string[]; expected_outcome_type?: string; expected_deliverable?: string }
+/** Task update; `deliverables` submits inline evidence rows with a completion. */
+export type UpdateTaskPayload = Partial<Omit<Task, "deliverables">> & { deliverables?: DeliverableInput[] };
+/** Milestone update; `deliverables` submits inline evidence rows with a completion. */
+export type UpdateMilestonePayload = Partial<Omit<TaskMilestone, "deliverables">> & { deliverables?: DeliverableInput[] };
 export interface CreateStepPayload { task_id: string; description: string; expected_outcome?: string; category?: string; estimated_hours?: number; assignee_id?: string; order_index?: number }
 export interface CreateMilestonePayload { task_id: string; title: string; description?: string; deliverable_type?: string; success_criteria?: string[]; assignee_id?: string; target_day?: number; target_date?: string; estimated_hours?: number; order_index?: number; }
 export interface CreateExtensionPayload { project_id: string; task_id?: string; milestone_id?: string; original_deadline?: string; requested_deadline: string; reason: string; reason_detail: string; impact?: string }

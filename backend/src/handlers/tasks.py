@@ -14,6 +14,65 @@ from ..models.requests import (
 
 log = logging.getLogger(__name__)
 
+# Valid deliverable_type enum values — validated here so a bad value is a 400,
+# not a 500 from the Postgres enum cast.
+DELIVERABLE_TYPES = {"code", "document", "ppt", "text", "meeting_notes", "data"}
+
+VERDICT_LABEL = {
+    "met": "Met", "partially_met": "Partially met",
+    "not_met": "Not met", "deferred": "Deferred",
+}
+
+
+# ── Outcome / deliverable enforcement helpers ────────────────────────────────
+
+def _insert_deliverables(current_user, items, task_id=None, milestone_id=None):
+    """Insert inline deliverable evidence rows (status 'submitted').
+
+    Milestone deliverables carry milestone_id only; task-level deliverables
+    carry task_id only — fn_task_full aggregates each level separately."""
+    rows = []
+    for item in items:
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+        dtype = item.get("type") or "document"
+        if dtype not in DELIVERABLE_TYPES:
+            raise HTTPError(400, f"Invalid deliverable type '{dtype}'",
+                            code="INVALID_DELIVERABLE_TYPE")
+        url = item.get("url")
+        rows.append(execute_returning("""
+            INSERT INTO deliverables
+              (task_id, milestone_id, type, title, description, status,
+               document_url, code_pr_url, text_content, submitted_by, submitted_at)
+            VALUES (%s,%s,%s,%s,%s,'submitted',%s,%s,%s,%s,NOW()) RETURNING *
+        """, (task_id, milestone_id, dtype, title, item.get("description"),
+              url if dtype != "code" else None,
+              url if dtype == "code" else None,
+              item.get("text_content"), current_user["id"])))
+    return rows
+
+
+def _has_task_evidence(task_id):
+    """A milestone-less task counts as evidenced if it has a deliverable row,
+    a standalone attachment, or (legacy) a revision attachment."""
+    return bool(fetchone("""
+        SELECT 1 WHERE EXISTS (SELECT 1 FROM deliverables WHERE task_id = %s)
+           OR EXISTS (SELECT 1 FROM task_attachments WHERE task_id = %s)
+           OR EXISTS (SELECT 1 FROM task_revision_attachments a
+                      JOIN task_revisions r ON r.id = a.revision_id
+                      WHERE r.task_id = %s)
+    """, (task_id, task_id, task_id)))
+
+
+def _has_milestone_evidence(ms_id):
+    return bool(fetchone("""
+        SELECT 1 WHERE EXISTS (SELECT 1 FROM deliverables WHERE milestone_id = %s)
+           OR EXISTS (SELECT 1 FROM milestone_revision_attachments a
+                      JOIN milestone_revisions mr ON mr.id = a.revision_id
+                      WHERE mr.milestone_id = %s)
+    """, (ms_id, ms_id)))
+
 
 # ── Deadline extensions ───────────────────────────────────────────────────────
 
@@ -105,14 +164,17 @@ def _create_task(event, origin):
     task = execute_returning("""
         INSERT INTO tasks
           (project_id, phase_id, title, description, assignee_id, approach,
-           priority, estimated_hours, success_criteria, kill_criteria, order_index, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+           priority, estimated_hours, success_criteria, kill_criteria, order_index,
+           expected_outcome_type, expected_deliverable, created_by)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
     """, (str(body.project_id),
           str(body.phase_id)    if body.phase_id    else None,
           body.title, body.description, primary_id,
           body.approach, body.priority, body.estimated_hours,
           json.dumps(body.success_criteria), json.dumps(body.kill_criteria),
-          body.order_index, current_user["id"]))
+          body.order_index,
+          body.expected_outcome_type, body.expected_deliverable or None,
+          current_user["id"]))
 
     for uid in all_ids:
         # Auto-add the assignee to the project (so "Add People" can pull in a
@@ -205,15 +267,69 @@ def _get_task(event, origin, task_id):
 
 
 def _update_task(event, origin, task_id):
-    get_current_user(event)
+    current_user = get_current_user(event)
     body = UpdateTaskRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    if not fields:
+    # Inline deliverable evidence — not a tasks column.
+    deliverable_items = fields.pop("deliverables", []) or []
+    if not fields and not deliverable_items:
         raise HTTPError(400, "No fields to update")
     for key in ("success_criteria", "kill_criteria"):
         if key in fields: fields[key] = json.dumps(fields[key])
     if "assignee_id" in fields and fields["assignee_id"]:
         fields["assignee_id"] = str(fields["assignee_id"])
+
+    # Completion gate — only on the transition INTO 'completed'.
+    #   Task has milestones  -> every milestone must already be completed
+    #                           (each one carries its own outcome + evidence);
+    #                           no task-level outcome is demanded.
+    #   Task has none        -> verdict + notes + deliverable evidence required.
+    completing = False
+    current = None
+    if fields.get("status") == "completed":
+        current = fetchone(
+            "SELECT status, outcome, outcome_notes FROM tasks WHERE id = %s", (task_id,))
+        if not current:
+            raise HTTPError(404, "Task not found")
+        completing = current["status"] != "completed"
+    if completing:
+        counts = fetchone("""
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE status <> 'completed') AS open
+            FROM task_milestones WHERE task_id = %s
+        """, (task_id,))
+        if counts["total"] > 0:
+            if counts["open"] > 0:
+                raise HTTPError(
+                    400,
+                    f"Complete all {counts['total']} milestones before completing "
+                    f"this task ({counts['open']} remaining)",
+                    code="MILESTONES_INCOMPLETE")
+        else:
+            verdict = fields.get("outcome") or current["outcome"]
+            if not verdict:
+                raise HTTPError(400, "An outcome verdict (met / partially met / "
+                                "not met / deferred) is required to complete this task",
+                                code="OUTCOME_REQUIRED")
+            notes = (fields.get("outcome_notes") or current["outcome_notes"] or "").strip()
+            if not notes:
+                raise HTTPError(400, "Outcome notes are required to complete this task",
+                                code="OUTCOME_NOTES_REQUIRED")
+            if not any((i.get("title") or "").strip() for i in deliverable_items) \
+                    and not _has_task_evidence(task_id):
+                raise HTTPError(400, "At least one deliverable (file, link or text) "
+                                "is required to complete this task",
+                                code="DELIVERABLE_REQUIRED")
+
+    if deliverable_items:
+        _insert_deliverables(current_user, deliverable_items, task_id=task_id)
+
+    if not fields:
+        updated = fetchone("SELECT * FROM tasks WHERE id = %s", (task_id,))
+        if not updated:
+            raise HTTPError(404, "Task not found")
+        return resp({"task": updated}, origin=origin)
+
     if "status" in fields:
         # Stamp completion when finishing; clear a stale stamp when re-opening.
         fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
@@ -222,6 +338,22 @@ def _update_task(event, origin, task_id):
     updated = execute_returning(f"UPDATE tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params)
     if not updated:
         raise HTTPError(404, "Task not found")
+
+    if completing:
+        # Best-effort history entry — the timeline note is no longer the
+        # frontend's job, and its failure must not fail the completion.
+        try:
+            verdict = fields.get("outcome") or (current["outcome"] if current else None)
+            notes = fields.get("outcome_notes") or (current["outcome_notes"] if current else None)
+            summary = "Task completed"
+            if verdict:
+                summary += f" — outcome: {VERDICT_LABEL.get(verdict, verdict)}"
+            execute("""
+                INSERT INTO task_revisions (task_id, author_id, change_type, summary, details)
+                VALUES (%s,%s,'closure',%s,%s)
+            """, (task_id, current_user["id"], summary[:500], notes))
+        except Exception as e:
+            log.warning("Completion revision skipped for task %s: %s", task_id, e)
     # If the user switched hours back to "auto" (not overridden), immediately
     # re-derive the totals from the milestones so the response is consistent.
     if fields.get("hours_overridden") is False:
@@ -412,15 +544,55 @@ def _create_milestone(event, origin, task_id):
 
 
 def _update_milestone(event, origin, task_id, ms_id):
-    get_current_user(event)
+    current_user = get_current_user(event)
     body = UpdateMilestoneRequest(**get_body(event))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    if not fields:
+    # Inline deliverable evidence — not a task_milestones column.
+    deliverable_items = fields.pop("deliverables", []) or []
+    if not fields and not deliverable_items:
         raise HTTPError(400, "No fields to update")
     if "success_criteria" in fields:
         fields["success_criteria"] = json.dumps(fields["success_criteria"])
     if "assignee_id" in fields and fields["assignee_id"]:
         fields["assignee_id"] = str(fields["assignee_id"])
+
+    # Completion gate — a milestone completes only with a structured verdict,
+    # outcome notes, and at least one piece of deliverable evidence.
+    completing = False
+    current = None
+    if fields.get("status") == "completed":
+        current = fetchone(
+            "SELECT status, outcome, outcome_notes FROM task_milestones "
+            "WHERE id = %s AND task_id = %s", (ms_id, task_id))
+        if not current:
+            raise HTTPError(404, "Milestone not found")
+        completing = current["status"] != "completed"
+    if completing:
+        verdict = fields.get("outcome") or current["outcome"]
+        if not verdict:
+            raise HTTPError(400, "An outcome verdict (met / partially met / "
+                            "not met / deferred) is required to complete this milestone",
+                            code="OUTCOME_REQUIRED")
+        notes = (fields.get("outcome_notes") or current["outcome_notes"] or "").strip()
+        if not notes:
+            raise HTTPError(400, "Outcome notes are required to complete this milestone",
+                            code="OUTCOME_NOTES_REQUIRED")
+        if not any((i.get("title") or "").strip() for i in deliverable_items) \
+                and not _has_milestone_evidence(ms_id):
+            raise HTTPError(400, "At least one deliverable (file, link or text) "
+                            "is required to complete this milestone",
+                            code="DELIVERABLE_REQUIRED")
+
+    if deliverable_items:
+        _insert_deliverables(current_user, deliverable_items, milestone_id=ms_id)
+
+    if not fields:
+        updated = fetchone(
+            "SELECT * FROM task_milestones WHERE id = %s AND task_id = %s", (ms_id, task_id))
+        if not updated:
+            raise HTTPError(404, "Milestone not found")
+        return resp({"milestone": updated}, origin=origin)
+
     if "status" in fields:
         # Stamp completion when finishing; clear a stale stamp when re-opening.
         fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
@@ -430,6 +602,21 @@ def _update_milestone(event, origin, task_id, ms_id):
     if not updated:
         raise HTTPError(404, "Milestone not found")
     _rollup_task_hours(task_id)
+
+    if completing:
+        # Best-effort history entry; must not fail the completion.
+        try:
+            verdict = fields.get("outcome") or (current["outcome"] if current else None)
+            notes = fields.get("outcome_notes") or (current["outcome_notes"] if current else None)
+            summary = "Milestone completed"
+            if verdict:
+                summary += f" — outcome: {VERDICT_LABEL.get(verdict, verdict)}"
+            execute("""
+                INSERT INTO milestone_revisions (milestone_id, author_id, change_type, summary, details)
+                VALUES (%s,%s,'closure',%s,%s)
+            """, (ms_id, current_user["id"], summary[:500], notes))
+        except Exception as e:
+            log.warning("Completion revision skipped for milestone %s: %s", ms_id, e)
     return resp({"milestone": updated}, origin=origin)
 
 

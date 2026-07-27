@@ -48,8 +48,11 @@ def resp(
     }
 
 
-def err(status: int, message: str, origin: str = "*") -> dict:
-    return resp({"detail": message}, status, origin)
+def err(status: int, message: str, origin: str = "*", code: Optional[str] = None) -> dict:
+    body = {"detail": message}
+    if code:
+        body["code"] = code
+    return resp(body, status, origin)
 
 
 # ── Request helpers ───────────────────────────────────────────────────────────
@@ -101,7 +104,7 @@ def make_handler(routes: List[Tuple[str, str, Callable]]):
                         return func(event, origin, **m.groupdict())
             return err(404, f"Not found: {method} {path}", origin)
         except HTTPError as e:
-            return err(e.status_code, e.message, origin)
+            return err(e.status_code, e.message, origin, code=getattr(e, "code", None))
         except Exception as e:
             log.exception(f"Unhandled error on {method} {path}: {e}")
             # Surface the underlying exception so the client can see what broke

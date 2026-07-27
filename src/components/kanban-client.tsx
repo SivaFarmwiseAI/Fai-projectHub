@@ -21,6 +21,7 @@ import {
 import { RevisionHistory } from "@/components/revision-history";
 import { UserLink } from "@/components/user-link";
 import { MilestoneLinks } from "@/components/milestone-links";
+import { CompleteWorkDialog } from "@/components/complete-work-dialog";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Enhanced Kanban — a full project-transaction board.
@@ -965,6 +966,15 @@ export function KanbanClient({ projectId }: { projectId: string }) {
     return filteredTasks.filter(t => colKeyForTask(t) === colId);
   }, [groupBy, filteredTasks, filteredMilestones, colKeyForTask]);
 
+  /* ── completion interception: drag-to-Done opens the structured dialog ── */
+  const [completeTarget, setCompleteTarget] = useState<
+    | { kind: "milestone"; taskId: string; msId: string; title: string;
+        deliverableType?: string; hasEvidence: boolean }
+    | { kind: "task"; taskId: string; title: string; total: number; done: number;
+        hasEvidence: boolean; showHours: boolean; defaultHours?: number; expected?: string }
+    | null
+  >(null);
+
   /* ── persistence: move an item into a column ──────────────── */
   const applyMove = useCallback(async (id: string, to: string) => {
     // Milestone dimension → update milestone status
@@ -973,12 +983,21 @@ export function KanbanClient({ projectId }: { projectId: string }) {
       const ms = parent?.milestones?.find(m => m.id === id);
       if (!parent || !ms || normMsStatus(ms.status) === to) return;
       const prev = ms.status;
+      // Completing requires an outcome verdict + deliverable evidence — the
+      // dialog handles the PATCH; the card stays put until it succeeds.
+      if (prev !== "completed" && to === "completed") {
+        setCompleteTarget({
+          kind: "milestone", taskId: parent.id, msId: id, title: ms.title,
+          deliverableType: ms.deliverable_type,
+          hasEvidence: (ms.deliverables?.length ?? 0) > 0 || (ms.attachments?.length ?? 0) > 0,
+        });
+        return;
+      }
       setTasks(cur => cur.map(t => t.id !== parent.id ? t : {
         ...t, milestones: (t.milestones ?? []).map(m => m.id === id
           ? { ...m, status: to, completed_at: to === "completed" ? new Date().toISOString() : undefined } : m),
       }));
-      if (prev !== "completed" && to === "completed") { showToast.success("Milestone completed!"); setTimeout(fireSideCannons, 150); }
-      else showToast.info(`Milestone → ${MS_STATUS_COLS[to as MilestoneStatusId].label}`);
+      showToast.info(`Milestone → ${MS_STATUS_COLS[to as MilestoneStatusId].label}`);
       try { await tasksApi.updateMilestone(parent.id, id, { status: to }); }
       catch {
         showToast.error("Couldn't save — reverting");
@@ -999,10 +1018,30 @@ export function KanbanClient({ projectId }: { projectId: string }) {
     if (groupBy === "status") {
       const to2 = normStatus(to);
       if (normStatus(t.status) === to2) return;
+      // Completing goes through the structured dialog (and is blocked while
+      // milestones are still open) — the card stays put until it succeeds.
+      if (t.status !== "completed" && to2 === "completed") {
+        const total = (t.milestones ?? []).length;
+        const done = (t.milestones ?? []).filter(m => m.status === "completed").length;
+        if (total > 0 && done < total) {
+          showToast.error(
+            "Milestones still open",
+            `Complete all ${total} milestones first (${total - done} remaining).`,
+          );
+          return;
+        }
+        setCompleteTarget({
+          kind: "task", taskId: t.id, title: t.title, total, done,
+          hasEvidence: (t.deliverables?.length ?? 0) > 0 || (t.attachments?.length ?? 0) > 0,
+          showHours: !(total > 0 && !t.hours_overridden),
+          defaultHours: t.actual_hours ?? t.estimated_hours,
+          expected: t.expected_deliverable,
+        });
+        return;
+      }
       patch.status = to2;
       optimistic = { status: to2, completed_at: to2 === "completed" ? new Date().toISOString() : t.completed_at };
-      if (t.status !== "completed" && to2 === "completed") { showToast.success("Task marked complete!"); setTimeout(fireSideCannons, 200); }
-      else showToast.info(`Moved to ${STATUS_COLS[to2].label}`);
+      showToast.info(`Moved to ${STATUS_COLS[to2].label}`);
     } else if (groupBy === "phase") {
       if ((t.phase_id ?? undefined) === target) return;
       patch.phase_id = target; optimistic = { phase_id: target };
@@ -1056,6 +1095,52 @@ export function KanbanClient({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
+      {completeTarget && (
+        <CompleteWorkDialog
+          entity={completeTarget.kind}
+          taskId={completeTarget.taskId}
+          milestoneId={completeTarget.kind === "milestone" ? completeTarget.msId : undefined}
+          title={completeTarget.title}
+          milestonesGate={
+            completeTarget.kind === "task"
+              ? { total: completeTarget.total, completed: completeTarget.done }
+              : undefined
+          }
+          defaultDeliverableType={
+            completeTarget.kind === "milestone" ? completeTarget.deliverableType : undefined
+          }
+          hasExistingDeliverable={completeTarget.hasEvidence}
+          showHours={completeTarget.kind === "milestone" ? true : completeTarget.showHours}
+          defaultHours={completeTarget.kind === "task" ? completeTarget.defaultHours : undefined}
+          expectedDeliverable={completeTarget.kind === "task" ? completeTarget.expected : undefined}
+          open
+          onOpenChange={(o) => { if (!o) setCompleteTarget(null); }}
+          onCompleted={(updated) => {
+            if (completeTarget.kind === "milestone") {
+              const ms = updated as TaskMilestone;
+              setTasks(cur => cur.map(t => t.id !== completeTarget.taskId ? t : {
+                ...t,
+                milestones: (t.milestones ?? []).map(m => m.id !== completeTarget.msId ? m : {
+                  ...m, status: "completed",
+                  completed_at: ms.completed_at ?? new Date().toISOString(),
+                  outcome: ms.outcome, outcome_notes: ms.outcome_notes,
+                  actual_hours: ms.actual_hours ?? m.actual_hours,
+                }),
+              }));
+            } else {
+              const task = updated as Task;
+              setTasks(cur => cur.map(t => t.id !== completeTarget.taskId ? t : {
+                ...t, status: "completed",
+                completed_at: task.completed_at ?? new Date().toISOString(),
+                outcome: task.outcome, outcome_notes: task.outcome_notes,
+                actual_hours: task.actual_hours ?? t.actual_hours,
+              }));
+            }
+            setTimeout(fireSideCannons, 150);
+            setCompleteTarget(null);
+          }}
+        />
+      )}
       {/* Header */}
       <div>
         <Link href={`/projects/${project.id}`}

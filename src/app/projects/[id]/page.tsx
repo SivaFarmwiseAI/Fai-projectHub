@@ -33,7 +33,8 @@ import { showToast } from "@/lib/toast";
 import { fireMilestoneCelebration } from "@/lib/confetti";
 import { useConfirm } from "@/components/confirm-provider";
 import { useAuth } from "@/contexts/auth-context";
-import { MILESTONE_STATUS_LABELS } from "@/lib/labels";
+import { MILESTONE_STATUS_LABELS, OUTCOME_VERDICT_LABELS } from "@/lib/labels";
+import { CompleteWorkDialog } from "@/components/complete-work-dialog";
 
 // Module-level user cache for sub-component lookups
 let _userMap: Record<string, User> = {};
@@ -1335,6 +1336,8 @@ function MilestoneSection({
     { url: string; fileName?: string }[]
   >([]);
   const [savingUpdate, setSavingUpdate] = useState(false);
+  // Structured completion dialog — captures verdict + notes + evidence.
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
 
   // Local mirror of milestone values so the summary line updates immediately after save
   // without waiting for the parent refreshTasks() to complete.
@@ -1379,24 +1382,40 @@ function MilestoneSection({
       showToast.error("Title required", "Milestone name can't be empty.");
       return;
     }
-    // Completing a milestone requires both an outcome summary and a deliverable
-    // (an existing one, or a link/file attached in this panel).
+    // Completing a milestone goes through the structured completion dialog
+    // (verdict + notes + deliverable evidence). Save any other edits first so
+    // nothing typed into this panel is lost, then hand over to the dialog.
     const completing = updStatus === "completed" && localStatus !== "completed";
     if (completing) {
-      if (!updOutcome.trim()) {
+      setSavingUpdate(true);
+      try {
+        const estVal = updEst !== "" ? updEst : undefined;
+        const dateVal = updTargetDate || null;
+        const hasEdits =
+          trimmedTitle !== localTitle ||
+          (estVal ?? null) !== localEstHours ||
+          dateVal !== localTargetDate;
+        if (hasEdits) {
+          await tasksApi.updateMilestone(taskId, milestone.id, {
+            title: trimmedTitle,
+            estimated_hours: estVal,
+            target_date: dateVal,
+          });
+          setLocalTitle(trimmedTitle);
+          setLocalEstHours(estVal ?? null);
+          setLocalTargetDate(dateVal);
+        }
+        setShowUpdate(false);
+        setShowCompleteDialog(true);
+      } catch (e) {
         showToast.error(
-          "Outcome required",
-          "Describe what this milestone delivered before completing it.",
+          "Failed to update milestone",
+          e instanceof Error ? e.message : undefined,
         );
-        return;
+      } finally {
+        setSavingUpdate(false);
       }
-      if (!hasExistingDeliverable && updAttachments.length === 0) {
-        showToast.error(
-          "Deliverable required",
-          "Attach a file or paste a link to the deliverable before completing.",
-        );
-        return;
-      }
+      return;
     }
     setSavingUpdate(true);
     try {
@@ -1557,19 +1576,19 @@ function MilestoneSection({
 
   return (
     <div
-      className={`rounded-lg border ${
+      className={`rounded-lg border shadow-sm ${
         milestone.status === "completed"
-          ? "border-emerald-200 bg-emerald-50/30"
+          ? "border-emerald-200 bg-emerald-50/40"
           : milestone.status === "in_progress"
-            ? "border-blue-200 bg-blue-50/30"
+            ? "border-blue-200 bg-blue-50/40"
             : milestone.status === "blocked"
-              ? "border-red-200 bg-red-50/30"
-              : "border-border bg-gray-50/50"
+              ? "border-red-200 bg-red-50/40"
+              : "border-slate-200 bg-white"
       }`}
     >
       {/* Milestone Header */}
       <div
-        className="flex items-center gap-2.5 p-3 cursor-pointer hover:bg-white/50 transition-colors rounded-lg"
+        className="flex items-center gap-2.5 p-3 cursor-pointer hover:bg-white/60 transition-colors rounded-lg"
         onClick={() => setExpanded(!expanded)}
       >
         {/* Status icon */}
@@ -1585,6 +1604,9 @@ function MilestoneSection({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
+            <span className="text-[8px] font-bold uppercase tracking-wider text-indigo-500 border border-indigo-200 bg-indigo-50 rounded px-1 py-px shrink-0">
+              Milestone
+            </span>
             <span className="text-sm font-medium truncate">
               {localTitle}
             </span>
@@ -1800,22 +1822,27 @@ function MilestoneSection({
                 </label>
               </div>
 
-              {/* Outcome — required to complete */}
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                  Outcome{" "}
-                  {updStatus === "completed" && (
-                    <span className="text-red-500">*</span>
-                  )}
-                </label>
-                <Textarea
-                  value={updOutcome}
-                  onChange={(e) => setUpdOutcome(e.target.value)}
-                  placeholder="What did this milestone deliver? (required to complete)"
-                  rows={2}
-                  className="text-xs"
-                />
-              </div>
+              {/* Outcome — captured by the completion dialog on the way to
+                  "completed"; editable here only after completion. */}
+              {updStatus === "completed" && localStatus !== "completed" ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-[11px] text-emerald-800">
+                  Saving will open the completion form to record the outcome
+                  verdict, notes and deliverable evidence.
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                    Outcome
+                  </label>
+                  <Textarea
+                    value={updOutcome}
+                    onChange={(e) => setUpdOutcome(e.target.value)}
+                    placeholder="What did this milestone deliver?"
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
+              )}
 
               {/* Note */}
               <div>
@@ -1831,13 +1858,12 @@ function MilestoneSection({
                 />
               </div>
 
-              {/* Attachments — a deliverable is required to complete */}
+              {/* Attachments — optional context files; the completion dialog
+                  captures the required deliverable evidence. */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                  Deliverable{updStatus === "completed" && !hasExistingDeliverable && (
-                    <span className="text-red-500"> *</span>
-                  )}
-                  {updStatus === "completed" && hasExistingDeliverable && (
+                  Attachments
+                  {hasExistingDeliverable && (
                     <span className="ml-1 font-normal normal-case tracking-normal text-emerald-600">
                       · deliverable on record
                     </span>
@@ -1897,7 +1923,9 @@ function MilestoneSection({
                   ) : (
                     <CheckCircle2 className="h-3 w-3" />
                   )}{" "}
-                  Save update
+                  {updStatus === "completed" && localStatus !== "completed"
+                    ? "Continue to complete…"
+                    : "Save update"}
                 </Button>
                 <Button
                   size="sm"
@@ -1910,6 +1938,27 @@ function MilestoneSection({
               </div>
             </div>
           )}
+
+          <CompleteWorkDialog
+            entity="milestone"
+            taskId={taskId}
+            milestoneId={milestone.id}
+            title={localTitle}
+            defaultDeliverableType={milestone.deliverable_type}
+            hasExistingDeliverable={hasExistingDeliverable}
+            showHours
+            defaultHours={localActHours ?? undefined}
+            open={showCompleteDialog}
+            onOpenChange={setShowCompleteDialog}
+            onCompleted={(updated) => {
+              const ms = updated as TaskMilestone;
+              setLocalStatus("completed");
+              setLocalOutcome(ms.outcome_notes ?? "");
+              if (ms.actual_hours != null) setLocalActHours(ms.actual_hours);
+              fireMilestoneCelebration();
+              onUpdate?.();
+            }}
+          />
 
           {/* Success Criteria */}
           {(milestone.success_criteria ?? []).length > 0 && (
@@ -1960,7 +2009,9 @@ function MilestoneSection({
           {/* Outcome */}
           {milestone.outcome && (
             <div className="rounded p-2 text-xs bg-emerald-50 border border-emerald-200 text-emerald-700">
-              <span className="font-medium">Outcome: {milestone.outcome}</span>
+              <span className="font-medium">
+                Outcome: {OUTCOME_VERDICT_LABELS[milestone.outcome] ?? milestone.outcome}
+              </span>
               {milestone.outcome_notes && (
                 <p className="mt-0.5 opacity-80">{milestone.outcome_notes}</p>
               )}
@@ -2063,82 +2114,14 @@ function TaskCard({
   >([]);
   const [savingTaskUpdate, setSavingTaskUpdate] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showComplete, setShowComplete] = useState(false);
-  const [completeHours, setCompleteHours] = useState<number>(
-    task.actual_hours ?? task.estimated_hours ?? 0,
-  );
-  // Completing a task requires an outcome summary + a deliverable.
-  const [completeOutcome, setCompleteOutcome] = useState<string>(
-    task.outcome_notes ?? "",
-  );
-  const [completeAttachments, setCompleteAttachments] = useState<
-    { url: string; fileName?: string }[]
-  >([]);
-  const [savingComplete, setSavingComplete] = useState(false);
+  // Structured completion dialog — captures verdict + notes + evidence for
+  // milestone-less tasks, or confirms closure when all milestones are done.
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
 
-  // A task already has a deliverable if it carries an attached link/file.
-  const taskHasExistingDeliverable = (task.attachments?.length ?? 0) > 0;
-
-  const completeTask = async () => {
-    const trimmedOutcome = completeOutcome.trim();
-    if (!trimmedOutcome) {
-      showToast.error(
-        "Outcome required",
-        "Describe what this task delivered before completing it.",
-      );
-      return;
-    }
-    if (!taskHasExistingDeliverable && completeAttachments.length === 0) {
-      showToast.error(
-        "Deliverable required",
-        "Attach a file or paste a link to the deliverable before completing.",
-      );
-      return;
-    }
-    setSavingComplete(true);
-    try {
-      // When hours roll up from milestones, the task's actual hours are already
-      // the milestone sum — don't overwrite them with a manual figure.
-      const auto = (task.milestones ?? []).length > 0 && !task.hours_overridden;
-      await tasksApi.update(task.id, {
-        status: "completed",
-        actual_hours: auto ? undefined : completeHours || undefined,
-        outcome_notes: trimmedOutcome,
-      });
-      // Persist the deliverable link/file as a task revision attachment so it
-      // lands on the task history and the task's `attachments`. Best-effort:
-      // the completion above is the primary action and must stand even if the
-      // history write fails (e.g. revision tables not yet migrated).
-      if (completeAttachments.length) {
-        try {
-          await tasksApi.addRevision(task.id, {
-            summary: `Deliverable submitted on completion — ${trimmedOutcome}`,
-            change_type: "status_change",
-            details: trimmedOutcome,
-            attachments: completeAttachments.map((a) => ({
-              title: a.fileName || a.url,
-              type: a.fileName ? "document" : "url",
-              url: a.url,
-            })),
-          });
-        } catch (revErr) {
-          console.warn("Task deliverable revision not recorded:", revErr);
-        }
-      }
-      fireMilestoneCelebration();
-      showToast.success("Task completed");
-      setShowComplete(false);
-      setCompleteAttachments([]);
-      onReviewUpdate?.();
-    } catch (e) {
-      showToast.error(
-        "Failed to complete task",
-        e instanceof Error ? e.message : undefined,
-      );
-    } finally {
-      setSavingComplete(false);
-    }
-  };
+  // A task already has a deliverable if it carries an evidence row or an
+  // attached link/file.
+  const taskHasExistingDeliverable =
+    (task.deliverables?.length ?? 0) > 0 || (task.attachments?.length ?? 0) > 0;
 
   const handleDeleteTask = async () => {
     const ok = await confirm({
@@ -2175,12 +2158,7 @@ function TaskCard({
     if (taskUpdStatus === "completed" && task.status !== "completed") {
       setShowAddUpdate(false);
       setTaskUpdStatus(task.status);
-      setCompleteHours(task.actual_hours ?? task.estimated_hours ?? 0);
-      setShowComplete(true);
-      showToast.info(
-        "Record the outcome & deliverable",
-        "Complete the task below to capture what it delivered.",
-      );
+      setShowCompleteDialog(true);
       return;
     }
     setSavingTaskUpdate(true);
@@ -2680,9 +2658,28 @@ function TaskCard({
     );
   }
 
+  const totalMilestonesCount = (task.milestones ?? []).length;
+  const totalStepsCount = (task.steps ?? []).length;
+  // Collapsed-row progress readout — milestones first, steps as fallback.
+  const rowPct =
+    totalMilestonesCount > 0
+      ? Math.round((completedMilestones / totalMilestonesCount) * 100)
+      : totalStepsCount > 0
+        ? Math.round((completedSteps / totalStepsCount) * 100)
+        : task.status === "completed"
+          ? 100
+          : 0;
+  const rowStatusIcon =
+    task.status === "completed" ? <CheckCircle2 className="h-4.5 w-4.5" />
+    : task.status === "in_progress" ? <Activity className="h-4.5 w-4.5" />
+    : task.status === "blocked" ? <AlertTriangle className="h-4.5 w-4.5" />
+    : task.status === "killed" ? <XCircle className="h-4.5 w-4.5" />
+    : task.status === "redefined" ? <Target className="h-4.5 w-4.5" />
+    : <Circle className="h-4.5 w-4.5" />;
+
   return (
     <Card
-      className={`transition-all ${
+      className={`transition-all shadow-card hover:shadow-card-hover ${
         task.status === "completed"
           ? "border-emerald-200"
           : task.status === "blocked"
@@ -2694,13 +2691,19 @@ function TaskCard({
     >
       {/* Task Header */}
       <div
-        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50/70 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* Priority dot */}
+        {/* Status chip with priority dot */}
         <div
-          className={`h-2.5 w-2.5 rounded-full shrink-0 ${priorityColors[task.priority]}`}
-        />
+          className={`relative h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 ${statusColors[task.status] ?? statusColors.planning}`}
+          title={`${task.status.replace("_", " ")} · ${task.priority} priority`}
+        >
+          {rowStatusIcon}
+          <span
+            className={`absolute -top-1 -right-1 h-3 w-3 rounded-full ring-2 ring-white ${priorityColors[task.priority]}`}
+          />
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -2758,26 +2761,51 @@ function TaskCard({
               </Badge>
             )}
           </div>
+
+          {/* Progress line — fills the row instead of leaving dead space */}
+          {(totalMilestonesCount > 0 || totalStepsCount > 0) && (
+            <div className="mt-2 flex items-center gap-2.5 pr-4">
+              <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    task.status === "blocked"
+                      ? "bg-red-400"
+                      : rowPct === 100
+                        ? "bg-emerald-500"
+                        : "bg-gradient-to-r from-blue-500 to-indigo-500"
+                  }`}
+                  style={{ width: `${rowPct}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-semibold text-muted-foreground tabular-nums shrink-0">
+                {rowPct}%
+              </span>
+              <span className="hidden lg:inline text-[10px] text-muted-foreground shrink-0">
+                {totalMilestonesCount > 0
+                  ? `${completedMilestones}/${totalMilestonesCount} milestones`
+                  : `${completedSteps}/${totalStepsCount} steps`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Right side stats */}
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Milestones progress */}
-          <div className="text-center">
-            <p className="text-xs font-bold">
-              {completedMilestones}/{(task.milestones ?? []).length}
-            </p>
-            <p className="text-[9px] text-muted-foreground">milestones</p>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Milestones done */}
+          {totalMilestonesCount > 0 && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50/70 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+              <Target className="h-3 w-3" />
+              {completedMilestones}/{totalMilestonesCount}
+            </span>
+          )}
           {/* Hours — actual / estimated, rolled up from milestones */}
-          <div className="text-center">
-            <p className="text-xs font-bold">
-              {effActHours}/{effEstHours}h
-            </p>
-            <p className="text-[9px] text-muted-foreground">
-              {hoursAuto ? "hours (rolled up)" : "hours"}
-            </p>
-          </div>
+          <span
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600"
+            title={hoursAuto ? "Hours rolled up from milestones" : "Hours logged / estimated"}
+          >
+            <Clock className="h-3 w-3" />
+            {effActHours}/{effEstHours}h
+          </span>
           {/* Assignees (clickable to edit) — shows stacked avatars when there are multiple */}
           {(() => {
             const allAssignees =
@@ -2808,7 +2836,7 @@ function TaskCard({
                   }}
                 >
                   <Avatar userId={allAssignees[0]} size="sm" link={false} />
-                  <span className="text-xs font-medium text-gray-700">
+                  <span className="hidden md:inline text-xs font-medium text-gray-700 max-w-[140px] truncate">
                     {primary?.name}
                   </span>
                   {extra > 0 && (
@@ -2845,16 +2873,6 @@ function TaskCard({
           )}
         </div>
       </div>
-
-      {/* Progress bar */}
-      {(task.steps ?? []).length > 0 && (
-        <div className="px-4 pb-1">
-          <Progress
-            value={(completedSteps / (task.steps ?? []).length) * 100}
-            className="h-1"
-          />
-        </div>
-      )}
 
       {/* Expanded Content */}
       {expanded && (
@@ -2922,180 +2940,59 @@ function TaskCard({
             <div
               className={`rounded-lg border p-4 ${allMilestonesComplete ? "border-emerald-300 bg-emerald-50/60" : "border-border bg-gray-50/60"}`}
             >
-              {!showComplete ? (
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="text-xs text-muted-foreground">
-                    {totalMilestones > 0 ? (
-                      allMilestonesComplete ? (
-                        <span className="text-emerald-700 font-medium flex items-center gap-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> All{" "}
-                          {totalMilestones} milestones complete — ready to close
-                          out.
-                        </span>
-                      ) : (
-                        <span>
-                          {completedMilestones}/{totalMilestones} milestones
-                          done. Complete the rest, or close the task directly.
-                        </span>
-                      )
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-xs text-muted-foreground">
+                  {totalMilestones > 0 ? (
+                    allMilestonesComplete ? (
+                      <span className="text-emerald-700 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> All{" "}
+                        {totalMilestones} milestones complete — ready to close
+                        out.
+                      </span>
                     ) : (
                       <span>
-                        No milestones — complete the task directly by logging
-                        the hours spent.
+                        {completedMilestones}/{totalMilestones} milestones done —
+                        each records its outcome &amp; deliverable; the task can
+                        close once all are complete.
                       </span>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setCompleteHours(
-                        task.actual_hours ?? task.estimated_hours ?? 0,
-                      );
-                      setShowComplete(true);
-                    }}
-                    className={`text-xs h-7 gap-1 ${allMilestonesComplete ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
-                  >
-                    <CheckCircle2 className="h-3 w-3" /> Complete Task
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Outcome — required */}
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                      Outcome <span className="text-red-500">*</span>
-                    </label>
-                    <Textarea
-                      autoFocus
-                      value={completeOutcome}
-                      onChange={(e) => setCompleteOutcome(e.target.value)}
-                      placeholder="What did this task deliver? (required to complete)"
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-
-                  {/* Deliverable — required (existing or a new link/file) */}
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
-                      Deliverable
-                      {!taskHasExistingDeliverable ? (
-                        <span className="text-red-500"> *</span>
-                      ) : (
-                        <span className="ml-1 font-normal normal-case tracking-normal text-emerald-600">
-                          · deliverable on record
-                        </span>
-                      )}
-                    </label>
-                    {completeAttachments.length > 0 && (
-                      <div className="space-y-1 mb-1.5">
-                        {completeAttachments.map((a, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-2 py-1 text-[10px]"
-                          >
-                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                            <a
-                              href={a.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 truncate font-medium text-emerald-800 hover:underline"
-                            >
-                              {a.fileName || a.url}
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCompleteAttachments((prev) =>
-                                  prev.filter((_, j) => j !== i),
-                                )
-                              }
-                              className="text-red-400 hover:text-red-600"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <AttachmentBar
-                      label="Attach file or paste a link"
-                      compact
-                      value={null}
-                      onChange={(v) => {
-                        if (v)
-                          setCompleteAttachments((prev) => [...prev, v]);
-                      }}
-                    />
-                  </div>
-
-                  {/* Hours */}
-                  {hoursAuto ? (
-                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-blue-500" />
-                      <span>
-                        <span className="font-semibold text-gray-700">
-                          {effActHours}h
-                        </span>{" "}
-                        spent (summed from milestones)
-                        {effEstHours ? ` of ${effEstHours}h est.` : ""}
-                      </span>
-                    </div>
+                    )
                   ) : (
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
-                        Hours spent{" "}
-                        {task.estimated_hours
-                          ? `(est. ${task.estimated_hours}h)`
-                          : ""}
-                      </label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={completeHours || ""}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (e.target.value === "" || v >= 0)
-                            setCompleteHours(v);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "-" || e.key === "e" || e.key === "+")
-                            e.preventDefault();
-                        }}
-                        className="h-8 w-28 text-xs"
-                        placeholder="0"
-                      />
-                    </div>
+                    <span>
+                      No milestones — completing this task records its outcome
+                      &amp; deliverable directly.
+                    </span>
                   )}
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      onClick={completeTask}
-                      disabled={savingComplete}
-                      className="h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      {savingComplete ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-3 w-3" />
-                      )}{" "}
-                      Mark Completed
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowComplete(false)}
-                      className="h-8 text-xs"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
                 </div>
-              )}
+                <Button
+                  size="sm"
+                  onClick={() => setShowCompleteDialog(true)}
+                  className={`text-xs h-7 gap-1 ${allMilestonesComplete ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
+                >
+                  <CheckCircle2 className="h-3 w-3" /> Complete Task
+                </Button>
+              </div>
             </div>
           )}
+
+          <CompleteWorkDialog
+            entity="task"
+            taskId={task.id}
+            title={task.title}
+            milestonesGate={{
+              total: totalMilestones,
+              completed: completedMilestones,
+            }}
+            hasExistingDeliverable={taskHasExistingDeliverable}
+            showHours={!hoursAuto}
+            defaultHours={task.actual_hours ?? task.estimated_hours}
+            expectedDeliverable={task.expected_deliverable}
+            open={showCompleteDialog}
+            onOpenChange={setShowCompleteDialog}
+            onCompleted={() => {
+              fireMilestoneCelebration();
+              onReviewUpdate?.();
+            }}
+          />
           {isCompleted && task.actual_hours != null && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-2.5 text-xs text-emerald-700 flex items-center gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" /> Completed ·{" "}
@@ -3345,26 +3242,33 @@ function TaskCard({
           )}
 
           {/* ── Task Outcome ── */}
-          {/* ══════ MILESTONES ══════ */}
-          <div>
-            <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
-              <h5 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <Target className="h-4 w-4 text-gray-500" />
+          {/* ══════ MILESTONES — sub-items nested inside this task ══════ */}
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3 sm:p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h5 className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md border border-indigo-200 bg-indigo-100">
+                  <Target className="h-3.5 w-3.5 text-indigo-600" />
+                </span>
                 Milestones
-                <span className="text-xs font-normal text-muted-foreground">
+                <span className="text-xs font-normal text-indigo-500">
                   ({completedMilestones}/{(task.milestones ?? []).length})
                 </span>
               </h5>
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs h-7 gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                className="text-xs h-7 gap-1 text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50"
                 onClick={() => setShowAddMilestoneForm(!showAddMilestoneForm)}
               >
                 <Plus className="h-3.5 w-3.5" />{" "}
                 {showAddMilestoneForm ? "Cancel" : "Add Milestone"}
               </Button>
             </div>
+            <p className="text-[11px] text-indigo-500/90 mt-1 mb-3">
+              Sub-goals <span className="font-semibold">inside this task</span> —
+              each milestone records its own outcome &amp; deliverable; the task
+              can close once all of them are complete.
+            </p>
 
             {/* Add Milestone Form */}
             {showAddMilestoneForm && (
@@ -3654,7 +3558,8 @@ function TaskCard({
               </Card>
             )}
 
-            <div className="space-y-2">
+            {/* Tree rail — milestones visibly hang off the task */}
+            <div className="space-y-2 ml-2 pl-3.5 border-l-2 border-indigo-200">
               {(task.milestones ?? []).map((ms) => (
                 <MilestoneSection
                   key={ms.id}
@@ -3667,6 +3572,12 @@ function TaskCard({
                   onUpdate={onReviewUpdate}
                 />
               ))}
+              {(task.milestones ?? []).length === 0 && !showAddMilestoneForm && (
+                <p className="text-xs text-indigo-400 italic py-1">
+                  No milestones — this task completes directly with its own
+                  outcome &amp; deliverable.
+                </p>
+              )}
             </div>
           </div>
 
@@ -3784,14 +3695,17 @@ function TaskCard({
             </div>
           )}
 
-          {/* ══════ ACTIVITY & HISTORY ══════ */}
-          <div className="flex items-center gap-2 pt-1 pb-1 border-b border-border">
-            <RotateCcw className="h-4 w-4 text-purple-500" />
+          {/* ══════ ACTIVITY & HISTORY — task-level ══════ */}
+          <div className="flex items-center gap-2 pt-1 pb-1 border-b border-border flex-wrap">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-purple-200 bg-purple-50">
+              <RotateCcw className="h-3.5 w-3.5 text-purple-500" />
+            </span>
             <h5 className="text-sm font-semibold text-gray-800">
-              Activity &amp; History
+              Task Activity &amp; History
             </h5>
             <span className="text-xs text-muted-foreground">
-              status changes, progress notes &amp; uploaded files
+              status changes, progress notes &amp; files for this task — each
+              milestone keeps its own history inside its row above
             </span>
           </div>
 
@@ -3965,8 +3879,14 @@ function TaskCard({
             accent="slate"
           />
 
-          {/* ── Action Buttons ── */}
-          <div className="flex items-center gap-2 pt-2 flex-wrap border-t border-border">
+          {/* ── Action Buttons — scoped to the whole task ── */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+              <Layers className="h-3 w-3" />
+              Task actions · &ldquo;{task.title}&rdquo; — apply to the whole
+              task, not a single milestone
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
             {viewRole === "ceo" && (
               <>
                 <Button
@@ -4045,6 +3965,7 @@ function TaskCard({
                 </Button>
               </>
             )}
+            </div>
           </div>
 
           {/* ── Reassign Panel ── */}
@@ -8166,6 +8087,8 @@ export default function ProjectDetailPage({
           newTaskAssignees.length > 0 ? newTaskAssignees : undefined,
         estimated_hours: newTaskHours || undefined,
         phase_id: newTaskPhaseId || undefined,
+        expected_outcome_type: newTaskOutcomeType || undefined,
+        expected_deliverable: newTaskDeliverable.trim() || undefined,
       })
       .then(() => projectsApi.tasks(id).then((r) => setTasks(r.tasks)))
       .catch(() => {});
@@ -8279,7 +8202,7 @@ export default function ProjectDetailPage({
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* ── Back + Header ── */}
       <div>
         <div className="flex items-center gap-2 mb-2">
@@ -8806,10 +8729,10 @@ export default function ProjectDetailPage({
             </h2>
             <div className="flex items-center gap-2">
               {taskGroups.length > 1 && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
                   <button
                     type="button"
-                    className="hover:text-foreground hover:underline"
+                    className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                     onClick={() =>
                       setPhaseOpen(
                         Object.fromEntries(taskGroups.map((g) => [g.id, true])),
@@ -8818,10 +8741,10 @@ export default function ProjectDetailPage({
                   >
                     Expand all
                   </button>
-                  <span className="text-gray-300">·</span>
+                  <span className="h-4 w-px bg-slate-200" />
                   <button
                     type="button"
-                    className="hover:text-foreground hover:underline"
+                    className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                     onClick={() =>
                       setPhaseOpen(
                         Object.fromEntries(
@@ -8835,9 +8758,8 @@ export default function ProjectDetailPage({
                 </div>
               )}
               <Button
-                variant="outline"
                 size="sm"
-                className="gap-1.5 text-xs"
+                className="gap-1.5 text-xs btn-gradient text-white"
                 onClick={() => setShowAddTaskForm(!showAddTaskForm)}
               >
                 <Plus className="h-3.5 w-3.5" /> Add Task
@@ -9177,12 +9099,12 @@ export default function ProjectDetailPage({
           {/* ── Find a task ── */}
           {totalTasks > 0 && (
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 value={taskSearch}
                 onChange={(e) => setTaskSearch(e.target.value)}
                 placeholder="Search tasks by title, description, or assignee…"
-                className="text-sm pl-8 pr-8"
+                className="h-10 text-sm pl-9 pr-8 rounded-xl bg-white shadow-sm border-slate-200 focus-visible:ring-blue-400"
               />
               {taskSearch && (
                 <button
@@ -9217,7 +9139,7 @@ export default function ProjectDetailPage({
               return (
                 <div
                   key={group.id}
-                  className="rounded-xl border border-border overflow-hidden bg-white shadow-sm"
+                  className="rounded-2xl border border-border overflow-hidden bg-white shadow-card"
                 >
                   {/* ── Phase header (collapsible) ── */}
                   <button
@@ -9225,35 +9147,46 @@ export default function ProjectDetailPage({
                     onClick={() =>
                       setPhaseOpen((prev) => ({ ...prev, [group.id]: !open }))
                     }
-                    className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50/80 hover:bg-gray-100 transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-slate-50 to-indigo-50/40 hover:from-slate-100 hover:to-indigo-50/70 transition-colors text-left"
                   >
                     {open ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                     ) : (
                       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
-                    <GitBranch className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-indigo-100 bg-white shrink-0">
+                      <GitBranch className="h-3.5 w-3.5 text-indigo-500" />
+                    </span>
                     <span className="text-sm font-semibold truncate">
                       {group.name}
                     </span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span
+                      className={`text-[11px] font-medium whitespace-nowrap rounded-full border px-2 py-0.5 ${
+                        pct === 100
+                          ? "text-emerald-700 border-emerald-200 bg-emerald-50"
+                          : "text-slate-500 border-slate-200 bg-white"
+                      }`}
+                    >
                       {done}/{group.tasks.length} done
                     </span>
-                    <div className="ml-auto flex items-center gap-2 shrink-0">
-                      <div className="h-1.5 w-20 rounded-full bg-gray-200 overflow-hidden hidden sm:block">
+                    <div className="ml-auto flex items-center gap-2.5 shrink-0">
+                      <div className="h-1.5 w-28 rounded-full bg-slate-200/80 overflow-hidden hidden sm:block">
                         <div
-                          className="h-full bg-emerald-400 transition-all"
+                          className={`h-full transition-all ${pct === 100 ? "bg-emerald-500" : "bg-gradient-to-r from-blue-500 to-indigo-500"}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-xs font-semibold text-muted-foreground bg-gray-200/70 rounded-full px-2 py-0.5">
+                      <span className="hidden sm:block text-[11px] font-semibold text-muted-foreground tabular-nums w-8 text-right">
+                        {pct}%
+                      </span>
+                      <span className="text-xs font-semibold text-muted-foreground bg-white border border-slate-200 rounded-full px-2 py-0.5">
                         {group.tasks.length}
                       </span>
                     </div>
                   </button>
                   {/* ── Tasks in this phase (collapsed rows; click a row to expand) ── */}
                   {open && (
-                    <div className="p-2.5 space-y-2.5 border-t border-border">
+                    <div className="p-3 space-y-2.5 border-t border-border bg-slate-50/40">
                       {group.tasks.map((task) => (
                         <div
                           key={task.id}

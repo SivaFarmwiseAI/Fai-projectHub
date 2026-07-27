@@ -179,3 +179,11 @@ export const MILESTONE_STATUS_LABELS: Record<string, string> = {
   completed: "Completed",
   blocked: "Blocked",
 };
+
+/** Structured completion verdict for tasks/milestones. */
+export const OUTCOME_VERDICT_LABELS: Record<string, string> = {
+  met: "Met",
+  partially_met: "Partially met",
+  not_met: "Not met",
+  deferred: "Deferred",
+};

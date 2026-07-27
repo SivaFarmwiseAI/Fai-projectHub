@@ -2,10 +2,26 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
+
+# Structured verdict recorded when a task/milestone is completed.
+OutcomeVerdict = Literal["met", "partially_met", "not_met", "deferred"]
+
+
+class DeliverableInput(BaseModel):
+    """Deliverable evidence submitted inline with a completion request.
+
+    Exactly one evidence channel is expected per row: a URL (document link,
+    or PR link for type 'code'), or text content. Rows are inserted into the
+    `deliverables` table with status 'submitted'."""
+    type: str = "document"          # deliverable_type enum value
+    title: str
+    url: Optional[str] = None
+    text_content: Optional[str] = None
+    description: Optional[str] = None
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -127,6 +143,10 @@ class CreateTaskRequest(BaseModel):
     success_criteria: List[str] = Field(default_factory=list)
     kill_criteria: List[str] = Field(default_factory=list)
     order_index: int = 0
+    # What this task is expected to produce (captured at creation, shown in
+    # the completion dialog and appraisal views).
+    expected_outcome_type: Optional[str] = None   # outcome_type enum value
+    expected_deliverable: str = ""
 
 
 class UpdateTaskRequest(BaseModel):
@@ -147,8 +167,16 @@ class UpdateTaskRequest(BaseModel):
     kill_criteria: Optional[List[str]] = None
     order_index: Optional[int] = None
     phase_id: Optional[UUID] = None
-    # Free-text result summary captured when the task is completed.
+    # Structured verdict + free-text result summary captured when a
+    # milestone-less task is completed (tasks with milestones record these
+    # per milestone instead).
+    outcome: Optional[OutcomeVerdict] = None
     outcome_notes: Optional[str] = None
+    expected_outcome_type: Optional[str] = None
+    expected_deliverable: Optional[str] = None
+    # Deliverable evidence submitted with completion; not a tasks column —
+    # popped by the handler before the SET clause is built.
+    deliverables: List[DeliverableInput] = Field(default_factory=list)
 
 
 class CreateTaskStepRequest(BaseModel):
@@ -199,9 +227,12 @@ class UpdateMilestoneRequest(BaseModel):
     target_date: Optional[date] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
-    outcome: Optional[str] = None
+    outcome: Optional[OutcomeVerdict] = None
     outcome_notes: Optional[str] = None
     order_index: Optional[int] = None
+    # Deliverable evidence submitted with completion; not a task_milestones
+    # column — popped by the handler before the SET clause is built.
+    deliverables: List[DeliverableInput] = Field(default_factory=list)
 
 
 class CreateDeadlineExtensionRequest(BaseModel):
