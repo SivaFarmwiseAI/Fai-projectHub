@@ -39,6 +39,22 @@ import { CompleteWorkDialog } from "@/components/complete-work-dialog";
 // Module-level user cache for sub-component lookups
 let _userMap: Record<string, User> = {};
 
+/** Fill the shared user map on demand. The page load populates it once, but a
+ *  transient failure there would otherwise leave every assignee search empty
+ *  for the whole session — searchers call this to self-heal and re-render. */
+function ensureUserMap(onReady: () => void) {
+  if (Object.keys(_userMap).length > 0) return;
+  usersApi
+    .list()
+    .then((r) => {
+      if (r.users?.length) {
+        _userMap = Object.fromEntries(r.users.map((u) => [u.id, u]));
+        onReady();
+      }
+    })
+    .catch(() => {});
+}
+
 type DeliverableType = string;
 type OutcomeType = string;
 
@@ -60,10 +76,21 @@ function AddPeople({
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  // Bumped when the shared user map is (re)filled so matches recompute.
+  const [, setUsersVersion] = useState(0);
+  useEffect(() => {
+    ensureUserMap(() => setUsersVersion((v) => v + 1));
+  }, []);
   const exclude = new Set(excludeIds);
+  const needle = q.trim().toLowerCase();
+  const usersLoaded = Object.keys(_userMap).length > 0;
   const matches = Object.values(_userMap)
     .filter((u) => !exclude.has(u.id))
-    .filter((u) => u.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .filter(
+      (u) =>
+        u.name.toLowerCase().includes(needle) ||
+        (u.email ?? "").toLowerCase().includes(needle),
+    )
     .slice(0, 8);
   return (
     <div className="relative mt-2">
@@ -73,14 +100,21 @@ function AddPeople({
           setQ(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          ensureUserMap(() => setUsersVersion((v) => v + 1));
+        }}
         placeholder="+ Add people — search anyone in the org…"
         className="w-full border rounded-md px-3 py-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
       />
       {open && q.trim() && (
         <>
           <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-44 overflow-y-auto">
-            {matches.length === 0 ? (
+            {!usersLoaded ? (
+              <p className="text-xs text-muted-foreground px-3 py-2">
+                Loading people…
+              </p>
+            ) : matches.length === 0 ? (
               <p className="text-xs text-muted-foreground px-3 py-2">
                 No matching users.
               </p>
@@ -852,6 +886,11 @@ function AssigneeEditor({
   onClose: () => void;
   projectMembers?: User[];
 }) {
+  // Self-heal the shared user map if the page-load fetch failed.
+  const [, setUsersVersion] = useState(0);
+  useEffect(() => {
+    ensureUserMap(() => setUsersVersion((v) => v + 1));
+  }, []);
   const assignedMembers = assigneeIds
     .map((id) => getUser(id))
     .filter(Boolean) as User[];
@@ -917,6 +956,11 @@ function ReviewTaskPanel({
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [assigned, setAssigned] = useState(false);
   const [assignedNames, setAssignedNames] = useState<string[]>([]);
+  // Self-heal the shared user map if the page-load fetch failed.
+  const [, setUsersVersion] = useState(0);
+  useEffect(() => {
+    ensureUserMap(() => setUsersVersion((v) => v + 1));
+  }, []);
   const teamMembers = Object.values(_userMap);
 
   const toggleUser = (uid: string) => {
@@ -7761,7 +7805,9 @@ export default function ProjectDetailPage({
     Promise.all([
       projectsApi.get(id).then((r) => r.project),
       projectsApi.tasks(id).then((r) => r.tasks),
-      usersApi.list().then((r) => r.users),
+      // A transient users failure must not sink the whole page load — the
+      // assignee searchers self-heal via ensureUserMap() when this is empty.
+      usersApi.list().then((r) => r.users).catch(() => [] as User[]),
       projectsApi
         .documents(id)
         .then((r) => r.documents)
@@ -7778,7 +7824,8 @@ export default function ProjectDetailPage({
       .then(([proj, t, users, docs, cps, subs]) => {
         setProject(proj);
         setTasks(t);
-        _userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+        // Never clobber a previously-good map with an empty result.
+        if (users.length) _userMap = Object.fromEntries(users.map((u) => [u.id, u]));
         setDocuments(docs);
         setCheckpoints(cps);
         setProjectSubs(subs);
