@@ -573,16 +573,15 @@ function OutcomeDeliveryCard({
     ? Math.round((within / hourJudged.length) * 100)
     : null;
 
-  // Completions + evidence submitted inside the period (project-scoped).
-  let msDone = 0;
-  let tasksDone = 0;
+  // Completions + evidence inside the window — derived from the same
+  // filtered units/evidence, so every chip follows project AND kind scope.
+  const doneInWindow = (kind: "milestone" | "task") =>
+    units.filter(
+      (u) => u.kind === kind && normStatus(u.status) === "completed" && inPeriod(u.completedAt),
+    ).length;
+  const msDone = doneInWindow("milestone");
+  const tasksDone = doneInWindow("task");
   let evidence = 0;
-  for (const t of scopedTasks) {
-    if (t.status === "completed" && inPeriod(t.completed_at)) tasksDone++;
-    for (const m of t.milestones ?? []) {
-      if (m.status === "completed" && inPeriod(m.completed_at)) msDone++;
-    }
-  }
   for (const e of evidenceRows) if (inPeriod(e.submittedAt)) evidence++;
 
   const statusCounts = segmentCounts(units);
@@ -598,52 +597,54 @@ function OutcomeDeliveryCard({
           </span>
           Outcome &amp; Delivery Performance
         </h3>
+        {/* Scope dropdowns — pinned top-right beside the title */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Project scope — narrows every lens + the metrics strip */}
-          {projectOptions.length > 1 && (
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className={cn(
-                "h-7 max-w-[180px] rounded-lg border bg-white px-2 text-[11px] font-medium",
-                projectFilter === "all"
-                  ? "border-slate-200 text-slate-600"
-                  : "border-blue-300 text-blue-700 bg-blue-50/50",
-              )}
-              title="Scope the card to one project"
-            >
-              <option value="all">All projects</option>
-              {projectOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          )}
-          {/* Kind scope — everything, only milestones, or only bare tasks */}
-          <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-            {(
-              [
-                { id: "all", label: "All work" },
-                { id: "milestone", label: "Milestones" },
-                { id: "task", label: "Tasks" },
-              ] as const
-            ).map((k) => (
-              <button
-                key={k.id}
-                type="button"
-                onClick={() => setKindFilter(k.id)}
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-                  kindFilter === k.id
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700",
-                )}
-              >
-                {k.label}
-              </button>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className={cn(
+              "h-7 max-w-[180px] rounded-lg border bg-white px-2 text-[11px] font-medium",
+              projectFilter === "all"
+                ? "border-slate-200 text-slate-600"
+                : "border-blue-300 text-blue-700 bg-blue-50/50",
+            )}
+            title="Scope the card to one project"
+          >
+            <option value="all">All projects</option>
+            {projectOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
             ))}
-          </div>
+          </select>
+          <select
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value as "all" | "milestone" | "task")}
+            className={cn(
+              "h-7 rounded-lg border bg-white px-2 text-[11px] font-medium",
+              kindFilter === "all"
+                ? "border-slate-200 text-slate-600"
+                : "border-indigo-300 text-indigo-700 bg-indigo-50/50",
+            )}
+            title="Scope to milestones or bare tasks"
+          >
+            <option value="all">All work</option>
+            <option value="milestone">Milestones only</option>
+            <option value="task">Tasks only</option>
+          </select>
+          <button
+            type="button"
+            onClick={onOpenOutcomes}
+            className="text-[11px] font-medium text-blue-600 hover:underline"
+          >
+            View details →
+          </button>
+        </div>
+      </div>
+
+      {/* Lens + time controls on their own row */}
+      <div className="flex items-center justify-between gap-2 flex-wrap px-4 pb-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Lens switch — same board language as the team page */}
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
             {(
@@ -750,13 +751,6 @@ function OutcomeDeliveryCard({
               </button>
             </div>
           )}
-          <button
-            type="button"
-            onClick={onOpenOutcomes}
-            className="text-[11px] font-medium text-blue-600 hover:underline"
-          >
-            View details →
-          </button>
         </div>
       </div>
 
