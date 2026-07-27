@@ -676,13 +676,12 @@ export function ratingBandColor(band: EmployeeRating["band"]): string {
  *
  *  outcomes (40) — avg verdict quality of completed work (met=100, partial=60,
  *                  deferred=50, not met=0; unrecorded/legacy excluded)
- *  delivery (30) — completed on time vs late/overdue (timeline items)
+ *  delivery (30) — completed within its estimated hours (spent ≤ estimate)
  *  evidence (15) — share of completed work with a deliverable on record
  *  effort   (15) — how close worked hours track the plan (100 = on plan)
  */
 export function computeEmployeeRating(
   outcomes: OutcomeSummary,
-  timelineItems: TimelineItem[],
   analysis: HoursAnalysis,
 ): EmployeeRating {
   // 1. Outcome quality
@@ -691,14 +690,17 @@ export function computeEmployeeRating(
     ? Math.round(judged.reduce((s, r) => s + VERDICT_SCORE[r.verdictKey], 0) / judged.length)
     : null;
 
-  // 2. On-time delivery — judged only against real deadlines, so undated
-  // work never reads as "late".
-  const dated = timelineItems.filter((i) => i.hasDeadline);
-  const onTime = dated.filter((i) => i.status === "completed_on_time").length;
-  const late = dated.filter((i) => i.status === "completed_late").length;
-  const overdue = dated.filter((i) => i.status === "overdue").length;
-  const deliveryDen = onTime + late + overdue;
-  const deliveryScore = deliveryDen > 0 ? Math.round((onTime / deliveryDen) * 100) : null;
+  // 2. Delivery vs estimate — per completed unit, hours spent ≤ estimated
+  // hours counts as on target. Judged only where both figures exist, so
+  // work without an estimate or logged hours is never penalized.
+  const hourJudged = outcomes.rows.filter(
+    (r) => (r.estimated ?? 0) > 0 && r.actual != null,
+  );
+  const withinEstimate = hourJudged.filter(
+    (r) => (r.actual as number) <= (r.estimated as number),
+  ).length;
+  const deliveryDen = hourJudged.length;
+  const deliveryScore = deliveryDen > 0 ? Math.round((withinEstimate / deliveryDen) * 100) : null;
 
   // 3. Evidence discipline — completed work backed by a deliverable/attachment
   const completedRows = outcomes.rows;
@@ -722,10 +724,10 @@ export function computeEmployeeRating(
         : "No outcome verdicts yet",
     },
     {
-      key: "delivery", label: "On-time delivery", score: deliveryScore, weight: 30,
+      key: "delivery", label: "Delivery vs estimate", score: deliveryScore, weight: 30,
       detail: deliveryDen > 0
-        ? `${onTime} on time · ${late} late · ${overdue} overdue`
-        : "No dated deliveries yet",
+        ? `${withinEstimate} of ${deliveryDen} finished within estimated hours`
+        : "No completed work with estimate + logged hours yet",
     },
     {
       key: "evidence", label: "Deliverable evidence", score: evidenceScore, weight: 15,

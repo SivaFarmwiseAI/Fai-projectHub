@@ -90,8 +90,8 @@ export function TeamMemberView({ data }: { data: TeamMemberData }) {
   );
   const evidenceRows = React.useMemo(() => computeEvidenceRows(tasks, projectById), [tasks, projectById]);
   const rating = React.useMemo(
-    () => computeEmployeeRating(outcomes, timelineItems, analysis),
-    [outcomes, timelineItems, analysis],
+    () => computeEmployeeRating(outcomes, analysis),
+    [outcomes, analysis],
   );
 
   const tasksByProject = React.useMemo(() => {

@@ -371,10 +371,15 @@ function OutcomeDeliveryCard({
     ? Math.round((rows.filter((r) => r.verdictKey === "met").length / total) * 100)
     : null;
 
-  // Timeliness — judged only for work that had a real deadline.
-  const dated = rows.filter((r) => r.hasDeadline && r.timeliness);
-  const onTime = dated.filter((r) => r.timeliness!.status === "completed_on_time").length;
-  const onTimePct = dated.length > 0 ? Math.round((onTime / dated.length) * 100) : null;
+  // Delivery vs estimate — hours spent ≤ estimated hours counts as on target.
+  // Judged only where both an estimate and logged hours exist.
+  const hourJudged = rows.filter((r) => (r.estimated ?? 0) > 0 && r.actual != null);
+  const within = hourJudged.filter(
+    (r) => (r.actual as number) <= (r.estimated as number),
+  ).length;
+  const withinPct = hourJudged.length > 0
+    ? Math.round((within / hourJudged.length) * 100)
+    : null;
 
   // Completions + evidence submitted inside the period (independent of rows,
   // so a deliverable uploaded this week on older work still counts).
@@ -537,14 +542,18 @@ function OutcomeDeliveryCard({
           </div>
           <div
             className="flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-2.5 py-1.5"
-            title="Share of period completions with a set deadline that landed on or before it; work without a deadline is not judged"
+            title={
+              hourJudged.length > 0
+                ? `${within} of ${hourJudged.length} completed within estimated hours (spent ≤ estimate)`
+                : "Judged once completed work has both an hour estimate and logged hours"
+            }
           >
             <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
             <span className="text-[11px] text-slate-600">
               <span className="stat-number font-extrabold text-slate-900">
-                {onTimePct === null ? "—" : `${onTimePct}%`}
+                {withinPct === null ? "—" : `${withinPct}%`}
               </span>{" "}
-              on time
+              within estimate
             </span>
           </div>
         </div>
