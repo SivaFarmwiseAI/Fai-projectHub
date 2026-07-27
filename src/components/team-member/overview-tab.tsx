@@ -421,6 +421,17 @@ function OutcomeDeliveryCard({
     setOffset(0);
   };
 
+  // ── Project filter — scopes every lens and the metrics strip ──
+  const [projectFilter, setProjectFilter] = React.useState<string>("all");
+  const projectOptions = React.useMemo(() => {
+    const ids = [...new Set(tasks.map((t) => t.project_id))];
+    return ids
+      .map((id) => ({ id, title: projectById[id]?.title ?? "Unknown project" }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [tasks, projectById]);
+  const scopedTasks =
+    projectFilter === "all" ? tasks : tasks.filter((t) => t.project_id === projectFilter);
+
   // ── Work units: each milestone, or the task itself when it has none ──
   const normStatus = (s: string): "in_progress" | "open" | "blocked" | "completed" => {
     if (s === "in_progress" || s === "blocked" || s === "completed") return s;
@@ -429,7 +440,7 @@ function OutcomeDeliveryCard({
   type Unit = { id: string; status: string; projectId: string; completedAt?: string | null };
   const units: Unit[] = [];
   const evidenceRows: { id: string; type: string; submittedAt?: string | null }[] = [];
-  for (const t of tasks) {
+  for (const t of scopedTasks) {
     const ms = t.milestones ?? [];
     if (ms.length > 0) {
       for (const m of ms) {
@@ -460,8 +471,12 @@ function OutcomeDeliveryCard({
     return c;
   };
 
-  // Outcome rows completed inside the selected window.
-  const rows = outcomes.rows.filter((r) => inPeriod(r.completedAt));
+  // Outcome rows completed inside the selected window (and project scope).
+  const rows = outcomes.rows.filter(
+    (r) =>
+      (projectFilter === "all" || r.projectId === projectFilter) &&
+      inPeriod(r.completedAt),
+  );
   const counts = SEGMENT_ORDER.map((k) => ({
     key: k,
     count: rows.filter((r) => r.verdictKey === k).length,
@@ -483,11 +498,11 @@ function OutcomeDeliveryCard({
     ? Math.round((within / hourJudged.length) * 100)
     : null;
 
-  // Completions + evidence submitted inside the period.
+  // Completions + evidence submitted inside the period (project-scoped).
   let msDone = 0;
   let tasksDone = 0;
   let evidence = 0;
-  for (const t of tasks) {
+  for (const t of scopedTasks) {
     if (t.status === "completed" && inPeriod(t.completed_at)) tasksDone++;
     for (const m of t.milestones ?? []) {
       if (m.status === "completed" && inPeriod(m.completed_at)) msDone++;
@@ -509,6 +524,27 @@ function OutcomeDeliveryCard({
           Outcome &amp; Delivery Performance
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Project scope — narrows every lens + the metrics strip */}
+          {projectOptions.length > 1 && (
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className={cn(
+                "h-7 max-w-[180px] rounded-lg border bg-white px-2 text-[11px] font-medium",
+                projectFilter === "all"
+                  ? "border-slate-200 text-slate-600"
+                  : "border-blue-300 text-blue-700 bg-blue-50/50",
+              )}
+              title="Scope the card to one project"
+            >
+              <option value="all">All projects</option>
+              {projectOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          )}
           {/* Lens switch — same board language as the team page */}
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
             {(
