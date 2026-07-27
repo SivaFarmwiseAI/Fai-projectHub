@@ -388,6 +388,11 @@ export function CompleteWorkDialog({
                   step="0.5"
                   value={hours}
                   onChange={(e) => setHours(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "-" || e.key === "e" || e.key === "+")
+                      e.preventDefault();
+                  }}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   placeholder="e.g. 12"
                   className="max-w-[160px]"
                 />

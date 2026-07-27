@@ -743,7 +743,7 @@ function EditWithImpact({
         />
       ) : fieldType === "date" ? (
         <Input
-          type="date"
+          type="date" onClick={(e) => e.currentTarget.showPicker?.()}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="text-xs h-8"
@@ -1778,7 +1778,7 @@ function MilestoneSection({
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                   Estimated h
                   <Input
-                    type="number"
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     min={0}
                     value={updEst}
                     onChange={(e) => {
@@ -1787,7 +1787,7 @@ function MilestoneSection({
                       if (v >= 0) setUpdEst(v);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                      if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown")
                         e.preventDefault();
                     }}
                     className="h-7 w-20 text-xs px-1.5"
@@ -1796,7 +1796,7 @@ function MilestoneSection({
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                   Hours spent
                   <Input
-                    type="number"
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     min={0}
                     value={updAct}
                     onChange={(e) => {
@@ -1805,7 +1805,7 @@ function MilestoneSection({
                       if (v >= 0) setUpdAct(v);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                      if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown")
                         e.preventDefault();
                     }}
                     className="h-7 w-20 text-xs px-1.5"
@@ -1814,7 +1814,7 @@ function MilestoneSection({
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                   Milestone date
                   <Input
-                    type="date"
+                    type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                     value={updTargetDate}
                     onChange={(e) => setUpdTargetDate(e.target.value)}
                     className="h-7 w-36 text-xs px-1.5"
@@ -2461,7 +2461,7 @@ function TaskCard({
               ) : (
                 <div className="flex items-center gap-1.5">
                   <Input
-                    type="number"
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     min={0}
                     placeholder="Est"
                     title="Estimated hours"
@@ -2471,14 +2471,14 @@ function TaskCard({
                       if (e.target.value === "" || v >= 0) setEditHours(v);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                      if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown")
                         e.preventDefault();
                     }}
                     className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
                   />
                   <span className="text-gray-400 text-xs">/</span>
                   <Input
-                    type="number"
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     min={0}
                     placeholder="Actual"
                     title="Actual hours spent (manual)"
@@ -2488,7 +2488,7 @@ function TaskCard({
                       if (e.target.value === "" || v >= 0) setEditActualHours(v);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                      if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown")
                         e.preventDefault();
                     }}
                     className="text-xs border-gray-200 focus-visible:ring-blue-400 w-full h-8"
@@ -3358,10 +3358,14 @@ function TaskCard({
                         Estimated Hours<span className="text-red-500">*</span>
                       </label>
                       <Input
-                        type="number"
+                        type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         min={0}
                         step="0.5"
                         placeholder="8.5"
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "-" || e.key === "e" || e.key === "+")
+                            e.preventDefault();
+                        }}
                         value={milestoneEstimatedHours === 0 ? "" : milestoneEstimatedHours}
                         onChange={(e) => {
                           const v = Number(e.target.value);
@@ -3371,7 +3375,7 @@ function TaskCard({
                             );
                           setMilestoneErrors((p) => ({ ...p, estimatedHours: "" }));
                         }}
-                        onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === "+") e.preventDefault(); }}
+                        onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault(); }}
                         className={`text-xs h-8 focus-visible:ring-blue-400 ${milestoneErrors.estimatedHours ? "border-red-400 focus-visible:ring-red-400" : "border-blue-100"}`}
                       />
                       {milestoneErrors.estimatedHours ? (
@@ -3406,7 +3410,7 @@ function TaskCard({
                     <div>
                       <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Milestone Date</label>
                       <Input
-                        type="date"
+                        type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                         value={milestoneTargetDate}
                         onChange={(e) => setMilestoneTargetDate(e.target.value)}
                         className="text-xs h-8 border-blue-100 focus-visible:ring-blue-400"
@@ -8981,7 +8985,7 @@ export default function ProjectDetailPage({
                     Estimated Hours
                   </label>
                   <Input
-                    type="number"
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     min={0}
                     placeholder="0"
                     value={newTaskHours || ""}
@@ -8990,7 +8994,7 @@ export default function ProjectDetailPage({
                       if (e.target.value === "" || v >= 0) setNewTaskHours(v);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e" || e.key === "+")
+                      if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === "ArrowUp" || e.key === "ArrowDown")
                         e.preventDefault();
                     }}
                     className="text-sm w-32"
@@ -9002,7 +9006,7 @@ export default function ProjectDetailPage({
                       Start Date
                     </label>
                     <Input
-                      type="date"
+                      type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                       value={newTaskStartDate}
                       onChange={(e) => setNewTaskStartDate(e.target.value)}
                       className="text-xs h-8 cursor-pointer"
@@ -9016,7 +9020,7 @@ export default function ProjectDetailPage({
                       Due Date
                     </label>
                     <Input
-                      type="date"
+                      type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                       value={newTaskDueDate}
                       onChange={(e) => setNewTaskDueDate(e.target.value)}
                       className="text-xs h-8 cursor-pointer"
@@ -9377,7 +9381,7 @@ export default function ProjectDetailPage({
                       Start Date<span className="text-red-500">*</span>
                     </label>
                     <Input
-                      type="date"
+                      type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                       value={newPhaseStartDate}
                       onChange={(e) => {
                         setNewPhaseStartDate(e.target.value);
@@ -9400,7 +9404,7 @@ export default function ProjectDetailPage({
                       End Date<span className="text-red-500">*</span>
                     </label>
                     <Input
-                      type="date"
+                      type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                       value={newPhaseEndDate}
                       onChange={(e) => {
                         setNewPhaseEndDate(e.target.value);
@@ -9598,7 +9602,7 @@ export default function ProjectDetailPage({
                               Start Date<span className="text-red-500">*</span>
                             </label>
                             <Input
-                              type="date"
+                              type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                               value={editPhaseStartDate}
                               onChange={(e) => {
                                 setEditPhaseStartDate(e.target.value);
@@ -9630,7 +9634,7 @@ export default function ProjectDetailPage({
                               End Date<span className="text-red-500">*</span>
                             </label>
                             <Input
-                              type="date"
+                              type="date" onClick={(e) => e.currentTarget.showPicker?.()}
                               value={editPhaseEndDate}
                               onChange={(e) => {
                                 setEditPhaseEndDate(e.target.value);
