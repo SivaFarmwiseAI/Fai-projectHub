@@ -7913,6 +7913,8 @@ export default function ProjectDetailPage({
     {},
   );
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  // Filter inside the assignee dropdown (cleared each time it opens).
+  const [assigneeSearch, setAssigneeSearch] = useState("");
 
   // Add Phase form state
   const [newPhaseName, setNewPhaseName] = useState("");
@@ -8932,6 +8934,14 @@ export default function ProjectDetailPage({
                       .map((id) => getUser(id))
                       .filter(Boolean) as User[];
                     const displayList = [...projectMembers, ...extraSelected];
+                    const assigneeNeedle = assigneeSearch.trim().toLowerCase();
+                    const filteredList = assigneeNeedle
+                      ? displayList.filter(
+                          (m) =>
+                            m.name.toLowerCase().includes(assigneeNeedle) ||
+                            (m.email ?? "").toLowerCase().includes(assigneeNeedle),
+                        )
+                      : displayList;
                     const selectedNames = newTaskAssignees
                       .map((id) => getUser(id)?.name)
                       .filter(Boolean);
@@ -8940,7 +8950,10 @@ export default function ProjectDetailPage({
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setShowAssigneeDropdown((v) => !v)}
+                          onClick={() => {
+                            setShowAssigneeDropdown((v) => !v);
+                            setAssigneeSearch("");
+                          }}
                           className="w-full flex items-center justify-between gap-2 border rounded-md px-3 py-2 text-xs bg-white hover:bg-gray-50 text-left"
                         >
                           <span
@@ -8969,13 +8982,42 @@ export default function ProjectDetailPage({
                           </svg>
                         </button>
                         {showAssigneeDropdown && (
-                          <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-56 overflow-y-auto">
+                            {/* Search inside the dropdown, with a clear icon */}
+                            <div className="sticky top-0 bg-white border-b border-slate-100 p-1.5">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                                <input
+                                  autoFocus
+                                  value={assigneeSearch}
+                                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                                  placeholder="Search members…"
+                                  className="w-full rounded border border-slate-200 bg-slate-50/60 pl-6 pr-6 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 focus:bg-white"
+                                />
+                                {assigneeSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssigneeSearch("")}
+                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-slate-100 hover:text-slate-700"
+                                    title="Clear search"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                             {displayList.length === 0 ? (
                               <p className="text-xs text-muted-foreground px-3 py-2">
                                 No members assigned to this project.
                               </p>
+                            ) : filteredList.length === 0 ? (
+                              <p className="text-xs text-muted-foreground px-3 py-2">
+                                No members match &ldquo;{assigneeSearch}&rdquo; —
+                                use &ldquo;Add people&rdquo; below to search the
+                                whole org.
+                              </p>
                             ) : (
-                              displayList.map((m) => (
+                              filteredList.map((m) => (
                                 <label
                                   key={m.id}
                                   className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer"
