@@ -949,17 +949,27 @@ function OutcomeDeliveryCard({
 
         {/* Delivery metrics for the period — shared across lenses */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-2 rounded-lg bg-indigo-50/60 border border-indigo-100 px-2.5 py-1.5">
+          <div
+            className="flex items-center gap-2 rounded-lg bg-indigo-50/60 border border-indigo-100 px-2.5 py-1.5"
+            title={`${msDone} completed in this window, of ${msUnits.length} milestone${msUnits.length === 1 ? "" : "s"} in the current scope`}
+          >
             <Target className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
             <span className="text-[11px] text-slate-600">
-              <span className="stat-number font-extrabold text-slate-900">{msDone}</span>{" "}
-              milestones
+              <span className="stat-number font-extrabold text-slate-900">
+                {msDone}/{msUnits.length}
+              </span>{" "}
+              milestones done
             </span>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-emerald-50/60 border border-emerald-100 px-2.5 py-1.5">
+          <div
+            className="flex items-center gap-2 rounded-lg bg-emerald-50/60 border border-emerald-100 px-2.5 py-1.5"
+            title={`${tasksDone} completed in this window, of ${taskUnits.length} task${taskUnits.length === 1 ? "" : "s"} in the current scope`}
+          >
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
             <span className="text-[11px] text-slate-600">
-              <span className="stat-number font-extrabold text-slate-900">{tasksDone}</span>{" "}
+              <span className="stat-number font-extrabold text-slate-900">
+                {tasksDone}/{taskUnits.length}
+              </span>{" "}
               tasks done
             </span>
           </div>
