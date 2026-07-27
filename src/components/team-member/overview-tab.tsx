@@ -395,6 +395,43 @@ function UnitStatusBar({ c }: { c: UnitCounts }) {
   );
 }
 
+/** Stacked verdict-distribution bar for a set of outcome rows. */
+function VerdictBar({ rows }: { rows: { verdictKey: VerdictKey }[] }) {
+  const total = rows.length;
+  const segs = SEGMENT_ORDER
+    .map((k) => ({ key: k, count: rows.filter((r) => r.verdictKey === k).length, meta: verdictMeta[k] }))
+    .filter((s) => s.count > 0);
+  return (
+    <div className="flex h-2.5 flex-1 gap-0.5 rounded-full overflow-hidden bg-slate-100">
+      {total > 0 &&
+        segs.map((s) => (
+          <div
+            key={s.key}
+            className={s.meta.dot}
+            style={{ width: `${(s.count / total) * 100}%` }}
+            title={`${s.count} ${s.meta.label}`}
+          />
+        ))}
+    </div>
+  );
+}
+
+/** Row label identifying which kind of work a bar belongs to. */
+function KindTag({ kind, count }: { kind: "milestone" | "task"; count: number }) {
+  const Icon = kind === "milestone" ? Target : CheckCircle2;
+  return (
+    <span
+      className={cn(
+        "inline-flex w-28 items-center gap-1 text-[10px] font-semibold shrink-0",
+        kind === "milestone" ? "text-indigo-600" : "text-emerald-700",
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {kind === "milestone" ? "Milestones" : "Tasks"} ({count})
+    </span>
+  );
+}
+
 function OutcomeDeliveryCard({
   outcomes,
   tasks,
@@ -516,6 +553,15 @@ function OutcomeDeliveryCard({
   const metShare = total > 0
     ? Math.round((rows.filter((r) => r.verdictKey === "met").length / total) * 100)
     : null;
+
+  // In "All work" mode, split the graphs per kind so milestones and tasks are
+  // identifiable at a glance (only when both kinds actually have data).
+  const rowsMs = rows.filter((r) => r.kind === "milestone");
+  const rowsTask = rows.filter((r) => r.kind === "task");
+  const splitOutcomes = kindFilter === "all" && rowsMs.length > 0 && rowsTask.length > 0;
+  const msUnits = units.filter((u) => u.kind === "milestone");
+  const taskUnits = units.filter((u) => u.kind === "task");
+  const splitStatus = kindFilter === "all" && msUnits.length > 0 && taskUnits.length > 0;
 
   // Delivery vs estimate — hours spent ≤ estimated hours counts as on target.
   // Judged only where both an estimate and logged hours exist.
@@ -726,16 +772,29 @@ function OutcomeDeliveryCard({
             </div>
           ) : (
             <>
-              <div className="flex h-3.5 w-full gap-0.5 rounded-full overflow-hidden">
-                {segments.map((s) => (
-                  <div
-                    key={s.key}
-                    className={`${s.meta.dot} first:rounded-l-full last:rounded-r-full transition-all`}
-                    style={{ width: `${(s.count / total) * 100}%` }}
-                    title={`${s.count} ${s.meta.label}`}
-                  />
-                ))}
-              </div>
+              {splitOutcomes ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <KindTag kind="milestone" count={rowsMs.length} />
+                    <VerdictBar rows={rowsMs} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <KindTag kind="task" count={rowsTask.length} />
+                    <VerdictBar rows={rowsTask} />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-3.5 w-full gap-0.5 rounded-full overflow-hidden">
+                  {segments.map((s) => (
+                    <div
+                      key={s.key}
+                      className={`${s.meta.dot} first:rounded-l-full last:rounded-r-full transition-all`}
+                      style={{ width: `${(s.count / total) * 100}%` }}
+                      title={`${s.count} ${s.meta.label}`}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 {segments.map((s) => (
                   <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
@@ -755,12 +814,25 @@ function OutcomeDeliveryCard({
         {/* ── Lens: current pipeline by status ── */}
         {lens === "status" && (
           <>
-            <div className="flex items-center gap-3">
-              <UnitStatusBar c={statusCounts} />
-              <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                {statusTotal} unit{statusTotal === 1 ? "" : "s"}
-              </span>
-            </div>
+            {splitStatus ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <KindTag kind="milestone" count={msUnits.length} />
+                  <UnitStatusBar c={segmentCounts(msUnits)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <KindTag kind="task" count={taskUnits.length} />
+                  <UnitStatusBar c={segmentCounts(taskUnits)} />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <UnitStatusBar c={statusCounts} />
+                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                  {statusTotal} unit{statusTotal === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               {UNIT_STATUS_SEGMENTS.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
@@ -785,11 +857,16 @@ function OutcomeDeliveryCard({
                 byProject.get(u.projectId)!.push(u);
               }
               const rows2 = [...byProject.entries()]
-                .map(([pid, list]) => ({ pid, c: segmentCounts(list) }))
+                .map(([pid, list]) => ({
+                  pid,
+                  c: segmentCounts(list),
+                  ms: list.filter((u) => u.kind === "milestone").length,
+                  tk: list.filter((u) => u.kind === "task").length,
+                }))
                 .sort((a, b) => (b.c.done + b.c.in_progress) - (a.c.done + a.c.in_progress));
               if (rows2.length === 0)
                 return <p className="py-5 text-center text-xs text-muted-foreground">No project work found.</p>;
-              return rows2.map(({ pid, c }) => (
+              return rows2.map(({ pid, c, ms, tk }) => (
                 <Link
                   key={pid}
                   href={`/projects/${pid}`}
@@ -800,6 +877,17 @@ function OutcomeDeliveryCard({
                     {projectById[pid]?.title ?? "Unknown project"}
                   </span>
                   <UnitStatusBar c={c} />
+                  {kindFilter === "all" && (
+                    <span
+                      className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 tabular-nums"
+                      title={`${ms} milestone${ms === 1 ? "" : "s"} · ${tk} task${tk === 1 ? "" : "s"}`}
+                    >
+                      <Target className="h-3 w-3 text-indigo-400" />
+                      {ms}
+                      <CheckCircle2 className="h-3 w-3 text-emerald-400 ml-1" />
+                      {tk}
+                    </span>
+                  )}
                   <span className="w-28 text-right text-[10px] text-muted-foreground shrink-0 tabular-nums">
                     {c.done} done · {c.in_progress} active
                   </span>
@@ -813,12 +901,16 @@ function OutcomeDeliveryCard({
         {lens === "deliverable" && (
           <div className="space-y-1.5">
             {(() => {
-              const byType = new Map<string, number>();
+              const byType = new Map<string, { count: number; ms: number; tk: number }>();
               for (const e of evidenceRows) {
                 if (!inPeriod(e.submittedAt)) continue;
-                byType.set(e.type, (byType.get(e.type) ?? 0) + 1);
+                if (!byType.has(e.type)) byType.set(e.type, { count: 0, ms: 0, tk: 0 });
+                const r = byType.get(e.type)!;
+                r.count++;
+                if (e.kind === "milestone") r.ms++;
+                else r.tk++;
               }
-              const sorted = [...byType.entries()].sort((a, b) => b[1] - a[1]);
+              const sorted = [...byType.entries()].sort((a, b) => b[1].count - a[1].count);
               if (sorted.length === 0)
                 return (
                   <p className="py-5 text-center text-xs text-muted-foreground">
@@ -828,8 +920,8 @@ function OutcomeDeliveryCard({
                       : `use ‹ › to look at earlier ${period}s.`}
                   </p>
                 );
-              const max = sorted[0][1];
-              return sorted.map(([type, count]) => (
+              const max = sorted[0][1].count;
+              return sorted.map(([type, r]) => (
                 <div key={type} className="flex items-center gap-3 rounded-lg border border-slate-100 px-2.5 py-2">
                   <span className="text-sm shrink-0">{deliverableTypeIcons[type] || "🔗"}</span>
                   <span className="w-40 truncate text-xs font-medium text-slate-800 shrink-0">
@@ -838,11 +930,22 @@ function OutcomeDeliveryCard({
                   <div className="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                      style={{ width: `${(count / max) * 100}%` }}
+                      style={{ width: `${(r.count / max) * 100}%` }}
                     />
                   </div>
+                  {kindFilter === "all" && (
+                    <span
+                      className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 tabular-nums"
+                      title={`${r.ms} from milestones · ${r.tk} from tasks`}
+                    >
+                      <Target className="h-3 w-3 text-indigo-400" />
+                      {r.ms}
+                      <CheckCircle2 className="h-3 w-3 text-emerald-400 ml-1" />
+                      {r.tk}
+                    </span>
+                  )}
                   <span className="w-10 text-right text-xs font-bold text-slate-800 shrink-0 tabular-nums">
-                    {count}
+                    {r.count}
                   </span>
                 </div>
               ));
