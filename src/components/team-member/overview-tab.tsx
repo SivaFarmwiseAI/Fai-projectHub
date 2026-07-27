@@ -4,7 +4,7 @@
  *  daily activity and the outcome-verdict snapshot strip. */
 
 import React from "react";
-import { format, isWithinInterval, parseISO } from "date-fns";
+import { endOfDay, format, isWithinInterval, parseISO, startOfDay } from "date-fns";
 import { PERIODS, periodWindow, type Period } from "@/lib/period";
 import Link from "next/link";
 import {
@@ -406,20 +406,40 @@ function OutcomeDeliveryCard({
   projectById: Record<string, Project>;
   onOpenOutcomes?: () => void;
 }) {
-  const [period, setPeriod] = React.useState<Period>("week");
+  const [period, setPeriod] = React.useState<Period | "custom">("week");
   // 0 = current window, -1 = previous, -2 = the one before, …
   const [offset, setOffset] = React.useState(0);
   const [lens, setLens] = React.useState<"outcomes" | "status" | "project" | "deliverable">("outcomes");
-  const win = periodWindow(period, offset);
+  // Custom range (yyyy-mm-dd) — applied once both ends are chosen.
+  const [customFrom, setCustomFrom] = React.useState("");
+  const [customTo, setCustomTo] = React.useState("");
+  const customReady = period === "custom" && !!customFrom && !!customTo;
+  const win = React.useMemo(() => {
+    if (customReady) {
+      const a = parseISO(customFrom);
+      const b = parseISO(customTo);
+      const [from, to] = a <= b ? [a, b] : [b, a];
+      return {
+        start: startOfDay(from),
+        end: endOfDay(to),
+        label: `${format(from, "MMM d")} – ${format(to, "MMM d, yyyy")}`,
+      };
+    }
+    // Custom picked but incomplete → keep showing the current week.
+    return periodWindow(period === "custom" ? "week" : period, offset);
+  }, [period, offset, customReady, customFrom, customTo]);
   const inPeriod = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return false;
     return isWithinInterval(parseISO(dateStr), { start: win.start, end: win.end });
   };
 
-  const pickPeriod = (p: Period) => {
+  const pickPeriod = (p: Period | "custom") => {
     setPeriod(p);
     setOffset(0);
   };
+
+  // ── Kind filter — everything, only milestones, or only bare tasks ──
+  const [kindFilter, setKindFilter] = React.useState<"all" | "milestone" | "task">("all");
 
   // ── Project filter — scopes every lens and the metrics strip ──
   const [projectFilter, setProjectFilter] = React.useState<string>("all");
@@ -437,27 +457,35 @@ function OutcomeDeliveryCard({
     if (s === "in_progress" || s === "blocked" || s === "completed") return s;
     return "open";
   };
-  type Unit = { id: string; status: string; projectId: string; completedAt?: string | null };
-  const units: Unit[] = [];
-  const evidenceRows: { id: string; type: string; submittedAt?: string | null }[] = [];
+  type Unit = {
+    id: string;
+    kind: "milestone" | "task";
+    status: string;
+    projectId: string;
+    completedAt?: string | null;
+  };
+  const allUnits: Unit[] = [];
+  const allEvidence: { id: string; kind: "milestone" | "task"; type: string; submittedAt?: string | null }[] = [];
   for (const t of scopedTasks) {
     const ms = t.milestones ?? [];
     if (ms.length > 0) {
       for (const m of ms) {
-        units.push({ id: m.id, status: m.status, projectId: t.project_id, completedAt: m.completed_at });
+        allUnits.push({ id: m.id, kind: "milestone", status: m.status, projectId: t.project_id, completedAt: m.completed_at });
         for (const d of m.deliverables ?? [])
-          evidenceRows.push({ id: d.id, type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+          allEvidence.push({ id: d.id, kind: "milestone", type: d.type, submittedAt: d.submitted_at ?? d.created_at });
         for (const a of m.attachments ?? [])
-          if (a.url) evidenceRows.push({ id: a.id, type: "link", submittedAt: a.created_at });
+          if (a.url) allEvidence.push({ id: a.id, kind: "milestone", type: "link", submittedAt: a.created_at });
       }
     } else {
-      units.push({ id: t.id, status: t.status, projectId: t.project_id, completedAt: t.completed_at });
+      allUnits.push({ id: t.id, kind: "task", status: t.status, projectId: t.project_id, completedAt: t.completed_at });
       for (const d of t.deliverables ?? [])
-        evidenceRows.push({ id: d.id, type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+        allEvidence.push({ id: d.id, kind: "task", type: d.type, submittedAt: d.submitted_at ?? d.created_at });
       for (const a of t.attachments ?? [])
-        if (a.url) evidenceRows.push({ id: a.id, type: "link", submittedAt: a.created_at });
+        if (a.url) allEvidence.push({ id: a.id, kind: "task", type: "link", submittedAt: a.created_at });
     }
   }
+  const units = kindFilter === "all" ? allUnits : allUnits.filter((u) => u.kind === kindFilter);
+  const evidenceRows = kindFilter === "all" ? allEvidence : allEvidence.filter((e) => e.kind === kindFilter);
   const segmentCounts = (list: Unit[]) => {
     const c = { in_progress: 0, open: 0, blocked: 0, done: 0 };
     for (const u of list) {
@@ -471,10 +499,11 @@ function OutcomeDeliveryCard({
     return c;
   };
 
-  // Outcome rows completed inside the selected window (and project scope).
+  // Outcome rows completed inside the selected window (+ project/kind scope).
   const rows = outcomes.rows.filter(
     (r) =>
       (projectFilter === "all" || r.projectId === projectFilter) &&
+      (kindFilter === "all" || r.kind === kindFilter) &&
       inPeriod(r.completedAt),
   );
   const counts = SEGMENT_ORDER.map((k) => ({
@@ -545,6 +574,30 @@ function OutcomeDeliveryCard({
               ))}
             </select>
           )}
+          {/* Kind scope — everything, only milestones, or only bare tasks */}
+          <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+            {(
+              [
+                { id: "all", label: "All work" },
+                { id: "milestone", label: "Milestones" },
+                { id: "task", label: "Tasks" },
+              ] as const
+            ).map((k) => (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() => setKindFilter(k.id)}
+                className={cn(
+                  "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  kindFilter === k.id
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
+                )}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
           {/* Lens switch — same board language as the team page */}
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
             {(
@@ -571,7 +624,7 @@ function OutcomeDeliveryCard({
             ))}
           </div>
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-            {PERIODS.map((p) => (
+            {[...PERIODS, { id: "custom" as const, label: "Custom" }].map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -587,40 +640,70 @@ function OutcomeDeliveryCard({
               </button>
             ))}
           </div>
-          {/* Window navigator — step back through previous days/weeks/… */}
-          <div className="inline-flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setOffset((o) => o - 1)}
-              className="rounded-md border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-              aria-label={`Previous ${period}`}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setOffset(0)}
-              disabled={offset === 0}
-              className={cn(
-                "min-w-[104px] rounded-md border px-2 py-1 text-center text-[11px] font-semibold",
-                offset === 0
-                  ? "border-slate-200 bg-slate-50 text-slate-600"
-                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+          {period === "custom" ? (
+            /* Custom range — both ends required before it applies */
+            <div className="inline-flex items-center gap-1">
+              <input
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 cursor-pointer"
+                aria-label="From date"
+              />
+              <span className="text-[11px] text-muted-foreground">–</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] text-slate-700 cursor-pointer"
+                aria-label="To date"
+              />
+              {!customReady && (
+                <span className="text-[10px] text-amber-600 font-medium">
+                  pick both dates
+                </span>
               )}
-              title={offset === 0 ? undefined : "Back to current"}
-            >
-              {win.label}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOffset((o) => Math.min(0, o + 1))}
-              disabled={offset === 0}
-              className="rounded-md border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:pointer-events-none"
-              aria-label={`Next ${period}`}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
+            </div>
+          ) : (
+            /* Window navigator — step back through previous days/weeks/… */
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o - 1)}
+                className="rounded-md border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                aria-label={`Previous ${period}`}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOffset(0)}
+                disabled={offset === 0}
+                className={cn(
+                  "min-w-[104px] rounded-md border px-2 py-1 text-center text-[11px] font-semibold",
+                  offset === 0
+                    ? "border-slate-200 bg-slate-50 text-slate-600"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                )}
+                title={offset === 0 ? undefined : "Back to current"}
+              >
+                {win.label}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => Math.min(0, o + 1))}
+                disabled={offset === 0}
+                className="rounded-md border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:pointer-events-none"
+                aria-label={`Next ${period}`}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={onOpenOutcomes}
@@ -636,8 +719,10 @@ function OutcomeDeliveryCard({
         {lens === "outcomes" &&
           (total === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-200 py-5 text-center text-xs text-muted-foreground">
-              Nothing completed in {win.label.toLowerCase()} — use ‹ › to step
-              through earlier {period}s or pick a longer period.
+              Nothing completed in {win.label.toLowerCase()} —{" "}
+              {period === "custom"
+                ? "adjust the date range above."
+                : `use ‹ › to step through earlier ${period}s or pick a longer period.`}
             </div>
           ) : (
             <>
@@ -737,8 +822,10 @@ function OutcomeDeliveryCard({
               if (sorted.length === 0)
                 return (
                   <p className="py-5 text-center text-xs text-muted-foreground">
-                    No deliverables submitted in {win.label.toLowerCase()} — use ‹ › to
-                    look at earlier {period}s.
+                    No deliverables submitted in {win.label.toLowerCase()} —{" "}
+                    {period === "custom"
+                      ? "adjust the date range above."
+                      : `use ‹ › to look at earlier ${period}s.`}
                   </p>
                 );
               const max = sorted[0][1];
