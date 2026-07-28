@@ -189,7 +189,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Main area */}
         <div
           className={cn(
-            "flex flex-col flex-1 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            // overflow-x-clip: nothing inside the shell may ever widen the
+            // page — wide tables/boards scroll within their own containers.
+            "flex flex-col flex-1 min-w-0 overflow-x-clip transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             pathname === "/projects/timeline"
               ? "h-screen overflow-hidden"
               : "min-h-screen",
@@ -206,7 +208,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               "flex-1 bg-grid-pattern flex flex-col min-h-0",
               pathname === "/projects/timeline"
                 ? "overflow-hidden"
-                : "overflow-auto",
+                // Vertical scroll only: wide widgets (tables, kanban, gantt)
+                // each own their horizontal scroll — the page itself never
+                // scrolls sideways.
+                : "overflow-y-auto overflow-x-hidden",
             )}
           >
             <div

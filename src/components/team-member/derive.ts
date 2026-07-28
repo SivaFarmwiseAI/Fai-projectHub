@@ -92,6 +92,14 @@ export function computeDailyActivity(
       if (md && m.status !== "completed") {
         if (isSameDay(md, now)) add(tBucket, { id: `md-${m.id}`, kind: "due", text: `Milestone due today: ${m.title}`, sub: task.title });
         else if (isSameDay(md, tmDay)) add(tmBucket, { id: `md-${m.id}`, kind: "due", text: `Milestone due: ${m.title}`, sub: task.title });
+        else if (md < now)
+          // Past its end date and still open — belongs at the top of today's list.
+          add(tBucket, {
+            id: `mo-${m.id}`,
+            kind: "blocked",
+            text: `Overdue milestone: ${m.title} (was due ${format(md, "MMM d")})`,
+            sub: task.title,
+          });
       }
       for (const u of m.updates ?? []) {
         const d = parseDate(u.created_at);
@@ -173,16 +181,26 @@ export function buildTimelineItems(
       for (const ms of milestones) {
         // Prefer the lead-chosen absolute date; fall back to the target_day
         // offset, then to the task's planned end.
+        // Placement date: explicit end date if set; a completed milestone
+        // sits on its actual end; an open one on its start date.
         const msPlannedEnd = ms.target_date
           ? new Date(`${ms.target_date}T00:00:00`)
-          : ms.target_day
-            ? addDays(taskStart, ms.target_day)
-            : plannedEnd;
-        const msPlannedStart = ms.target_date
-          ? addDays(msPlannedEnd, -Math.ceil(estimatedDays / milestones.length))
-          : ms.target_day
-            ? addDays(taskStart, Math.max(0, ms.target_day - Math.ceil(estimatedDays / milestones.length)))
-            : taskStart;
+          : ms.completed_at
+            ? new Date(ms.completed_at)
+            : ms.start_date
+              ? new Date(`${ms.start_date}T00:00:00`)
+              : ms.target_day
+                ? addDays(taskStart, ms.target_day)
+                : plannedEnd;
+        // Prefer the explicitly chosen start date; older milestones without
+        // one fall back to the derived approximation.
+        const msPlannedStart = ms.start_date
+          ? new Date(`${ms.start_date}T00:00:00`)
+          : ms.target_date
+            ? addDays(msPlannedEnd, -Math.ceil(estimatedDays / milestones.length))
+            : ms.target_day
+              ? addDays(taskStart, Math.max(0, ms.target_day - Math.ceil(estimatedDays / milestones.length)))
+              : taskStart;
 
         const actualEnd = ms.completed_at ? new Date(ms.completed_at) : null;
         let status: TimelineItem["status"];
@@ -337,9 +355,17 @@ export function computeHoursAnalysis(
   let actualDeliveredThisWeek = 0;
 
   for (const t of tasks) {
+    // Planned = the sum of the MILESTONES' estimated hours; Working = the sum
+    // of the MILESTONES' logged hours. A task without milestones falls back
+    // to its own task-level estimate / logged hours.
     const est = t.estimated_hours ?? 0;
-    const planned = t.revised_estimate_hours ?? est;
-    const act = t.actual_hours ?? 0;
+    const taskMs = t.milestones ?? [];
+    const planned = taskMs.length > 0
+      ? taskMs.reduce((s, m) => s + (m.estimated_hours ?? 0), 0)
+      : est;
+    const act = taskMs.length > 0
+      ? taskMs.reduce((s, m) => s + (m.actual_hours ?? 0), 0)
+      : t.actual_hours ?? 0;
     totalEst += est;
     totalPlanned += planned;
     totalActual += act;
@@ -355,8 +381,10 @@ export function computeHoursAnalysis(
         effortDeliveredThisWeek += m.estimated_hours ?? 0;
         actualDeliveredThisWeek += m.actual_hours ?? 0;
       }
+      // Evidence is dated by its milestone's END date, falling back to the
+      // START date while the milestone is still open.
       for (const d of m.deliverables ?? []) {
-        if (inWeek(d.submitted_at)) {
+        if (inWeek(m.completed_at ?? m.start_date)) {
           deliverablesThisWeek.push({
             id: d.id, title: d.title, type: d.type, msTitle: m.title,
             _taskId: t.id, _projectId: t.project_id,
@@ -367,9 +395,9 @@ export function computeHoursAnalysis(
       for (const u of m.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
     }
     for (const u of t.updates ?? []) if (inWeek(u.created_at)) updatesThisWeek++;
-    // Task-level evidence (milestone-less tasks) counts too.
+    // Task-level evidence (milestone-less tasks) — dated by the task's END date.
     for (const d of t.deliverables ?? []) {
-      if (inWeek(d.submitted_at)) {
+      if (inWeek(t.completed_at)) {
         deliverablesThisWeek.push({
           id: d.id, title: d.title, type: d.type, msTitle: t.title,
           _taskId: t.id, _projectId: t.project_id,
@@ -709,17 +737,20 @@ export function computeEmployeeRating(
     ? Math.round(judged.reduce((s, r) => s + VERDICT_SCORE[r.verdictKey], 0) / judged.length)
     : null;
 
-  // 2. Delivery vs estimate — per completed unit, hours spent ≤ estimated
-  // hours counts as on target. Judged only where both figures exist, so
-  // work without an estimate or logged hours is never penalized.
-  const hourJudged = outcomes.rows.filter(
-    (r) => (r.estimated ?? 0) > 0 && r.actual != null,
+  // 2. On-time delivery — each milestone is judged against its own end date:
+  // completed on or before it counts on time. Work without an end date is
+  // excluded, never penalized.
+  const dated = outcomes.rows.filter(
+    (r) =>
+      r.hasDeadline &&
+      (r.timeliness?.status === "completed_on_time" ||
+        r.timeliness?.status === "completed_late"),
   );
-  const withinEstimate = hourJudged.filter(
-    (r) => (r.actual as number) <= (r.estimated as number),
+  const onTimeCount2 = dated.filter(
+    (r) => r.timeliness!.status === "completed_on_time",
   ).length;
-  const deliveryDen = hourJudged.length;
-  const deliveryScore = deliveryDen > 0 ? Math.round((withinEstimate / deliveryDen) * 100) : null;
+  const deliveryDen = dated.length;
+  const deliveryScore = deliveryDen > 0 ? Math.round((onTimeCount2 / deliveryDen) * 100) : null;
 
   // 3. Evidence discipline — completed work backed by a deliverable/attachment
   const completedRows = outcomes.rows;
@@ -743,10 +774,10 @@ export function computeEmployeeRating(
         : "No outcome verdicts yet",
     },
     {
-      key: "delivery", label: "Delivery vs estimate", score: deliveryScore, weight: 30,
+      key: "delivery", label: "On-time delivery", score: deliveryScore, weight: 30,
       detail: deliveryDen > 0
-        ? `${withinEstimate} of ${deliveryDen} finished within estimated hours`
-        : "No completed work with estimate + logged hours yet",
+        ? `${onTimeCount2} of ${deliveryDen} completed by their end date`
+        : "No dated completions yet",
     },
     {
       key: "evidence", label: "Deliverable evidence", score: evidenceScore, weight: 15,
@@ -792,9 +823,12 @@ export type EvidenceRow = {
   taskTitle: string;
   projectId: string;
   projectTitle: string;
+  /** END date of the owning milestone/task — the date every filter keys on. */
+  completedAt?: string | null;
 };
 
-/** Every deliverable evidence row across all milestones and tasks, newest first. */
+/** Every deliverable evidence row across all milestones and tasks, dated by
+ *  the owning unit's END date, newest first. */
 export function computeEvidenceRows(
   tasks: Task[],
   projectById: Record<string, Project>,
@@ -803,18 +837,15 @@ export function computeEvidenceRows(
   for (const task of tasks) {
     const projectTitle = projectById[task.project_id]?.title ?? "—";
     for (const d of task.deliverables ?? []) {
-      rows.push({ deliverable: d, taskId: task.id, taskTitle: task.title, projectId: task.project_id, projectTitle });
+      rows.push({ deliverable: d, taskId: task.id, taskTitle: task.title, projectId: task.project_id, projectTitle, completedAt: task.completed_at });
     }
     for (const ms of task.milestones ?? []) {
       for (const d of ms.deliverables ?? []) {
-        rows.push({ deliverable: d, milestoneTitle: ms.title, taskId: task.id, taskTitle: task.title, projectId: task.project_id, projectTitle });
+        // End date when completed, start date while still open.
+        rows.push({ deliverable: d, milestoneTitle: ms.title, taskId: task.id, taskTitle: task.title, projectId: task.project_id, projectTitle, completedAt: ms.completed_at ?? ms.start_date });
       }
     }
   }
-  rows.sort((a, b) => {
-    const ta = a.deliverable.submitted_at ?? a.deliverable.created_at ?? "";
-    const tb = b.deliverable.submitted_at ?? b.deliverable.created_at ?? "";
-    return tb.localeCompare(ta);
-  });
+  rows.sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
   return rows;
 }

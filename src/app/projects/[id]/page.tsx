@@ -1343,6 +1343,487 @@ function DeliverableCard({
 
 // ─── Milestone Card (nested inside Task) ────────────────────
 
+// ── Flat table view of all tasks + milestones (CEO-friendly) ─────────────────
+
+const verdictCellColors: Record<string, string> = {
+  met: "text-green-700 bg-green-50 border-green-200",
+  partially_met: "text-amber-700 bg-amber-50 border-amber-200",
+  not_met: "text-red-700 bg-red-50 border-red-200",
+  deferred: "text-slate-600 bg-slate-100 border-slate-200",
+};
+
+function TableVerdict({ outcome, notes }: { outcome?: string | null; notes?: string | null }) {
+  if (!outcome && !notes) return <span className="text-slate-300">—</span>;
+  const label = outcome ? OUTCOME_VERDICT_LABELS[outcome] ?? outcome : "Recorded";
+  return (
+    <span
+      className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${verdictCellColors[outcome ?? ""] ?? "text-indigo-700 bg-indigo-50 border-indigo-200"}`}
+      title={notes ?? undefined}
+    >
+      {label}
+    </span>
+  );
+}
+
+function TasksTableView({
+  groups,
+}: {
+  groups: { id: string; name: string; tasks: Task[] }[];
+}) {
+  // Table-local filters — the ones a reader actually reaches for on a grid.
+  const [fStatus, setFStatus] = useState("all");
+  const [fPriority, setFPriority] = useState("all");
+  const [fAssignee, setFAssignee] = useState("all");
+  const [fPhase, setFPhase] = useState("all");
+  // Date range: matches a unit's end date, falling back to its start date.
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  // Per-task expand/collapse for milestone sub-rows (default: expanded).
+  const [openTasks, setOpenTasks] = useState<Record<string, boolean>>({});
+  const isOpen = (id: string) => openTasks[id] ?? false;
+  const toggleTask = (id: string) =>
+    setOpenTasks((p) => ({ ...p, [id]: !(p[id] ?? false) }));
+  // Any filter change returns the reader to page 1 (no effect needed: the
+  // filter setters reset the page inline via this helper).
+  const withPageReset = <T,>(set: (v: T) => void) => (v: T) => {
+    set(v);
+    setPage(1);
+  };
+  const setStatusF = withPageReset(setFStatus);
+  const setPriorityF = withPageReset(setFPriority);
+  const setAssigneeF = withPageReset(setFAssignee);
+  const setPhaseF = withPageReset(setFPhase);
+  const setFromF = withPageReset(setFFrom);
+  const setToF = withPageReset(setFTo);
+  const setPageSizeF = withPageReset(setPageSize);
+
+  const inDateRange = (d?: string | null): boolean => {
+    if (!fFrom && !fTo) return true;
+    if (!d) return false;
+    const day = d.slice(0, 10);
+    if (fFrom && day < fFrom) return false;
+    if (fTo && day > fTo) return false;
+    return true;
+  };
+  const msDate = (m: TaskMilestone) => m.completed_at ?? m.start_date;
+  const taskDate = (t: Task) => t.completed_at ?? t.created_at;
+
+  const allRows = groups.flatMap((g) => g.tasks.map((t) => ({ phase: g.name, task: t })));
+  const assigneeOptions = [
+    ...new Map(
+      allRows
+        .flatMap(({ task }) =>
+          task.assignees?.length
+            ? task.assignees.map((a) => [a.id, a.name] as const)
+            : task.assignee_id
+              ? [[task.assignee_id, task.assignee_name ?? "—"] as const]
+              : [],
+        )
+        .map(([id, name]) => [id, name] as const),
+    ).entries(),
+  ];
+  const rows = allRows
+    .filter(({ phase, task }) => {
+      if (fPhase !== "all" && phase !== fPhase) return false;
+      if (fStatus !== "all" && task.status !== fStatus) return false;
+      if (fPriority !== "all" && task.priority !== fPriority) return false;
+      if (
+        fAssignee !== "all" &&
+        !(
+          task.assignee_id === fAssignee ||
+          task.assignees?.some((a) => a.id === fAssignee)
+        )
+      )
+        return false;
+      return true;
+    })
+    .map(({ phase, task }) => {
+      const ms = [...(task.milestones ?? [])].sort((a, b) => a.order_index - b.order_index);
+      if (!fFrom && !fTo) return { phase, task, ms };
+      // Date filter: show milestones in range; a task stays if it (bare) or
+      // any of its milestones falls inside the range.
+      if (ms.length > 0) {
+        const visible = ms.filter((m) => inDateRange(msDate(m)));
+        return visible.length > 0 ? { phase, task, ms: visible } : null;
+      }
+      return inDateRange(taskDate(task)) ? { phase, task, ms } : null;
+    })
+    .filter((r): r is { phase: string; task: Task; ms: TaskMilestone[] } => r !== null);
+  const filtersActive =
+    fStatus !== "all" || fPriority !== "all" || fAssignee !== "all" ||
+    fPhase !== "all" || !!fFrom || !!fTo;
+
+  // Pagination over TASK rows — milestone sub-rows ride along with their task.
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const fmtD = (d?: string | null) => (d ? formatShortDate(d) : "—");
+  const hrs = (h?: number | null) => (h == null ? "—" : `${Math.round(h * 10) / 10}`);
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  const prioMeta: Record<string, { dot: string; chip: string }> = {
+    high: { dot: "bg-red-500", chip: "bg-red-50 border-red-200 text-red-700" },
+    medium: { dot: "bg-amber-500", chip: "bg-amber-50 border-amber-200 text-amber-700" },
+    low: { dot: "bg-slate-400", chip: "bg-slate-50 border-slate-200 text-slate-600" },
+  };
+  // Text columns wrap so the table fits the screen; only dates/numbers/badges
+  // stay on one line. This keeps the grid inside its container → no page-wide
+  // horizontal scroll.
+  const cell = "px-3 py-2 align-top";
+  const cellNw = "px-3 py-2 align-top whitespace-nowrap";
+  const sel =
+    "h-7 rounded-lg border border-slate-200 bg-white px-2 text-[11px] text-slate-600";
+  return (
+    // w-full/min-w-0 + overflow-x-clip: inside the app shell's flex chain a
+    // wide table would otherwise widen the whole page — clip here so ONLY the
+    // inner box below ever scrolls horizontally.
+    <div className="space-y-2 w-full max-w-full min-w-0 overflow-x-clip">
+      {/* Table filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        {groups.length > 1 && (
+          <select value={fPhase} onChange={(e) => setPhaseF(e.target.value)} className={sel}>
+            <option value="all">All phases</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.name}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <select value={fStatus} onChange={(e) => setStatusF(e.target.value)} className={sel}>
+          <option value="all">All statuses</option>
+          <option value="planning">Planning</option>
+          <option value="in_progress">In progress</option>
+          <option value="completed">Completed</option>
+          <option value="blocked">Blocked</option>
+        </select>
+        <select value={fPriority} onChange={(e) => setPriorityF(e.target.value)} className={sel}>
+          <option value="all">All priorities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        {assigneeOptions.length > 1 && (
+          <select value={fAssignee} onChange={(e) => setAssigneeF(e.target.value)} className={sel}>
+            <option value="all">All assignees</option>
+            {assigneeOptions.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        {/* Date range — end date, falling back to start date for open work */}
+        <span className="inline-flex items-center gap-1">
+          <input
+            type="date"
+            value={fFrom}
+            max={fTo || undefined}
+            onChange={(e) => setFromF(e.target.value)}
+            onClick={(e) => e.currentTarget.showPicker?.()}
+            className={`${sel} cursor-pointer`}
+            aria-label="From date"
+            title="From — matches each unit's end date (start date while open)"
+          />
+          <span className="text-[11px] text-muted-foreground">–</span>
+          <input
+            type="date"
+            value={fTo}
+            min={fFrom || undefined}
+            onChange={(e) => setToF(e.target.value)}
+            onClick={(e) => e.currentTarget.showPicker?.()}
+            className={`${sel} cursor-pointer`}
+            aria-label="To date"
+            title="To — matches each unit's end date (start date while open)"
+          />
+        </span>
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setFStatus("all");
+              setFPriority("all");
+              setFAssignee("all");
+              setFPhase("all");
+              setFFrom("");
+              setFTo("");
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+          >
+            Clear filters ×
+          </button>
+        )}
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          {rows.length} of {allRows.length} task{allRows.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="text-center py-10 text-sm text-muted-foreground rounded-2xl border border-border bg-white">
+          No tasks match these filters.
+        </div>
+      ) : (
+    <div className="rounded-2xl border border-border bg-white shadow-card overflow-x-auto overflow-y-auto max-h-[calc(100vh-380px)] min-h-[240px] w-full max-w-full">
+      <table className="w-full min-w-[960px] text-xs">
+        <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-slate-200 text-left">
+            <th className={`${cellNw} w-[26%] min-w-[240px]`}>Task / Milestone</th>
+            <th className={`${cellNw} min-w-[110px]`}>Phase</th>
+            <th className={cellNw}>Status</th>
+            <th className={cellNw}>Priority</th>
+            <th className={`${cellNw} min-w-[140px]`}>Assignee</th>
+            <th className={cellNw}>Start</th>
+            <th className={cellNw}>End</th>
+            <th className={`${cellNw} text-right`}>Est h</th>
+            <th className={`${cellNw} text-right`}>Spent h</th>
+            <th className={cellNw}>Outcome</th>
+            <th className={`${cellNw} text-right`}>Deliv.</th>
+            <th className={`${cellNw} min-w-[110px]`}>Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pageRows.map(({ phase, task, ms }) => {
+            const msDone = ms.filter((m) => m.status === "completed").length;
+            const steps = task.steps ?? [];
+            const stepsDone = steps.filter((s) => s.status === "completed").length;
+            const pct =
+              ms.length > 0
+                ? Math.round((msDone / ms.length) * 100)
+                : steps.length > 0
+                  ? Math.round((stepsDone / steps.length) * 100)
+                  : task.status === "completed"
+                    ? 100
+                    : 0;
+            const taskDeliv =
+              (task.deliverables?.length ?? 0) +
+              (task.attachments?.filter((a) => a.url).length ?? 0) +
+              ms.reduce(
+                (n, m) =>
+                  n +
+                  (m.deliverables?.length ?? 0) +
+                  (m.attachments?.filter((a) => a.url).length ?? 0),
+                0,
+              );
+            const assignees =
+              task.assignees?.map((a) => a.name) ??
+              (task.assignee_name ? [task.assignee_name] : []);
+            return (
+              <React.Fragment key={task.id}>
+                <tr className="border-b border-slate-100 bg-white hover:bg-blue-50/40 transition-colors">
+                  <td className={`${cell} py-2.5`}>
+                    {ms.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleTask(task.id)}
+                        className="flex items-start gap-1.5 text-left group"
+                        title={isOpen(task.id) ? "Hide milestones" : "Show milestones"}
+                      >
+                        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-400 group-hover:border-blue-300 group-hover:text-blue-500">
+                          {isOpen(task.id) ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3" />
+                          )}
+                        </span>
+                        <span className="text-[13px] font-semibold leading-snug text-slate-800 group-hover:text-blue-700">
+                          {task.title}
+                        </span>
+                        <span className="mt-0.5 shrink-0 rounded-full bg-indigo-50 border border-indigo-100 px-1.5 text-[10px] font-semibold tabular-nums text-indigo-600">
+                          {msDone}/{ms.length}
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="block pl-[22px] text-[13px] font-semibold leading-snug text-slate-800">
+                        {task.title}
+                      </span>
+                    )}
+                  </td>
+                  <td className={`${cell} py-2.5 text-slate-500`}>{phase}</td>
+                  <td className={`${cellNw} py-2.5`}>
+                    <span className={`inline-block rounded-md border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusColors[task.status] ?? statusColors.planning}`}>
+                      {task.status.replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className={`${cellNw} py-2.5`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${(prioMeta[task.priority] ?? prioMeta.low).chip}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${(prioMeta[task.priority] ?? prioMeta.low).dot}`} />
+                      {task.priority}
+                    </span>
+                  </td>
+                  <td className={`${cell} py-2.5`} title={assignees.join(", ")}>
+                    {assignees.length === 0 ? (
+                      <span className="text-slate-300">—</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-[9px] font-bold text-indigo-600">
+                          {initials(assignees[0])}
+                        </span>
+                        <span className="leading-snug text-slate-700">
+                          {assignees[0]}
+                          {assignees.length > 1 && (
+                            <span className="ml-1 text-[10px] font-semibold text-slate-400">
+                              +{assignees.length - 1}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    )}
+                  </td>
+                  <td className={`${cellNw} py-2.5 text-slate-600`}>{fmtD(task.created_at)}</td>
+                  <td className={`${cellNw} py-2.5 ${task.completed_at ? "font-medium text-emerald-600" : "text-slate-300"}`}>
+                    {fmtD(task.completed_at)}
+                  </td>
+                  <td className={`${cellNw} py-2.5 text-right tabular-nums text-slate-700`}>{hrs(task.estimated_hours)}</td>
+                  <td className={`${cellNw} py-2.5 text-right tabular-nums text-slate-700`}>{hrs(task.actual_hours)}</td>
+                  <td className={`${cell} py-2.5`}>
+                    {ms.length === 0 ? (
+                      <TableVerdict outcome={task.outcome} notes={task.outcome_notes} />
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className={`${cellNw} py-2.5 text-right`}>
+                    {taskDeliv ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-blue-600">
+                        <Paperclip className="h-2.5 w-2.5" />
+                        {taskDeliv}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className={`${cellNw} py-2.5`}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2 w-16 rounded-full bg-slate-100 overflow-hidden">
+                        <span
+                          className={`block h-full rounded-full ${pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-blue-500" : "bg-slate-200"}`}
+                          style={{ width: `${Math.max(pct, 2)}%` }}
+                        />
+                      </span>
+                      <span className={`tabular-nums text-[11px] font-semibold ${pct === 100 ? "text-emerald-600" : "text-slate-600"}`}>
+                        {pct}%
+                      </span>
+                    </span>
+                  </td>
+                </tr>
+                {isOpen(task.id) && ms.map((m) => {
+                  const mAssignee = getUser(m.assignee_id ?? task.assignee_id ?? "");
+                  const mDeliv =
+                    (m.deliverables?.length ?? 0) +
+                    (m.attachments?.filter((a) => a.url).length ?? 0);
+                  return (
+                    <tr key={m.id} className="border-b border-slate-100 bg-indigo-50/20 hover:bg-indigo-50/50 transition-colors">
+                      <td className={`${cell} pl-5`}>
+                        <span className="flex items-start gap-1.5">
+                          <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-bl border-b-2 border-l-2 border-indigo-200" />
+                          <span className={`leading-snug ${m.status === "completed" ? "text-slate-500" : "text-slate-700"}`}>
+                            {m.title}
+                          </span>
+                        </span>
+                      </td>
+                      <td className={cell} />
+                      <td className={cellNw}>
+                        <span className={`inline-block rounded-md border px-2 py-0.5 text-[10px] font-semibold capitalize ${statusColors[m.status] ?? statusColors.pending}`}>
+                          {m.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className={`${cell} text-slate-300`}>—</td>
+                      <td className={cell}>
+                        {mAssignee?.name ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[9px] font-bold text-slate-500">
+                              {initials(mAssignee.name)}
+                            </span>
+                            <span className="leading-snug text-slate-600">{mAssignee.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className={`${cellNw} text-slate-600`}>{fmtD(m.start_date)}</td>
+                      <td className={`${cellNw} ${m.completed_at ? "font-medium text-emerald-600" : "text-slate-300"}`}>
+                        {fmtD(m.completed_at)}
+                      </td>
+                      <td className={`${cellNw} text-right tabular-nums text-slate-600`}>{hrs(m.estimated_hours)}</td>
+                      <td className={`${cellNw} text-right tabular-nums text-slate-600`}>{hrs(m.actual_hours)}</td>
+                      <td className={cell}>
+                        <TableVerdict outcome={m.outcome} notes={m.outcome_notes} />
+                      </td>
+                      <td className={`${cellNw} text-right`}>
+                        {mDeliv ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-blue-600">
+                            <Paperclip className="h-2.5 w-2.5" />
+                            {mDeliv}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className={`${cell} text-slate-300`}>—</td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+      )}
+
+      {/* Pagination — over tasks; milestone rows travel with their task */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <span>
+            Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, rows.length)} of{" "}
+            {rows.length} task{rows.length === 1 ? "" : "s"}
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSizeF(Number(e.target.value))}
+            className={sel}
+            aria-label="Tasks per page"
+          >
+            <option value={10}>10 / page</option>
+            <option value={25}>25 / page</option>
+            <option value={50}>50 / page</option>
+          </select>
+          <span className="ml-auto inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none"
+            >
+              ‹ Prev
+            </button>
+            <span className="px-1 tabular-nums">
+              {safePage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Next ›
+            </button>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MilestoneSection({
   milestone,
   taskId,
@@ -1372,7 +1853,7 @@ function MilestoneSection({
   const [updStatus, setUpdStatus] = useState<string>(milestone.status);
   const [updEst, setUpdEst] = useState<number | "">(milestone.estimated_hours ?? "");
   const [updAct, setUpdAct] = useState<number | "">(milestone.actual_hours ?? "");
-  const [updTargetDate, setUpdTargetDate] = useState<string>(formatDateForInput(milestone.target_date ?? undefined));
+  const [updStartDate, setUpdStartDate] = useState<string>(formatDateForInput(milestone.start_date ?? undefined));
   const [updNote, setUpdNote] = useState("");
   // Outcome — a required result summary when the milestone is completed.
   const [updOutcome, setUpdOutcome] = useState<string>(milestone.outcome_notes ?? "");
@@ -1389,7 +1870,9 @@ function MilestoneSection({
   const [localStatus, setLocalStatus] = useState<string>(milestone.status);
   const [localEstHours, setLocalEstHours] = useState<number | null>(milestone.estimated_hours ?? null);
   const [localActHours, setLocalActHours] = useState<number | null>(milestone.actual_hours ?? null);
-  const [localTargetDate, setLocalTargetDate] = useState<string | null>(milestone.target_date ?? null);
+  const [localStartDate, setLocalStartDate] = useState<string | null>(milestone.start_date ?? null);
+  // Legacy end dates still display on old milestones; no editor writes them now.
+  const localTargetDate = milestone.target_date ?? null;
   const [localOutcome, setLocalOutcome] = useState<string>(milestone.outcome_notes ?? "");
   // A milestone already has a deliverable if it carries a deliverable record or
   // an attached link/file. Used to decide whether completion must capture one.
@@ -1413,7 +1896,7 @@ function MilestoneSection({
     setUpdStatus(localStatus);
     setUpdEst(localEstHours ?? "");
     setUpdAct(localActHours ?? "");
-    setUpdTargetDate(formatDateForInput(localTargetDate ?? undefined));
+    setUpdStartDate(formatDateForInput(localStartDate ?? undefined));
     setUpdNote("");
     setUpdOutcome(localOutcome);
     setUpdAttachments([]);
@@ -1434,20 +1917,20 @@ function MilestoneSection({
       setSavingUpdate(true);
       try {
         const estVal = updEst !== "" ? updEst : undefined;
-        const dateVal = updTargetDate || null;
+        const startVal = updStartDate || null;
         const hasEdits =
           trimmedTitle !== localTitle ||
           (estVal ?? null) !== localEstHours ||
-          dateVal !== localTargetDate;
+          startVal !== localStartDate;
         if (hasEdits) {
           await tasksApi.updateMilestone(taskId, milestone.id, {
             title: trimmedTitle,
             estimated_hours: estVal,
-            target_date: dateVal,
+            start_date: startVal,
           });
           setLocalTitle(trimmedTitle);
           setLocalEstHours(estVal ?? null);
-          setLocalTargetDate(dateVal);
+          setLocalStartDate(startVal);
         }
         setShowUpdate(false);
         setShowCompleteDialog(true);
@@ -1472,16 +1955,16 @@ function MilestoneSection({
       const hoursChanged =
         (estVal ?? null) !== localEstHours ||
         (actVal ?? null) !== localActHours;
-      const dateVal = updTargetDate || null;
-      const dateChanged = dateVal !== localTargetDate;
+      const startVal = updStartDate || null;
+      const startChanged = startVal !== localStartDate;
 
-      // 1. Apply title + status + timing + date + outcome to the milestone.
+      // 1. Apply title + status + timing + start date + outcome.
       await tasksApi.updateMilestone(taskId, milestone.id, {
         title: trimmedTitle,
         status: updStatus,
         estimated_hours: estVal,
         actual_hours: actVal,
-        target_date: dateVal,
+        start_date: startVal,
         outcome_notes: trimmedOutcome || undefined,
       });
 
@@ -1493,7 +1976,7 @@ function MilestoneSection({
         titleChanged ||
         statusChanged ||
         hoursChanged ||
-        dateChanged ||
+        startChanged ||
         outcomeChanged ||
         updNote.trim() ||
         updAttachments.length
@@ -1505,8 +1988,8 @@ function MilestoneSection({
           parts.push(`Status → ${MILESTONE_STATUS_LABELS[updStatus] ?? updStatus}`);
         if (hoursChanged)
           parts.push(`${actVal ?? 0}h spent / ${estVal ?? 0}h est`);
-        if (dateChanged)
-          parts.push(dateVal ? `Date → ${formatShortDate(dateVal)}` : "Date cleared");
+        if (startChanged)
+          parts.push(startVal ? `Start → ${formatShortDate(startVal)}` : "Start date cleared");
         if (outcomeChanged && trimmedOutcome)
           parts.push(`Outcome: ${trimmedOutcome}`);
         const summary =
@@ -1537,7 +2020,7 @@ function MilestoneSection({
       setLocalStatus(updStatus);
       setLocalEstHours(estVal ?? null);
       setLocalActHours(actVal ?? null);
-      setLocalTargetDate(dateVal);
+      setLocalStartDate(startVal);
       setLocalOutcome(trimmedOutcome);
       showToast.success("Milestone updated");
       setShowUpdate(false);
@@ -1856,11 +2339,11 @@ function MilestoneSection({
                   />
                 </label>
                 <label className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                  Milestone date
+                  Start date
                   <Input
                     type="date" onClick={(e) => e.currentTarget.showPicker?.()}
-                    value={updTargetDate}
-                    onChange={(e) => setUpdTargetDate(e.target.value)}
+                    value={updStartDate}
+                    onChange={(e) => setUpdStartDate(e.target.value)}
                     className="h-7 w-36 text-xs px-1.5"
                   />
                 </label>
@@ -2265,7 +2748,7 @@ function TaskCard({
   >([]);
   const [milestoneAssigneeId, setMilestoneAssigneeId] = useState("");
   const [milestoneEstimatedHours, setMilestoneEstimatedHours] = useState<number | "">(0);
-  const [milestoneTargetDate, setMilestoneTargetDate] = useState("");
+  const [milestoneStartDate, setMilestoneStartDate] = useState("");
   const [newCriteria, setNewCriteria] = useState("");
   const [milestoneErrors, setMilestoneErrors] = useState<
     Record<string, string>
@@ -2279,7 +2762,7 @@ function TaskCard({
       setMilestoneSuccessCriteria([]);
       setMilestoneAssigneeId("");
       setMilestoneEstimatedHours(0);
-      setMilestoneTargetDate("");
+      setMilestoneStartDate("");
       setNewCriteria("");
     }
   }, [showAddMilestoneForm, task]);
@@ -2363,7 +2846,9 @@ function TaskCard({
     0,
   );
   const hoursAuto = totalMilestones > 0 && !task.hours_overridden;
-  const effEstHours = hoursAuto ? milestoneEstSum : (task.estimated_hours ?? 0);
+  // The task's estimate is its own commitment — milestones allot hours WITHIN
+  // it, so their sum never replaces it. Only worked hours roll up.
+  const effEstHours = task.estimated_hours ?? 0;
   const effActHours = hoursAuto ? milestoneActSum : (task.actual_hours ?? 0);
 
   if (isEditing) {
@@ -3446,18 +3931,30 @@ function TaskCard({
                       </select>
                     </div>
 
-                    {/* Milestone date — chosen by the lead; may be in the future */}
+                    {/* Start date only at creation — the END date is captured
+                        at the completion stage (together with actual hours). */}
                     <div>
-                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">Milestone Date</label>
+                      <label className="text-[10px] font-medium text-gray-500 mb-0.5 block">
+                        Start Date<span className="text-red-500">*</span>
+                      </label>
                       <Input
                         type="date" onClick={(e) => e.currentTarget.showPicker?.()}
-                        value={milestoneTargetDate}
-                        onChange={(e) => setMilestoneTargetDate(e.target.value)}
-                        className="text-xs h-8 border-blue-100 focus-visible:ring-blue-400"
+                        value={milestoneStartDate}
+                        onChange={(e) => {
+                          setMilestoneStartDate(e.target.value);
+                          setMilestoneErrors((p) => ({ ...p, startDate: "" }));
+                        }}
+                        className={`text-xs h-8 focus-visible:ring-blue-400 ${milestoneErrors.startDate ? "border-red-400 focus-visible:ring-red-400" : "border-blue-100"}`}
                       />
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Target date this milestone is due
-                      </p>
+                      {milestoneErrors.startDate ? (
+                        <p className="text-[10px] text-red-500 mt-0.5">
+                          {milestoneErrors.startDate}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          When work begins — the end date is recorded on completion
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -3540,6 +4037,8 @@ function TaskCard({
                           milestoneEstimatedHours <= 0
                         )
                           errs.estimatedHours = "Please enter Estimated Hours";
+                        if (!milestoneStartDate)
+                          errs.startDate = "Please pick the Start Date";
                         if (Object.keys(errs).length > 0) {
                           setMilestoneErrors(errs);
                           return;
@@ -3556,7 +4055,7 @@ function TaskCard({
                                 ? milestoneSuccessCriteria
                                 : undefined,
                             assignee_id: milestoneAssigneeId || undefined,
-                            target_date: milestoneTargetDate || undefined,
+                            start_date: milestoneStartDate || undefined,
                             estimated_hours:
                               milestoneEstimatedHours !== ""
                                 ? milestoneEstimatedHours
@@ -3570,7 +4069,7 @@ function TaskCard({
                             setMilestoneSuccessCriteria([]);
                             setMilestoneAssigneeId("");
                             setMilestoneEstimatedHours(0);
-                            setMilestoneTargetDate("");
+                            setMilestoneStartDate("");
                             setShowAddMilestoneForm(false);
                             showToast.success("Milestone added");
                             onReviewUpdate?.();
@@ -7838,6 +8337,20 @@ export default function ProjectDetailPage({
   const [activeTab, setActiveTab] = useState<string>("overview");
   // "All Tasks" tab: free-text filter + deep-link target (task id from URL).
   const [taskSearch, setTaskSearch] = useState("");
+  // "All Tasks" presentation: nested hierarchy, or a flat CEO-friendly table.
+  const [taskViewMode, setTaskViewMode] = useState<"hierarchy" | "table">(() =>
+    typeof window !== "undefined" && localStorage.getItem("ph_tasks_view") === "table"
+      ? "table"
+      : "hierarchy",
+  );
+  const pickTaskView = (m: "hierarchy" | "table") => {
+    setTaskViewMode(m);
+    try {
+      localStorage.setItem("ph_tasks_view", m);
+    } catch {
+      /* persistence is best-effort */
+    }
+  };
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   // Per-phase collapse state for the grouped All Tasks view. A phase id absent
   // from this map falls back to a "smart" default (open if it has active tasks).
@@ -8777,7 +9290,24 @@ export default function ProjectDetailPage({
               Tasks ({totalTasks})
             </h2>
             <div className="flex items-center gap-2">
-              {taskGroups.length > 1 && (
+              {/* View switch — nested hierarchy vs flat readable table */}
+              <div className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => pickTaskView("hierarchy")}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-colors ${taskViewMode === "hierarchy" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  <GitBranch className="h-3.5 w-3.5" /> Hierarchy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => pickTaskView("table")}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-colors ${taskViewMode === "table" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  <List className="h-3.5 w-3.5" /> Table
+                </button>
+              </div>
+              {taskViewMode === "hierarchy" && taskGroups.length > 1 && (
                 <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
                   <button
                     type="button"
@@ -9209,7 +9739,9 @@ export default function ProjectDetailPage({
             </p>
           )}
 
-          <div className="space-y-3">
+          {taskViewMode === "table" && <TasksTableView groups={taskGroups} />}
+
+          <div className={taskViewMode === "hierarchy" ? "space-y-3" : "hidden"}>
             {taskGroups.map((group) => {
               const open = isGroupOpen(group);
               const done = group.tasks.filter(

@@ -26,11 +26,14 @@ VERDICT_LABEL = {
 
 # ── Outcome / deliverable enforcement helpers ────────────────────────────────
 
-def _insert_deliverables(current_user, items, task_id=None, milestone_id=None):
+def _insert_deliverables(current_user, items, task_id=None, milestone_id=None,
+                         submitted_at=None):
     """Insert inline deliverable evidence rows (status 'submitted').
 
     Milestone deliverables carry milestone_id only; task-level deliverables
-    carry task_id only — fn_task_full aggregates each level separately."""
+    carry task_id only — fn_task_full aggregates each level separately.
+    `submitted_at` lets a completion backdate its evidence to the entered
+    end date, so the deliverable lands in the same week as the completion."""
     rows = []
     for item in items:
         title = (item.get("title") or "").strip()
@@ -45,11 +48,11 @@ def _insert_deliverables(current_user, items, task_id=None, milestone_id=None):
             INSERT INTO deliverables
               (task_id, milestone_id, type, title, description, status,
                document_url, code_pr_url, text_content, submitted_by, submitted_at)
-            VALUES (%s,%s,%s,%s,%s,'submitted',%s,%s,%s,%s,NOW()) RETURNING *
+            VALUES (%s,%s,%s,%s,%s,'submitted',%s,%s,%s,%s,COALESCE(%s, NOW())) RETURNING *
         """, (task_id, milestone_id, dtype, title, item.get("description"),
               url if dtype != "code" else None,
               url if dtype == "code" else None,
-              item.get("text_content"), current_user["id"])))
+              item.get("text_content"), current_user["id"], submitted_at)))
     return rows
 
 
@@ -272,6 +275,8 @@ def _update_task(event, origin, task_id):
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     # Inline deliverable evidence — not a tasks column.
     deliverable_items = fields.pop("deliverables", []) or []
+    # Actual end date entered at completion — applied as completed_at below.
+    completed_date = fields.pop("completed_date", None)
     if not fields and not deliverable_items:
         raise HTTPError(400, "No fields to update")
     for key in ("success_criteria", "kill_criteria"):
@@ -322,7 +327,8 @@ def _update_task(event, origin, task_id):
                                 code="DELIVERABLE_REQUIRED")
 
     if deliverable_items:
-        _insert_deliverables(current_user, deliverable_items, task_id=task_id)
+        _insert_deliverables(current_user, deliverable_items, task_id=task_id,
+                             submitted_at=completed_date if completing else None)
 
     if not fields:
         updated = fetchone("SELECT * FROM tasks WHERE id = %s", (task_id,))
@@ -331,8 +337,12 @@ def _update_task(event, origin, task_id):
         return resp({"task": updated}, origin=origin)
 
     if "status" in fields:
-        # Stamp completion when finishing; clear a stale stamp when re-opening.
-        fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
+        # Stamp completion when finishing (honouring a user-entered end date);
+        # clear a stale stamp when re-opening.
+        if fields["status"] == "completed":
+            fields["completed_at"] = completed_date or "NOW()"
+        else:
+            fields["completed_at"] = None
     set_clause = ", ".join(f"{k} = NOW()" if v == "NOW()" else f"{k} = %s" for k, v in fields.items())
     params = [v for v in fields.values() if v != "NOW()"] + [task_id]
     updated = execute_returning(f"UPDATE tasks SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *", params)
@@ -534,10 +544,11 @@ def _create_milestone(event, origin, task_id):
     ms = execute_returning("""
         INSERT INTO task_milestones
           (task_id, title, description, deliverable_type, success_criteria,
-           assignee_id, target_day, target_date, estimated_hours, order_index)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+           assignee_id, target_day, start_date, target_date, estimated_hours, order_index)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
     """, (task_id, body.title, body.description, body.deliverable_type, json.dumps(body.success_criteria),
-          str(body.assignee_id) if body.assignee_id else None, body.target_day, body.target_date,
+          str(body.assignee_id) if body.assignee_id else None, body.target_day,
+          body.start_date, body.target_date,
           body.estimated_hours, body.order_index))
     _rollup_task_hours(task_id)
     return resp({"milestone": ms}, 201, origin)
@@ -549,6 +560,8 @@ def _update_milestone(event, origin, task_id, ms_id):
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     # Inline deliverable evidence — not a task_milestones column.
     deliverable_items = fields.pop("deliverables", []) or []
+    # Actual end date entered at completion — applied as completed_at below.
+    completed_date = fields.pop("completed_date", None)
     if not fields and not deliverable_items:
         raise HTTPError(400, "No fields to update")
     if "success_criteria" in fields:
@@ -584,7 +597,8 @@ def _update_milestone(event, origin, task_id, ms_id):
                             code="DELIVERABLE_REQUIRED")
 
     if deliverable_items:
-        _insert_deliverables(current_user, deliverable_items, milestone_id=ms_id)
+        _insert_deliverables(current_user, deliverable_items, milestone_id=ms_id,
+                             submitted_at=completed_date if completing else None)
 
     if not fields:
         updated = fetchone(
@@ -594,8 +608,12 @@ def _update_milestone(event, origin, task_id, ms_id):
         return resp({"milestone": updated}, origin=origin)
 
     if "status" in fields:
-        # Stamp completion when finishing; clear a stale stamp when re-opening.
-        fields["completed_at"] = "NOW()" if fields["status"] == "completed" else None
+        # Stamp completion when finishing (honouring a user-entered end date);
+        # clear a stale stamp when re-opening.
+        if fields["status"] == "completed":
+            fields["completed_at"] = completed_date or "NOW()"
+        else:
+            fields["completed_at"] = None
     set_clause = ", ".join(f"{k} = NOW()" if v == "NOW()" else f"{k} = %s" for k, v in fields.items())
     params = [v for v in fields.values() if v != "NOW()"] + [ms_id, task_id]
     updated = execute_returning(f"UPDATE task_milestones SET {set_clause} WHERE id = %s AND task_id = %s RETURNING *", params)

@@ -177,6 +177,8 @@ class UpdateTaskRequest(BaseModel):
     # Deliverable evidence submitted with completion; not a tasks column —
     # popped by the handler before the SET clause is built.
     deliverables: List[DeliverableInput] = Field(default_factory=list)
+    # Actual end date entered at completion; becomes completed_at.
+    completed_date: Optional[date] = None
 
 
 class CreateTaskStepRequest(BaseModel):
@@ -211,6 +213,9 @@ class CreateMilestoneRequest(BaseModel):
     success_criteria: List[str] = Field(default_factory=list)
     assignee_id: Optional[UUID] = None
     target_day: Optional[int] = None
+    # Planned window: start_date .. target_date (end). The actual end is
+    # completed_at, stamped when the stage changes to completed.
+    start_date: Optional[date] = None
     target_date: Optional[date] = None
     estimated_hours: Optional[float] = None
     order_index: int = 0
@@ -224,6 +229,7 @@ class UpdateMilestoneRequest(BaseModel):
     success_criteria: Optional[List[str]] = None
     assignee_id: Optional[UUID] = None
     target_day: Optional[int] = None
+    start_date: Optional[date] = None
     target_date: Optional[date] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
@@ -233,6 +239,8 @@ class UpdateMilestoneRequest(BaseModel):
     # Deliverable evidence submitted with completion; not a task_milestones
     # column — popped by the handler before the SET clause is built.
     deliverables: List[DeliverableInput] = Field(default_factory=list)
+    # Actual end date entered at completion; becomes completed_at.
+    completed_date: Optional[date] = None
 
 
 class CreateDeadlineExtensionRequest(BaseModel):

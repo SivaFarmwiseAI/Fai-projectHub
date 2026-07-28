@@ -146,6 +146,8 @@ export function CompleteWorkDialog({
   const [verdict, setVerdict] = useState<OutcomeVerdict | null>(null);
   const [notes, setNotes] = useState("");
   const [hours, setHours] = useState<string>("");
+  // Actual end date — captured at the completion stage; defaults to today.
+  const [endDate, setEndDate] = useState<string>("");
   const [evidence, setEvidence] = useState<EvidenceDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -155,6 +157,7 @@ export function CompleteWorkDialog({
     setVerdict(null);
     setNotes("");
     setHours(defaultHours != null ? String(defaultHours) : "");
+    setEndDate(new Date().toISOString().slice(0, 10));
     setEvidence(
       gated || hasExistingDeliverable
         ? []
@@ -245,6 +248,10 @@ export function CompleteWorkDialog({
       showToast.warning("Invalid hours", "Working hours must be a positive number.");
       return;
     }
+    if (!endDate) {
+      showToast.warning("End date required", "Pick the date this work actually finished.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -253,6 +260,7 @@ export function CompleteWorkDialog({
           status: "completed",
           outcome: verdict!,
           outcome_notes: notes.trim(),
+          completed_date: endDate,
           ...(showHours && parsedHours != null ? { actual_hours: parsedHours } : {}),
           ...(items.length ? { deliverables: items } : {}),
         });
@@ -260,6 +268,7 @@ export function CompleteWorkDialog({
       } else {
         const res = await tasksApi.update(taskId, {
           status: "completed",
+          completed_date: endDate,
           ...(gated
             ? {}
             : { outcome: verdict!, outcome_notes: notes.trim() }),
@@ -378,6 +387,24 @@ export function CompleteWorkDialog({
               </>
             )}
 
+            <div className="flex flex-wrap gap-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="cw-end">
+                  End date <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="cw-end"
+                  type="date"
+                  value={endDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  className="max-w-[170px] cursor-pointer"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  When this {entity} actually finished
+                </p>
+              </div>
             {showHours && (
               <div className="space-y-1.5">
                 <Label htmlFor="cw-hours">Actual working hours</Label>
@@ -398,6 +425,7 @@ export function CompleteWorkDialog({
                 />
               </div>
             )}
+            </div>
 
             {!gated && (
               <div className="space-y-2">

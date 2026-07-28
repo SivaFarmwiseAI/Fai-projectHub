@@ -10,6 +10,7 @@ import {
   addWeeks,
   differenceInCalendarDays,
   eachDayOfInterval,
+  endOfDay,
   endOfMonth,
   endOfWeek,
   format,
@@ -20,6 +21,7 @@ import {
   isSameMonth,
   isToday,
   isWithinInterval,
+  startOfDay,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -36,24 +38,45 @@ import {
 } from "./derive";
 import { deliverableTypeIcons, deliverableTypeLabels } from "./shared";
 
-export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
+/** The window (or single selected day) the timeline is currently showing —
+ *  published so sibling sections (e.g. the evidence table) can follow it. */
+export type TimelineScope = {
+  start: Date;
+  end: Date;
+  label: string;
+  day: Date | null;
+};
+
+export function DeliverableTimeline({
+  items,
+  onScopeChange,
+}: {
+  items: TimelineItem[];
+  onScopeChange?: (scope: TimelineScope) => void;
+}) {
   const [viewMode, setViewMode] = React.useState<"week" | "month">("month");
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
 
   const timelineItems = items;
 
-  // Navigation
+  // Navigation — moving the window always clears the day selection so the
+  // list below falls back to "everything in view".
   const goForward = () => {
     setCurrentDate((d) => (viewMode === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
+    setSelectedDate(null);
   };
   const goBackward = () => {
     setCurrentDate((d) => (viewMode === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
+    setSelectedDate(null);
   };
   const goToday = () => {
     setCurrentDate(new Date());
-    setSelectedDate(new Date());
+    setSelectedDate(null);
   };
+  // Clicking a day selects it; clicking it again unselects (back to all).
+  const toggleDate = (day: Date) =>
+    setSelectedDate((prev) => (prev && isSameDay(prev, day) ? null : day));
 
   // Calendar days
   const calendarStart = viewMode === "week" ? startOfWeek(currentDate, { weekStartsOn: 1 }) : startOfMonth(currentDate);
@@ -73,9 +96,6 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
     });
   };
 
-  // Items for selected date card view
-  const selectedDateItems = selectedDate ? getDueItemsForDay(selectedDate) : [];
-
   // Timeline range for the Gantt-style view
   const visibleItems = timelineItems.filter((item) => {
     const itemStart = item.plannedStart;
@@ -86,6 +106,36 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
       (isBefore(itemStart, calendarStart) && isAfter(itemEnd, calendarEnd))
     );
   });
+
+  // One active scope drives BOTH the detail list and the summary tiles:
+  // a selected day narrows to that day; otherwise everything in the window.
+  const windowLabel =
+    viewMode === "week"
+      ? `${format(calendarStart, "MMM d")} – ${format(calendarEnd, "MMM d, yyyy")}`
+      : format(currentDate, "MMMM yyyy");
+  const activeItems = (selectedDate
+    ? getDueItemsForDay(selectedDate)
+    : visibleItems
+  ).slice().sort((a, b) => a.plannedEnd.getTime() - b.plannedEnd.getTime());
+  // The Gantt follows the same scope: selected day only, else the window.
+  const ganttItems = selectedDate ? activeItems : visibleItems;
+
+  // Publish the active scope so sibling sections stay in sync.
+  const scopeStart = (selectedDate ? startOfDay(selectedDate) : calendarStart).getTime();
+  const scopeEnd = (selectedDate ? endOfDay(selectedDate) : calendarEnd).getTime();
+  const scopeLabel = selectedDate
+    ? format(selectedDate, "EEE, MMM d, yyyy")
+    : windowLabel;
+  const selectedMs = selectedDate?.getTime() ?? null;
+  React.useEffect(() => {
+    onScopeChange?.({
+      start: new Date(scopeStart),
+      end: new Date(scopeEnd),
+      label: scopeLabel,
+      day: selectedMs === null ? null : new Date(selectedMs),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeStart, scopeEnd, scopeLabel, selectedMs]);
 
   const totalCalendarDays = differenceInCalendarDays(calendarEnd, calendarStart) + 1;
 
@@ -104,14 +154,20 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
               <Button
                 variant={viewMode === "week" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("week")}
+                onClick={() => {
+                  setViewMode("week");
+                  setSelectedDate(null);
+                }}
               >
                 Week
               </Button>
               <Button
                 variant={viewMode === "month" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("month")}
+                onClick={() => {
+                  setViewMode("month");
+                  setSelectedDate(null);
+                }}
               >
                 Month
               </Button>
@@ -164,7 +220,8 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
                 return (
                   <button
                     key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
+                    onClick={() => toggleDate(day)}
+                    title={isSelected ? "Click again to show the whole period" : undefined}
                     className={`
                       relative p-1.5 min-h-[60px] text-left border rounded-md transition-colors
                       ${isSelected ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500" : "border-slate-200 hover:bg-slate-50"}
@@ -202,12 +259,17 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
             </div>
           </div>
 
-          {/* B) Gantt-style Timeline View */}
-          {visibleItems.length > 0 && (
+          {/* B) Gantt-style Timeline View — follows the day selection */}
+          {ganttItems.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-indigo-500" />
                 Planned vs Actual Timeline
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  {selectedDate
+                    ? `${format(selectedDate, "MMM d")} only · ${ganttItems.length} item${ganttItems.length === 1 ? "" : "s"}`
+                    : `${ganttItems.length} item${ganttItems.length === 1 ? "" : "s"} in view`}
+                </span>
               </h3>
               <div className="space-y-1.5 overflow-x-auto">
                 {/* Date axis */}
@@ -233,7 +295,7 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
                 </div>
 
                 {/* Bars */}
-                {visibleItems.map((item) => {
+                {ganttItems.map((item) => {
                   const colors = getTimelineBarColor(item.status);
                   const barStart = Math.max(0, differenceInCalendarDays(item.plannedStart, calendarStart));
                   const barPlannedEnd = Math.min(totalCalendarDays, differenceInCalendarDays(item.plannedEnd, calendarStart) + 1);
@@ -300,21 +362,38 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
             </div>
           )}
 
-          {/* C) Deliverable Cards for Selected Date */}
-          {selectedDate && (
-            <div className="space-y-3">
+          {/* C) Deliverable cards — the selected day, or the whole window */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <Eye className="h-4 w-4 text-indigo-500" />
-                Deliverables for {format(selectedDate, "EEEE, MMM d, yyyy")}
+                {selectedDate
+                  ? `Deliverables for ${format(selectedDate, "EEEE, MMM d, yyyy")}`
+                  : `All deliverables · ${windowLabel}`}
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  {activeItems.length} item{activeItems.length === 1 ? "" : "s"}
+                </span>
               </h3>
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  className="text-[11px] font-medium text-blue-600 hover:underline"
+                >
+                  Show whole {viewMode} ×
+                </button>
+              )}
+            </div>
 
-              {selectedDateItems.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg border-dashed">
-                  No deliverables due on this date
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedDateItems.map((item) => {
+            {activeItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg border-dashed">
+                {selectedDate
+                  ? "No deliverables due on this date — click the day again to see the whole period."
+                  : `No deliverables in ${windowLabel}.`}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeItems.map((item) => {
                     const colors = getTimelineBarColor(item.status);
                     return (
                       <div key={item.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-2">
@@ -387,38 +466,39 @@ export function DeliverableTimeline({ items }: { items: TimelineItem[] }) {
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
-          {/* Summary stats */}
+          {/* Summary stats — follow the same scope as the list above */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-200">
             <div className="text-center p-2 rounded-lg bg-slate-50">
-              <p className="text-lg font-bold text-slate-700">{timelineItems.length}</p>
-              <p className="text-xs text-muted-foreground">Total Deliverables</p>
+              <p className="text-lg font-bold text-slate-700">{activeItems.length}</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedDate ? "Due This Day" : "Total in View"}
+              </p>
             </div>
             <div className="text-center p-2 rounded-lg bg-green-50">
               <p className="text-lg font-bold text-green-700">
-                {timelineItems.filter((i) => i.status === "completed_on_time").length}
+                {activeItems.filter((i) => i.status === "completed_on_time").length}
               </p>
               <p className="text-xs text-muted-foreground">On Time</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-amber-50">
               <p className="text-lg font-bold text-amber-700">
-                {timelineItems.filter((i) => i.status === "completed_late").length}
+                {activeItems.filter((i) => i.status === "completed_late").length}
               </p>
               <p className="text-xs text-muted-foreground">Completed Late</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-blue-50">
               <p className="text-lg font-bold text-blue-700">
-                {timelineItems.filter((i) => i.status === "in_progress").length}
+                {activeItems.filter((i) => i.status === "in_progress").length}
               </p>
               <p className="text-xs text-muted-foreground">In Progress</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-red-50">
               <p className="text-lg font-bold text-red-700">
-                {timelineItems.filter((i) => i.status === "overdue").length}
+                {activeItems.filter((i) => i.status === "overdue").length}
               </p>
               <p className="text-xs text-muted-foreground">Overdue</p>
             </div>

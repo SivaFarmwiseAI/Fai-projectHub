@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeaveAnalytics } from "@/components/leave-analytics";
 import { WorkHistory } from "@/components/work-history";
 import type { DeadlineExtension, LeaveRequest, Project, Task, User } from "@/lib/api-client";
-import { extensionStatusColors, leaveStatusColors, leaveTypeColors } from "./shared";
+import { extensionStatusColors, leaveStatusColors } from "./shared";
 
 export function HistoryTab({
   user,
@@ -163,84 +163,141 @@ export function HistoryTab({
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
-            {leaves.map((leave) => {
-              const coverNames =
-                leave.cover_person_names?.length
-                  ? leave.cover_person_names
-                  : leave.cover_person_name
-                    ? [leave.cover_person_name]
-                    : [];
-              return (
-                <Card key={leave.id}>
-                  <CardContent className="py-4 px-5 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className={leaveTypeColors[leave.type] || ""}>
-                          {leave.type === "wfh" ? "WFH" : leave.type.replace(/_/g, " ")}
-                        </Badge>
-                        <Badge variant="outline" className={leaveStatusColors[leave.status] || ""}>
+          (() => {
+            const LEAF_HEADER: Record<string, string> = {
+              planned: "bg-blue-500",
+              sick: "bg-red-500",
+              personal: "bg-purple-500",
+              wfh: "bg-teal-500",
+              half_day: "bg-amber-500",
+            };
+            const TYPE_LABEL: Record<string, string> = {
+              planned: "Planned leave",
+              sick: "Sick leave",
+              personal: "Personal leave",
+              wfh: "Work from home",
+              half_day: "Half day",
+            };
+            const approved = leaves.filter((l) => l.status === "approved");
+            const approvedDays = approved.reduce((s, l) => s + (l.days ?? 1), 0);
+            const rejected = leaves.filter((l) => l.status === "rejected").length;
+            const pending = leaves.filter((l) => l.status === "pending").length;
+            const sorted = [...leaves].sort(
+              (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+            );
+            return (
+              <Card>
+                {/* Summary strip — the year at a glance */}
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-slate-100 px-5 py-3 text-[11px] text-slate-600">
+                  <span>
+                    <span className="stat-number font-extrabold text-slate-900">{approvedDays}</span>{" "}
+                    day{approvedDays === 1 ? "" : "s"} taken
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="font-bold tabular-nums">{approved.length}</span> approved
+                  </span>
+                  {pending > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-amber-500" />
+                      <span className="font-bold tabular-nums">{pending}</span> pending
+                    </span>
+                  )}
+                  {rejected > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-red-500" />
+                      <span className="font-bold tabular-nums">{rejected}</span> rejected
+                    </span>
+                  )}
+                  <span className="ml-auto text-muted-foreground">
+                    {leaves.length} request{leaves.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <CardContent className="px-5 py-1 divide-y divide-slate-100">
+                  {sorted.map((leave) => {
+                    const start = new Date(leave.start_date);
+                    const coverNames =
+                      leave.cover_person_names?.length
+                        ? leave.cover_person_names
+                        : leave.cover_person_name
+                          ? [leave.cover_person_name]
+                          : [];
+                    return (
+                      <div key={leave.id} className="flex items-center gap-4 py-3.5">
+                        {/* Calendar leaf */}
+                        <div className="w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white text-center shadow-sm">
+                          <div
+                            className={`${LEAF_HEADER[leave.type] ?? "bg-slate-400"} py-0.5 text-[9px] font-bold uppercase tracking-wider text-white`}
+                          >
+                            {format(start, "MMM")}
+                          </div>
+                          <div className="stat-number py-0.5 text-lg font-extrabold text-slate-900">
+                            {format(start, "d")}
+                          </div>
+                        </div>
+
+                        {/* What & why */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-slate-800">
+                              {TYPE_LABEL[leave.type] ?? leave.type.replace(/_/g, " ")}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {leave.days ?? 1} {(leave.days ?? 1) === 1 ? "day" : "days"}
+                            </span>
+                            {leave.is_planned === false && leave.type !== "sick" && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[9px] font-semibold text-amber-700">
+                                unplanned
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                            {leave.start_date === leave.end_date
+                              ? format(start, "EEEE, MMM d yyyy")
+                              : `${format(start, "MMM d")} – ${format(new Date(leave.end_date), "MMM d, yyyy")}`}
+                            {leave.reason?.trim() ? ` · ${leave.reason}` : ""}
+                          </p>
+                          {(leave.status === "rejected" ||
+                            coverNames.length > 0 ||
+                            (leave.status === "approved" && leave.approved_by_name)) && (
+                            <p className="mt-0.5 text-[11px] truncate">
+                              {leave.status === "rejected" ? (
+                                <span className="text-red-600">
+                                  {leave.rejection_reason?.trim()
+                                    ? `Rejected — ${leave.rejection_reason}`
+                                    : "Rejected"}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  {[
+                                    coverNames.length > 0 ? `Covered by ${coverNames.join(", ")}` : null,
+                                    leave.status === "approved" && leave.approved_by_name
+                                      ? `Approved by ${leave.approved_by_name}`
+                                      : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Status */}
+                        <Badge
+                          variant="outline"
+                          className={`shrink-0 capitalize ${leaveStatusColors[leave.status] || ""}`}
+                        >
                           {leave.status}
                         </Badge>
-                        {leave.is_planned === false && (
-                          <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">
-                            unplanned
-                          </Badge>
-                        )}
-                        <span className="text-sm font-medium text-slate-700">
-                          {leave.days ?? 1} {(leave.days ?? 1) === 1 ? "day" : "days"}
-                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {leave.start_date === leave.end_date ? (
-                          format(new Date(leave.start_date), "EEE, MMM d, yyyy")
-                        ) : (
-                          <>
-                            {format(new Date(leave.start_date), "MMM d")} —{" "}
-                            {format(new Date(leave.end_date), "MMM d, yyyy")}
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    {leave.reason?.trim() ? (
-                      <p className="text-sm text-slate-700">{leave.reason}</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">No reason provided</p>
-                    )}
-
-                    {coverNames.length > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Covered by{" "}
-                        <span className="font-medium text-slate-700">{coverNames.join(", ")}</span>
-                      </p>
-                    )}
-
-                    {leave.coverage_plan && (
-                      <div className="text-xs p-2 rounded bg-slate-50 border border-slate-200">
-                        <span className="font-medium text-slate-600">Coverage: </span>
-                        <span className="text-slate-700">{leave.coverage_plan}</span>
-                      </div>
-                    )}
-
-                    {leave.status === "rejected" && (
-                      <div className="text-xs p-2 rounded bg-red-50 border border-red-200 text-red-700">
-                        <span className="font-medium">Rejected</span>
-                        {leave.rejection_reason ? <>: {leave.rejection_reason}</> : " — no note recorded"}
-                      </div>
-                    )}
-
-                    {leave.status === "approved" && leave.approved_by_name && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Approved by {leave.approved_by_name}
-                        {leave.approved_at ? ` · ${format(new Date(leave.approved_at), "MMM d, yyyy")}` : ""}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })()
         )}
       </div>
     </div>

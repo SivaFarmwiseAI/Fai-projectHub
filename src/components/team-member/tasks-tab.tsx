@@ -15,11 +15,19 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseISO } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { Project, Task, User } from "@/lib/api-client";
+import type { Project, Task, TaskMilestone, User } from "@/lib/api-client";
 import { MilestoneRow } from "./milestone-row";
+import type { CarriedFilters } from "./overview-tab";
 import { fmtHrs, taskStatusColors, taskStatusIcons } from "./shared";
+
+const KIND_LABEL: Record<CarriedFilters["kind"], string> = {
+  all: "All work",
+  milestone: "Milestones only",
+  task: "Tasks only",
+};
 
 const STATUS_FILTERS = [
   { id: "all", label: "All" },
@@ -32,12 +40,22 @@ const STATUS_FILTERS = [
 export function TasksTab({
   user,
   tasksByProject,
+  applied,
+  onClearApplied,
 }: {
   user: User;
   tasksByProject: Record<string, { project: Project; tasks: Task[] }>;
+  /** Filters carried over from the Overview card's "View details". */
+  applied?: CarriedFilters | null;
+  onClearApplied?: () => void;
 }) {
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [projectFilter, setProjectFilter] = React.useState<string>("all");
+
+  // Adopt the carried project scope whenever it arrives.
+  React.useEffect(() => {
+    if (applied && applied.projectId !== "all") setProjectFilter(applied.projectId);
+  }, [applied]);
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>(() => {
     // Completed projects start collapsed to keep the tab short.
     const init: Record<string, boolean> = {};
@@ -47,13 +65,43 @@ export function TasksTab({
     return init;
   });
 
+  // Carried window rule (same as the Overview card): completed units filter
+  // by their end date, open units by their start date.
+  const inCarriedWindow = (dateStr?: string | null): boolean => {
+    if (!applied) return true;
+    if (!dateStr) return false;
+    const d = parseISO(dateStr);
+    return d >= parseISO(applied.windowStart) && d <= parseISO(applied.windowEnd);
+  };
+
   const groups = Object.values(tasksByProject)
     .filter(({ project }) => projectFilter === "all" || project.id === projectFilter)
     .map(({ project, tasks }) => ({
       project,
-      tasks: tasks.filter((t) => statusFilter === "all" || t.status === statusFilter),
+      items: tasks
+        .filter((t) => statusFilter === "all" || t.status === statusFilter)
+        .map((t) => {
+          const ms = t.milestones ?? [];
+          if (!applied) return { task: t, milestones: ms };
+          if (ms.length > 0) {
+            const visible =
+              applied.kind === "task"
+                ? []
+                : ms.filter((m) =>
+                    inCarriedWindow(m.status === "completed" ? m.completed_at : m.start_date),
+                  );
+            return visible.length > 0 ? { task: t, milestones: visible } : null;
+          }
+          const bareOk =
+            applied.kind !== "milestone" &&
+            inCarriedWindow(
+              t.status === "completed" ? t.completed_at : t.created_at?.slice(0, 10),
+            );
+          return bareOk ? { task: t, milestones: [] } : null;
+        })
+        .filter((x): x is { task: Task; milestones: TaskMilestone[] } => x !== null),
     }))
-    .filter((g) => g.tasks.length > 0);
+    .filter((g) => g.items.length > 0);
 
   if (Object.keys(tasksByProject).length === 0) {
     return (
@@ -66,6 +114,38 @@ export function TasksTab({
 
   return (
     <div className="space-y-4">
+      {/* Filters carried over from the Overview card */}
+      {applied && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
+          <span className="font-semibold">Filters from Overview:</span>
+          <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">
+            {applied.projectId === "all"
+              ? "All projects"
+              : tasksByProject[applied.projectId]?.project.title ?? "Project"}
+          </span>
+          <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">
+            {KIND_LABEL[applied.kind]}
+          </span>
+          <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">
+            {applied.windowLabel}
+          </span>
+          <span className="text-blue-600/70">
+            — the list below shows only matching work
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setProjectFilter("all");
+              setStatusFilter("all");
+              onClearApplied?.();
+            }}
+            className="ml-auto rounded-md border border-blue-300 bg-white px-2 py-0.5 font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Clear ×
+          </button>
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1">
@@ -99,15 +179,30 @@ export function TasksTab({
             ))}
           </select>
         )}
+        {/* Clear the tab's own filters whenever any are active */}
+        {(statusFilter !== "all" || projectFilter !== "all") && (
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("all");
+              setProjectFilter("all");
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+          >
+            Clear filters ×
+          </button>
+        )}
       </div>
 
       {groups.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-slate-200 py-10 text-center text-sm text-muted-foreground">
-          No tasks match this filter
+          {applied
+            ? `Nothing matches ${applied.windowLabel.toLowerCase()} with these filters — press Clear to see everything.`
+            : "No tasks match this filter"}
         </div>
       ) : (
         <div className="space-y-4">
-          {groups.map(({ project, tasks }) => {
+          {groups.map(({ project, items }) => {
             const isCollapsed = collapsed[project.id] ?? false;
             return (
               <Card key={project.id}>
@@ -137,8 +232,14 @@ export function TasksTab({
                 {!isCollapsed && (
                   <CardContent className="px-5 pb-4">
                     <div className="space-y-3">
-                      {tasks.map((task) => (
-                        <TaskGroupRow key={task.id} task={task} project={project} user={user} />
+                      {items.map(({ task, milestones }) => (
+                        <TaskGroupRow
+                          key={task.id}
+                          task={task}
+                          milestones={milestones}
+                          project={project}
+                          user={user}
+                        />
                       ))}
                     </div>
                   </CardContent>
@@ -152,11 +253,22 @@ export function TasksTab({
   );
 }
 
-function TaskGroupRow({ task, project, user }: { task: Task; project: Project; user: User }) {
+function TaskGroupRow({
+  task,
+  milestones,
+  project,
+  user,
+}: {
+  task: Task;
+  /** Milestones to display — may be a window-filtered subset of the task's. */
+  milestones: TaskMilestone[];
+  project: Project;
+  user: User;
+}) {
   const taskSteps = task.steps ?? [];
   const completedSteps = taskSteps.filter((s) => s.status === "completed").length;
   const totalSteps = taskSteps.length;
-  const taskMilestones = [...(task.milestones ?? [])].sort(
+  const taskMilestones = [...milestones].sort(
     (a, b) => a.order_index - b.order_index,
   );
   const msDone = taskMilestones.filter((m) => m.status === "completed").length;

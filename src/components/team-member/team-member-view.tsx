@@ -27,7 +27,7 @@ import {
 } from "./derive";
 import { EvidenceTab } from "./evidence-tab";
 import { HistoryTab } from "./history-tab";
-import { OverviewTab } from "./overview-tab";
+import { OverviewTab, type CarriedFilters } from "./overview-tab";
 import { ProfileHeader } from "./profile-header";
 import { TasksTab } from "./tasks-tab";
 
@@ -63,6 +63,8 @@ export function TeamMemberView({ data }: { data: TeamMemberData }) {
     (isLead && user.manager_id != null && user.manager_id === authUser?.id);
 
   const [tab, setTab] = React.useState<TabId>(() => initialTab(canAppraise));
+  // Filters carried from the Overview card's "View details" into the Tasks tab.
+  const [carried, setCarried] = React.useState<CarriedFilters | null>(null);
 
   const selectTab = (t: TabId) => {
     setTab(t);
@@ -177,10 +179,20 @@ export function TeamMemberView({ data }: { data: TeamMemberData }) {
             projectById={projectById}
             completedTasks={completedTasks}
             totalTasks={tasks.length}
-            onOpenOutcomes={() => selectTab(canAppraise ? "appraisal" : "tasks")}
+            onOpenOutcomes={(f) => {
+              setCarried(f);
+              selectTab("tasks");
+            }}
           />
         )}
-        {tab === "tasks" && <TasksTab user={user} tasksByProject={tasksByProject} />}
+        {tab === "tasks" && (
+          <TasksTab
+            user={user}
+            tasksByProject={tasksByProject}
+            applied={carried}
+            onClearApplied={() => setCarried(null)}
+          />
+        )}
         {tab === "evidence" && (
           <EvidenceTab timelineItems={timelineItems} evidenceRows={evidenceRows} />
         )}

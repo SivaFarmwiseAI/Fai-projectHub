@@ -5,11 +5,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { ExternalLink, FileSearch, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DeliverableTimeline } from "./deliverable-timeline";
+import { DeliverableTimeline, type TimelineScope } from "./deliverable-timeline";
 import type { EvidenceRow, TimelineItem } from "./derive";
 import {
   deliverableStatusColors,
@@ -24,27 +24,59 @@ export function EvidenceTab({
   timelineItems: TimelineItem[];
   evidenceRows: EvidenceRow[];
 }) {
+  // Follows the timeline's window / selected day; the toggle escapes to all time.
+  const [scope, setScope] = React.useState<TimelineScope | null>(null);
+  const [followTimeline, setFollowTimeline] = React.useState(true);
+
+  const scopedRows = React.useMemo(() => {
+    if (!followTimeline || !scope) return evidenceRows;
+    return evidenceRows.filter((r) => {
+      // Every filter keys on the owning unit's END date — never on when the
+      // file happened to be uploaded.
+      if (!r.completedAt) return false;
+      return isWithinInterval(parseISO(r.completedAt), { start: scope.start, end: scope.end });
+    });
+  }, [evidenceRows, scope, followTimeline]);
+
   return (
     <div className="space-y-6">
-      <DeliverableTimeline items={timelineItems} />
+      <DeliverableTimeline items={timelineItems} onScopeChange={setScope} />
 
       <Card>
         <CardHeader className="pb-2 pt-4 px-5">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Paperclip className="h-4 w-4 text-blue-600" />
-            All Deliverable Evidence
-            <span className="text-[11px] font-normal text-muted-foreground">
-              {evidenceRows.length} record{evidenceRows.length === 1 ? "" : "s"}
-            </span>
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Paperclip className="h-4 w-4 text-blue-600" />
+              Deliverable Evidence
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {scopedRows.length} record{scopedRows.length === 1 ? "" : "s"}
+                {followTimeline && scope ? ` · ${scope.label}` : " · all time"}
+              </span>
+            </CardTitle>
+            <button
+              type="button"
+              onClick={() => setFollowTimeline((v) => !v)}
+              className="text-[11px] font-medium text-blue-600 hover:underline"
+            >
+              {followTimeline ? "Show all time" : "Follow timeline scope"}
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">
-          {evidenceRows.length === 0 ? (
+          {scopedRows.length === 0 ? (
             <div className="rounded-xl border-2 border-dashed border-slate-200 py-12 text-center">
               <FileSearch className="mx-auto h-8 w-8 text-slate-300" />
-              <p className="mt-2 text-sm font-medium text-slate-500">No deliverables submitted yet</p>
+              <p className="mt-2 text-sm font-medium text-slate-500">
+                {evidenceRows.length === 0
+                  ? "No deliverables submitted yet"
+                  : `No evidence submitted in ${followTimeline && scope ? scope.label : "this view"}`}
+              </p>
               <p className="text-xs text-muted-foreground">
-                Evidence recorded when completing tasks and milestones appears here.
+                {evidenceRows.length === 0
+                  ? "Evidence recorded when completing tasks and milestones appears here."
+                  : scope?.day
+                    ? "Unselect the day in the calendar above, or switch to all time."
+                    : "Navigate the timeline above, or switch to all time."}
               </p>
             </div>
           ) : (
@@ -61,9 +93,9 @@ export function EvidenceTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {evidenceRows.map(({ deliverable: d, milestoneTitle, taskId, taskTitle, projectId, projectTitle }) => {
+                  {scopedRows.map(({ deliverable: d, milestoneTitle, taskId, taskTitle, projectId, projectTitle, completedAt }) => {
                     const href = d.document_url || d.code_pr_url || d.code_repo_url;
-                    const when = d.submitted_at ?? d.created_at;
+                    const when = completedAt ?? d.submitted_at ?? d.created_at;
                     return (
                       <tr key={d.id} className="border-b border-slate-100 hover:bg-slate-50/60">
                         <td className="py-2 pr-3">

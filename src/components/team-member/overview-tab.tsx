@@ -31,6 +31,17 @@ import type { Project, Task } from "@/lib/api-client";
 import type { OutcomeSummary, HoursAnalysis, DailyActivityItem, VerdictKey } from "./derive";
 import { DailyActivityList, deliverableTypeIcons, deliverableTypeLabels, fmtHrs, HoursBar, KpiTile, verdictMeta, WeekStat } from "./shared";
 
+/** The card's active filters, carried into the Tasks & Outcomes tab by
+ *  "View details" so the reader keeps their context. */
+export type CarriedFilters = {
+  projectId: string; // "all" or a project id
+  kind: "all" | "milestone" | "task";
+  windowLabel: string;
+  /** Window bounds (ISO) — the tab filters its list by these. */
+  windowStart: string;
+  windowEnd: string;
+};
+
 export function OverviewTab({
   analysis,
   daily,
@@ -48,7 +59,7 @@ export function OverviewTab({
   projectById: Record<string, Project>;
   completedTasks: number;
   totalTasks: number;
-  onOpenOutcomes?: () => void;
+  onOpenOutcomes?: (carried: CarriedFilters) => void;
 }) {
   // Collapsible category groups in "Delivered This Week".
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
@@ -367,7 +378,7 @@ const SEGMENT_ORDER: VerdictKey[] = [
 
 const UNIT_STATUS_SEGMENTS = [
   { key: "in_progress", label: "In progress", bar: "bg-blue-500" },
-  { key: "open", label: "Not started", bar: "bg-slate-300" },
+  { key: "open", label: "Not started", bar: "bg-slate-500" },
   { key: "blocked", label: "Blocked", bar: "bg-red-500" },
   { key: "done", label: "Done", bar: "bg-emerald-500" },
 ] as const;
@@ -441,7 +452,7 @@ function OutcomeDeliveryCard({
   outcomes: OutcomeSummary;
   tasks: Task[];
   projectById: Record<string, Project>;
-  onOpenOutcomes?: () => void;
+  onOpenOutcomes?: (carried: CarriedFilters) => void;
 }) {
   const [period, setPeriod] = React.useState<Period | "custom">("week");
   // 0 = current window, -1 = previous, -2 = the one before, …
@@ -500,6 +511,7 @@ function OutcomeDeliveryCard({
     status: string;
     projectId: string;
     completedAt?: string | null;
+    startDate?: string | null;
   };
   const allUnits: Unit[] = [];
   const allEvidence: { id: string; kind: "milestone" | "task"; type: string; submittedAt?: string | null }[] = [];
@@ -507,29 +519,31 @@ function OutcomeDeliveryCard({
     const ms = t.milestones ?? [];
     if (ms.length > 0) {
       for (const m of ms) {
-        allUnits.push({ id: m.id, kind: "milestone", status: m.status, projectId: t.project_id, completedAt: m.completed_at });
+        allUnits.push({ id: m.id, kind: "milestone", status: m.status, projectId: t.project_id, completedAt: m.completed_at, startDate: m.start_date });
         for (const d of m.deliverables ?? [])
-          allEvidence.push({ id: d.id, kind: "milestone", type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+          allEvidence.push({ id: d.id, kind: "milestone", type: d.type, submittedAt: m.completed_at ?? m.start_date });
         for (const a of m.attachments ?? [])
-          if (a.url) allEvidence.push({ id: a.id, kind: "milestone", type: "link", submittedAt: a.created_at });
+          if (a.url) allEvidence.push({ id: a.id, kind: "milestone", type: "link", submittedAt: m.completed_at ?? m.start_date });
       }
     } else {
-      allUnits.push({ id: t.id, kind: "task", status: t.status, projectId: t.project_id, completedAt: t.completed_at });
+      allUnits.push({ id: t.id, kind: "task", status: t.status, projectId: t.project_id, completedAt: t.completed_at, startDate: t.created_at?.slice(0, 10) ?? null });
       for (const d of t.deliverables ?? [])
-        allEvidence.push({ id: d.id, kind: "task", type: d.type, submittedAt: d.submitted_at ?? d.created_at });
+        allEvidence.push({ id: d.id, kind: "task", type: d.type, submittedAt: t.completed_at });
       for (const a of t.attachments ?? [])
-        if (a.url) allEvidence.push({ id: a.id, kind: "task", type: "link", submittedAt: a.created_at });
+        if (a.url) allEvidence.push({ id: a.id, kind: "task", type: "link", submittedAt: t.completed_at });
     }
   }
   const units = kindFilter === "all" ? allUnits : allUnits.filter((u) => u.kind === kindFilter);
   const evidenceRows = kindFilter === "all" ? allEvidence : allEvidence.filter((e) => e.kind === kindFilter);
+  // Window rule: completed units filter by their END date; open units fall
+  // back to their START date, so every week shows its own picture.
   const segmentCounts = (list: Unit[]) => {
     const c = { in_progress: 0, open: 0, blocked: 0, done: 0 };
     for (const u of list) {
       const s = normStatus(u.status);
       if (s === "completed") {
         if (inPeriod(u.completedAt)) c.done++;
-      } else {
+      } else if (inPeriod(u.startDate)) {
         c[s]++;
       }
     }
@@ -554,6 +568,15 @@ function OutcomeDeliveryCard({
     ? Math.round((rows.filter((r) => r.verdictKey === "met").length / total) * 100)
     : null;
 
+  // Same window rule as a reusable predicate — used so every count shown
+  // next to a windowed bar agrees with the bar.
+  const inScopeWindow = (u: Unit) =>
+    normStatus(u.status) === "completed"
+      ? inPeriod(u.completedAt)
+      : inPeriod(u.startDate);
+  const windowTotal = (c: { in_progress: number; open: number; blocked: number; done: number }) =>
+    c.in_progress + c.open + c.blocked + c.done;
+
   // In "All work" mode, split the graphs per kind so milestones and tasks are
   // identifiable at a glance (only when both kinds actually have data).
   const rowsMs = rows.filter((r) => r.kind === "milestone");
@@ -561,17 +584,21 @@ function OutcomeDeliveryCard({
   const splitOutcomes = kindFilter === "all" && rowsMs.length > 0 && rowsTask.length > 0;
   const msUnits = units.filter((u) => u.kind === "milestone");
   const taskUnits = units.filter((u) => u.kind === "task");
-  const splitStatus = kindFilter === "all" && msUnits.length > 0 && taskUnits.length > 0;
+  const msCounts = segmentCounts(msUnits);
+  const taskCounts = segmentCounts(taskUnits);
+  const splitStatus =
+    kindFilter === "all" && windowTotal(msCounts) > 0 && windowTotal(taskCounts) > 0;
 
-  // Delivery vs estimate — hours spent ≤ estimated hours counts as on target.
-  // Judged only where both an estimate and logged hours exist.
-  const hourJudged = rows.filter((r) => (r.estimated ?? 0) > 0 && r.actual != null);
-  const within = hourJudged.filter(
-    (r) => (r.actual as number) <= (r.estimated as number),
-  ).length;
-  const withinPct = hourJudged.length > 0
-    ? Math.round((within / hourJudged.length) * 100)
-    : null;
+  // On-time — each milestone judged against its own end date: completed on
+  // or before it counts on time. Undated work is excluded, never penalized.
+  const dated = rows.filter(
+    (r) =>
+      r.hasDeadline &&
+      (r.timeliness?.status === "completed_on_time" ||
+        r.timeliness?.status === "completed_late"),
+  );
+  const onTime = dated.filter((r) => r.timeliness!.status === "completed_on_time").length;
+  const withinPct = dated.length > 0 ? Math.round((onTime / dated.length) * 100) : null;
 
   // Completions + evidence inside the window — derived from the same
   // filtered units/evidence, so every chip follows project AND kind scope.
@@ -632,9 +659,39 @@ function OutcomeDeliveryCard({
             <option value="milestone">Milestones only</option>
             <option value="task">Tasks only</option>
           </select>
+          {(projectFilter !== "all" ||
+            kindFilter !== "all" ||
+            period !== "week" ||
+            offset !== 0 ||
+            customFrom ||
+            customTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setProjectFilter("all");
+                setKindFilter("all");
+                setPeriod("week");
+                setOffset(0);
+                setCustomFrom("");
+                setCustomTo("");
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              title="Reset project, work kind and time window to defaults"
+            >
+              Clear filters ×
+            </button>
+          )}
           <button
             type="button"
-            onClick={onOpenOutcomes}
+            onClick={() =>
+              onOpenOutcomes?.({
+                projectId: projectFilter,
+                kind: kindFilter,
+                windowLabel: win.label,
+                windowStart: win.start.toISOString(),
+                windowEnd: win.end.toISOString(),
+              })
+            }
             className="text-[11px] font-medium text-blue-600 hover:underline"
           >
             View details →
@@ -811,12 +868,12 @@ function OutcomeDeliveryCard({
             {splitStatus ? (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <KindTag kind="milestone" count={msUnits.length} />
-                  <UnitStatusBar c={segmentCounts(msUnits)} />
+                  <KindTag kind="milestone" count={windowTotal(msCounts)} />
+                  <UnitStatusBar c={msCounts} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <KindTag kind="task" count={taskUnits.length} />
-                  <UnitStatusBar c={segmentCounts(taskUnits)} />
+                  <KindTag kind="task" count={windowTotal(taskCounts)} />
+                  <UnitStatusBar c={taskCounts} />
                 </div>
               </div>
             ) : (
@@ -854,12 +911,19 @@ function OutcomeDeliveryCard({
                 .map(([pid, list]) => ({
                   pid,
                   c: segmentCounts(list),
-                  ms: list.filter((u) => u.kind === "milestone").length,
-                  tk: list.filter((u) => u.kind === "task").length,
+                  // Counters follow the same window as the bar beside them.
+                  ms: list.filter((u) => u.kind === "milestone" && inScopeWindow(u)).length,
+                  tk: list.filter((u) => u.kind === "task" && inScopeWindow(u)).length,
                 }))
+                // Projects with nothing in this window don't render a dead row.
+                .filter((r) => windowTotal(r.c) > 0)
                 .sort((a, b) => (b.c.done + b.c.in_progress) - (a.c.done + a.c.in_progress));
               if (rows2.length === 0)
-                return <p className="py-5 text-center text-xs text-muted-foreground">No project work found.</p>;
+                return (
+                  <p className="py-5 text-center text-xs text-muted-foreground">
+                    No project work in {win.label.toLowerCase()} — use ‹ › or a longer period.
+                  </p>
+                );
               return rows2.map(({ pid, c, ms, tk }) => (
                 <Link
                   key={pid}
@@ -986,9 +1050,9 @@ function OutcomeDeliveryCard({
           <div
             className="flex items-center gap-2 rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2"
             title={
-              hourJudged.length > 0
-                ? `${within} of ${hourJudged.length} completed within estimated hours (spent ≤ estimate)`
-                : "Judged once completed work has both an hour estimate and logged hours"
+              dated.length > 0
+                ? `${onTime} of ${dated.length} completed on or before their end date`
+                : "Judged once dated milestones are completed (each against its own end date)"
             }
           >
             <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -996,7 +1060,7 @@ function OutcomeDeliveryCard({
               <span className="stat-number font-extrabold text-slate-900">
                 {withinPct === null ? "—" : `${withinPct}%`}
               </span>{" "}
-              within estimate
+              on time
             </span>
           </div>
         </div>
