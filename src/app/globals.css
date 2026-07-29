@@ -688,6 +688,11 @@
 }
 
 /* ── Print styles ──────────────────────────────────────────── */
+@page {
+  size: A4;
+  margin: 12mm 11mm 14mm;
+}
+
 @media print {
 
   /* Hide chrome */
@@ -746,12 +751,42 @@
     page-break-inside: avoid;
   }
 
-  /* Print title */
-  .print-header::before {
-    content: "ProjectHub — FarmwiseAI";
-    display: block;
-    font-size: 18pt;
-    font-weight: 800;
-    margin-bottom: 6pt;
+  /* ── Employee report document (#report-print) ─────────────
+     While the report modal is open (body.report-print-open), print
+     only the report: hide every element that is not the report,
+     inside it, or an ancestor of it. */
+  body.report-print-open
+    *:not(#report-print):not(#report-print *):not(:has(#report-print)) {
+    display: none !important;
+  }
+
+  #report-print {
+    font-size: 10.5pt;
+  }
+
+  /* Paper is flat — no shadows, and nothing may clip or truncate */
+  #report-print * {
+    box-shadow: none !important;
+  }
+  #report-print .truncate {
+    overflow: visible !important;
+    white-space: normal !important;
+  }
+  #report-print .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* Keep small cards / question blocks on one page, and keep each
+     stream banner attached to the content that follows it */
+  #report-print .rounded-xl {
+    break-inside: avoid;
+  }
+  .report-part-banner {
+    break-after: avoid;
+  }
+
+  /* Links print in a readable ink-friendly indigo */
+  #report-print a {
+    color: #4338ca !important;
   }
 }

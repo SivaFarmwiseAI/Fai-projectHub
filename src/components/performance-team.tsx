@@ -65,13 +65,15 @@ export function PerformanceTeam() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      {/* Hidden from print whenever a report modal is open, so printing
+          shows only that employee's report — not this roster underneath it. */}
+      <div className={`flex items-center gap-2 ${openSubject ? "print:hidden" : ""}`}>
         <Users2 className="h-5 w-5 text-blue-500" />
         <h3 className="text-base font-bold text-slate-900">Your team</h3>
         <span className="text-sm text-slate-400 font-medium">· {done}/{reports.length} self-assessments submitted</span>
       </div>
 
-      <div className="bg-white rounded-2xl border shadow-card overflow-hidden divide-y divide-slate-100" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+      <div className={`bg-white rounded-2xl border shadow-card overflow-hidden divide-y divide-slate-100 ${openSubject ? "print:hidden" : ""}`} style={{ borderColor: "rgba(0,0,0,0.06)" }}>
         {reports.map((r, i) => {
           const color = bandColor(r.rating_band);
           const submitted = r.self_status === "submitted";

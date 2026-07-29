@@ -167,6 +167,9 @@ export function PerformanceAnalysis() {
 
   return (
     <div className="space-y-5">
+      {/* Hidden from print whenever a report modal is open, so printing
+          shows only that employee's report — not this whole dashboard. */}
+      <div className={selected ? "print:hidden space-y-5" : "space-y-5"}>
       {/* Ratings Excel export — CEO / HR / Admin only */}
       {canExport && (
         <div className="flex items-center justify-end gap-3">
@@ -280,6 +283,8 @@ export function PerformanceAnalysis() {
             </button>
           ))}
         </div>
+      </div>
+
       </div>
 
       {/* Full 360° report (self + manager review + peer reviews) whenever the
