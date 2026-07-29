@@ -30,67 +30,19 @@ import {
   PEER_SCALE_LABELS,
   MANAGER_QUESTIONS,
   MANAGER_PARAMETERS,
+  IMPACT_LABELS,
+  CULT_ITEMS,
+  RATING_LABELS,
+  type Contribution,
+  type Entry,
+  type PeerData,
+  type AssessmentData,
 } from "@/lib/performance";
+import { printEmployeeReport } from "@/lib/performance-report-print";
 
-/* ─── Data shape mirrors gather() in the assessment page ─── */
-export interface Contribution {
-  id?: number;
-  title?: string;
-  area?: string;
-  context?: string;
-  problem?: string;
-  create?: string;
-  adopt?: string;
-  changed?: string;
-  value?: string;
-  sustain?: string;
-  evidence?: string;
-  proofref?: string;
-  prooffilename?: string;
-  /** Public URL of the uploaded proof file; legacy submissions have only the name. */
-  proofurl?: string;
-  rjust?: string;
-  custom?: { q?: string; a?: string }[];
-  self?: number | null;
-  reviewer?: number | null;
-  impacts?: string[];
-  impactWhy?: Record<string, string>;
-  flagged?: boolean;
-}
-
-interface Entry {
-  id?: number;
-  rating?: number | null;
-  text?: string;
-  remark?: string;
-}
-
-interface PeerData {
-  answers?: Record<string, string>;
-  overall?: number | null;
-  /** Manager-review shape: per-question rating + narrative, behavioural grid. */
-  managerAnswers?: Record<string, { rating?: number; text?: string }>;
-  parameters?: Record<string, number>;
-  /** Culture & Integrity Gate (manager review): flagged behaviours + severity. */
-  gateFlags?: string[];
-  severity?: string;
-  /** Legacy shape from the old competency-based form. */
-  competencies?: Record<string, number>;
-  strengths?: string;
-  improvements?: string;
-  comment?: string;
-}
-
-interface AssessmentData {
-  contributions?: Contribution[];
-  teamEntries?: Entry[];
-  orgEntries?: Entry[];
-  cultRatings?: Record<string, number>;
-  cultComment?: string;
-  gateFlags?: string[];
-  level?: string;
-  facets?: string[];
-}
+/* Data shapes live in @/lib/performance (shared with the print builder);
+   re-exported so existing imports from this module keep working. */
+export type { Contribution };
 
 const FACET_LABELS: Record<string, string> = {
   eng: "Engineering / Development",
@@ -99,39 +51,6 @@ const FACET_LABELS: Record<string, string> = {
   ba: "Product / Business Analysis",
   delivery: "Delivery / Project Management",
   client: "Client Engagement / Management",
-};
-
-const IMPACT_LABELS: Record<string, string> = {
-  reusable: "Reusable asset / component",
-  time: "Time / effort saved",
-  quality: "Better quality / fewer errors",
-  smarter: "Did it a smarter / different way",
-  learning: "Learned & applied a new skill",
-  adoption: "Adoption / usage",
-  capability: "New capability built",
-  cost: "Cost reduction",
-  revenue: "Direct revenue",
-  strategic: "Strategic (new geography / dept / market)",
-  customer: "Customer impact",
-  team: "Team multiplication",
-};
-
-const CULT_ITEMS: [string, string][] = [
-  ["punct", "Punctuality — arrives on time"],
-  ["attend", "Attendance & regularity"],
-  ["deliver", "Delivers on time / meets commitments"],
-  ["team", "Team-friendly & respectful"],
-  ["conduct", "Professional conduct & confidentiality"],
-  ["commit", "Commitment & ownership"],
-  ["hours", "Manages workload within working hours"],
-];
-
-const RATING_LABELS: Record<number, string> = {
-  5: "Exceptional",
-  4: "Exceeds",
-  3: "Meets",
-  2: "Below",
-  1: "Unsatisfactory",
 };
 
 /* ─── Main Modal ─── */
@@ -174,6 +93,13 @@ export function EmployeeReportModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // While the report is open, the print stylesheet strips everything on the
+  // page except the report, so printing captures only the report document.
+  useEffect(() => {
+    document.body.classList.add("report-print-open");
+    return () => document.body.classList.remove("report-print-open");
+  }, []);
+
   const subject = report?.subject;
   const self = report?.self;
   const rawPeers = report?.peers ?? [];
@@ -197,6 +123,12 @@ export function EmployeeReportModal({
   const cultComment = data.cultComment ?? "";
   const gateFlags = data.gateFlags ?? [];
   const color = bandColor(self?.rating_band);
+  const submittedPeers = peers.filter((p) => p.status === "submitted").length;
+  const printedOn = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
   return (
     <div
@@ -205,11 +137,11 @@ export function EmployeeReportModal({
     >
       <div
         id="report-print"
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8 animate-scale-in print-header print:shadow-none print:rounded-none print:my-0 print:max-w-none"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8 animate-scale-in print:shadow-none print:rounded-none print:my-0 print:max-w-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 sticky top-0 bg-white rounded-t-2xl z-10 print:static">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 sticky top-0 bg-white rounded-t-2xl z-10 print:hidden">
           {loading || !subject ? (
             <div className="flex items-center gap-2 text-slate-400 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading report…
@@ -238,8 +170,9 @@ export function EmployeeReportModal({
           )}
           <div className="flex items-center gap-1.5 shrink-0 print:hidden">
             <button
-              onClick={() => window.print()}
-              className="h-10 px-4 rounded-lg flex items-center gap-2 text-sm font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-colors"
+              onClick={() => report && printEmployeeReport(report)}
+              disabled={!report}
+              className="h-10 px-4 rounded-lg flex items-center gap-2 text-sm font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Printer className="h-4 w-4" /> Print
             </button>
@@ -261,7 +194,108 @@ export function EmployeeReportModal({
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         ) : (
-          <div className="p-5 max-h-[78vh] overflow-y-auto print:max-h-none print:overflow-visible space-y-6">
+          <div className="p-5 max-h-[78vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-0 space-y-6">
+            {/* ── Print-only masthead — a proper document header replacing
+                 the on-screen modal chrome when the report is printed. ── */}
+            {subject && (
+              <div className="hidden print:block">
+                <div
+                  className="h-1.5 rounded-full mb-4"
+                  style={{
+                    background:
+                      "linear-gradient(90deg,#4f46e5,#7c3aed,#2563eb)",
+                  }}
+                />
+                <div className="flex items-end justify-between gap-4 pb-3 border-b-2 border-slate-800">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-indigo-600 mb-1">
+                      ProjectHub · Confidential
+                    </p>
+                    <h1 className="text-[22px] font-extrabold text-slate-900 leading-tight">
+                      Performance Assessment Report
+                    </h1>
+                  </div>
+                  <div className="text-right text-[11px] font-semibold text-slate-500 shrink-0">
+                    {self?.review_period && (
+                      <p>
+                        Review period:{" "}
+                        <span className="text-slate-800 font-bold">
+                          {self.review_period}
+                        </span>
+                      </p>
+                    )}
+                    <p>
+                      Printed on{" "}
+                      <span className="text-slate-800 font-bold">
+                        {printedOn}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 py-4">
+                  <div
+                    className="h-14 w-14 rounded-full flex items-center justify-center text-lg font-bold text-white shrink-0"
+                    style={{
+                      backgroundColor: subject.avatar_color || "#3b82f6",
+                    }}
+                  >
+                    {subject.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-extrabold text-slate-900">
+                      {subject.name}
+                    </h2>
+                    <p className="text-[12px] text-slate-500 font-medium">
+                      {subject.role || "—"}
+                      {subject.department ? ` · ${subject.department}` : ""}
+                      {subject.manager_name
+                        ? ` · Reports to ${subject.manager_name}`
+                        : ""}
+                    </p>
+                  </div>
+                  {self && (
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-3xl font-extrabold text-slate-900 leading-none">
+                          {fmtScore(self.total_score)}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mt-1">
+                          weighted / 5.0
+                        </div>
+                      </div>
+                      <Band band={self.rating_band} capped={self.capped} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  <MastheadStat
+                    label="Career level"
+                    value={self ? levelLabel(self.career_level) : "—"}
+                  />
+                  <MastheadStat
+                    label="Role area"
+                    value={
+                      (self?.role_areas ?? []).map(roleLabel).join(", ") || "—"
+                    }
+                  />
+                  <MastheadStat
+                    label="Manager review"
+                    value={
+                      manager?.status === "submitted"
+                        ? manager.rating_band || "Submitted"
+                        : "Pending"
+                    }
+                  />
+                  <MastheadStat
+                    label="Peer reviews"
+                    value={`${submittedPeers} of ${peers.length} submitted`}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* ── Actor tabs — self / manager / peers, each viewed separately.
                  Printing always includes all three streams. ── */}
             <div
@@ -308,18 +342,24 @@ export function EmployeeReportModal({
                   : "hidden print:block print:space-y-6"
               }
             >
+              <PrintPartBanner
+                part={1}
+                title="Self-assessment"
+                note="Submitted by the employee"
+              />
               {/* ── Score summary ── */}
               <section>
                 <SectionLabel
                   icon={<Award className="h-3.5 w-3.5 text-indigo-500" />}
                   text="Self-assessment"
+                  className="print:hidden"
                 />
                 {!self ? (
                   <p className="text-sm text-slate-400">
                     No self-assessment submitted yet.
                   </p>
                 ) : (
-                  <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden print:break-inside-avoid">
                     <div
                       className="px-4 py-3 flex items-center gap-4 flex-wrap"
                       style={{ background: `${color}0d` }}
@@ -460,7 +500,7 @@ export function EmployeeReportModal({
                     }
                     text="Culture & values"
                   />
-                  <div className="rounded-2xl border border-slate-100 p-5 space-y-4">
+                  <div className="rounded-2xl border border-slate-100 p-5 space-y-4 print:break-inside-avoid">
                     {CULT_ITEMS.filter(([k]) => cultRatings[k] != null).map(
                       ([k, label]) => (
                         <div key={k} className="flex items-center gap-5">
@@ -521,11 +561,25 @@ export function EmployeeReportModal({
             </div>
 
             {/* ═══ Manager review (authoritative / final) ═══ */}
-            <div className={tab === "manager" ? "" : "hidden print:block"}>
+            <div
+              className={
+                tab === "manager"
+                  ? "print:break-before-page print:mt-0"
+                  : "hidden print:block print:break-before-page print:mt-0"
+              }
+            >
+              <PrintPartBanner
+                part={2}
+                title="Manager review — final"
+                note={
+                  manager?.author_name || subject?.manager_name || undefined
+                }
+              />
               <section>
                 <SectionLabel
                   icon={<Crown className="h-3.5 w-3.5 text-indigo-500" />}
                   text="Manager review (final)"
+                  className="print:hidden"
                 />
                 <ManagerReviewCard
                   manager={manager}
@@ -535,12 +589,24 @@ export function EmployeeReportModal({
             </div>
 
             {/* ═══ Peer reviews ═══ */}
-            <div className={tab === "peers" ? "" : "hidden print:block"}>
+            <div
+              className={
+                tab === "peers"
+                  ? "print:break-before-page print:mt-0"
+                  : "hidden print:block print:break-before-page print:mt-0"
+              }
+            >
+              <PrintPartBanner
+                part={3}
+                title="Peer reviews"
+                note={`${submittedPeers} of ${peers.length} submitted`}
+              />
               {/* ── Peer reviews ── */}
               <section>
                 <SectionLabel
                   icon={<Users2 className="h-3.5 w-3.5 text-indigo-500" />}
                   text={`Peer reviews (${peers.length})`}
+                  className="print:hidden"
                 />
                 {peers.length === 0 ? (
                   <p className="text-sm text-slate-400">
@@ -553,7 +619,7 @@ export function EmployeeReportModal({
                       return (
                         <div
                           key={p.id}
-                          className="rounded-2xl border border-slate-200 p-6 print:break-inside-avoid"
+                          className="rounded-2xl border border-slate-200 p-6"
                         >
                           {/* Header */}
                           <div className="flex items-center gap-3.5 pb-4 mb-5 border-b border-slate-100">
@@ -599,6 +665,12 @@ export function EmployeeReportModal({
                   </div>
                 )}
               </section>
+            </div>
+
+            {/* ── Print-only footer ── */}
+            <div className="hidden print:block pt-3 border-t border-slate-200 text-center text-[10px] font-semibold text-slate-400">
+              Generated from ProjectHub on {printedOn} · Confidential — for
+              internal use only
             </div>
           </div>
         )}
@@ -670,7 +742,7 @@ function ManagerReviewCard({
   const d = (manager.data ?? {}) as PeerData;
   const submitted = manager.status === "submitted";
   return (
-    <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/50 to-white p-6 print:break-inside-avoid">
+    <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/50 to-white p-6">
       <div className="flex items-center gap-3.5 pb-4 mb-5 border-b border-indigo-100">
         <div
           className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 ring-2 ring-white shadow"
@@ -843,9 +915,9 @@ export function ContributionCard({
             </span>
           )}
           {open ? (
-            <ChevronUp className="h-4 w-4 text-slate-400" />
+            <ChevronUp className="h-4 w-4 text-slate-400 print:hidden" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-slate-400" />
+            <ChevronDown className="h-4 w-4 text-slate-400 print:hidden" />
           )}
         </div>
       </button>
@@ -955,7 +1027,7 @@ function EntryCard({ entry, index }: { entry: Entry; index: number }) {
             ? "#ef4444"
             : "#64748b";
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
+    <div className="rounded-xl border border-slate-200 p-4 print:break-inside-avoid">
       <div className="flex items-start gap-3">
         <span className="text-[13px] font-bold text-slate-400 mt-0.5">
           #{index + 1}
@@ -992,7 +1064,7 @@ function EntryCard({ entry, index }: { entry: Entry; index: number }) {
 /* ─── Small helpers ─── */
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="print:break-inside-avoid">
       <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">
         {label}
       </p>
@@ -1003,13 +1075,60 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SectionLabel({ icon, text }: { icon: React.ReactNode; text: string }) {
+function SectionLabel({
+  icon,
+  text,
+  className = "",
+}: {
+  icon: React.ReactNode;
+  text: string;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center gap-1.5 mb-3">
+    <div className={`flex items-center gap-1.5 mb-3 ${className}`}>
       {icon}
       <h3 className="text-[13px] font-bold uppercase tracking-wide text-slate-500">
         {text}
       </h3>
+    </div>
+  );
+}
+
+/* ─── Print-only pieces: stream banner + masthead stat tile ─── */
+function PrintPartBanner({
+  part,
+  title,
+  note,
+}: {
+  part: number;
+  title: string;
+  note?: string;
+}) {
+  return (
+    <div
+      className="report-part-banner hidden print:flex items-center gap-3 rounded-lg px-4 py-2.5 mb-4"
+      style={{ background: "linear-gradient(90deg,#4f46e5,#6d28d9)" }}
+    >
+      <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/75">
+        Part {part}
+      </span>
+      <span className="text-[14px] font-extrabold text-white">{title}</span>
+      {note && (
+        <span className="ml-auto text-[11px] font-semibold text-white/85">
+          {note}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MastheadStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-[9.5px] font-bold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="text-[12.5px] font-bold text-slate-800 mt-0.5">{value}</p>
     </div>
   );
 }
@@ -1105,7 +1224,7 @@ function PeerReviewBody({
         ).map((q) => (
           <div
             key={q.key}
-            className="rounded-xl bg-slate-50/70 border border-slate-100 p-4"
+            className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 print:break-inside-avoid"
           >
             <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">
               {q.short}
@@ -1183,7 +1302,7 @@ function PeerReviewBody({
         {legacyAnswers.map(([k, v]) => (
           <div
             key={k}
-            className="rounded-xl bg-slate-50/70 border border-slate-100 p-4"
+            className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 print:break-inside-avoid"
           >
             <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">
               {k}
@@ -1221,7 +1340,7 @@ function PeerReviewBody({
           (q) => (
             <div
               key={q.key}
-              className="rounded-xl bg-slate-50/70 border border-slate-100 p-4"
+              className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 print:break-inside-avoid"
             >
               <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-0.5">
                 {q.short}

@@ -1833,8 +1833,11 @@ export default function PerformanceAssessmentPage() {
         </div>
       )}
 
-      {/* ── Page header (pure app styling, outside the scoped .pa block) ─── */}
-      <div className="max-w-[1440px] mx-auto w-full animate-fade-in-up">
+      {/* ── Page header (pure app styling, outside the scoped .pa block) ───
+          Always hidden for print — the report modal supplies its own
+          "ProjectHub — FarmwiseAI" print title plus the subject's own header,
+          so this page chrome (title, tab switcher) has nothing to add. ─── */}
+      <div className="max-w-[1440px] mx-auto w-full animate-fade-in-up print:hidden">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3">
