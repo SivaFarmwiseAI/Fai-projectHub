@@ -43,12 +43,12 @@ const typeIcons: Record<string, React.ReactNode> = {
 };
 
 const typeBadgeColors: Record<string, string> = {
-  document:     "text-green-700 border-green-200 bg-green-50",
-  code:         "text-blue-700 border-blue-200 bg-blue-50",
-  architecture: "text-purple-700 border-purple-200 bg-purple-50",
-  design:       "text-rose-700 border-rose-200 bg-rose-50",
-  notebook:     "text-amber-700 border-amber-200 bg-amber-50",
-  demo:         "text-pink-700 border-pink-200 bg-pink-50",
+  document:     "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  code:         "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  architecture: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-800 dark:bg-purple-500/10",
+  design:       "text-rose-700 border-rose-200 bg-rose-50 dark:text-rose-300 dark:border-rose-800 dark:bg-rose-500/10",
+  notebook:     "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+  demo:         "text-pink-700 border-pink-200 bg-pink-50 dark:text-pink-300 dark:border-pink-800 dark:bg-pink-500/10",
 };
 
 export default function ReviewsPage() {
@@ -173,7 +173,7 @@ export default function ReviewsPage() {
     const project = projectList.find(p => p.id === sub.project_id);
 
     return (
-      <Card key={sub.id} className={`transition-colors ${isSent ? "border-green-200 bg-green-50" : ""}`}>
+      <Card key={sub.id} className={`transition-colors ${isSent ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-500/10" : ""}`}>
         <CardContent className="pt-5 space-y-4">
           <div className="flex items-start gap-3">
             <div className="mt-0.5">{typeIcons[sub.type] ?? typeIcons.document}</div>
@@ -184,11 +184,11 @@ export default function ReviewsPage() {
                   {sub.type.replace(/_/g, " ")}
                 </Badge>
                 {sub.status === "reviewed" || isSent ? (
-                  <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+                  <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10">
                     <CheckCircle2 className="h-3 w-3 mr-1" />Reviewed
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">
+                  <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10">
                     <Clock className="h-3 w-3 mr-1" />Pending
                   </Badge>
                 )}
@@ -212,7 +212,7 @@ export default function ReviewsPage() {
           {sub.feedback && sub.feedback.length > 0 && (
             <div className="pl-7 space-y-2">
               {sub.feedback.map(fb => (
-                <div key={fb.id} className="p-3 rounded-lg bg-gray-100 border border-border">
+                <div key={fb.id} className="p-3 rounded-lg bg-gray-100 dark:bg-slate-800 border border-border">
                   <div className="flex items-center gap-2 mb-1.5">
                     {fb.from_user_name && <span className="text-xs font-medium">{fb.from_user_name}</span>}
                     {fb.is_ai && (
@@ -274,7 +274,7 @@ export default function ReviewsPage() {
           )}
 
           {isSent && (
-            <div className="pl-7 flex items-center gap-2 text-sm text-green-600">
+            <div className="pl-7 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="h-4 w-4" />
               Feedback sent successfully
             </div>
@@ -315,7 +315,7 @@ export default function ReviewsPage() {
         <select
           value={filterProject}
           onChange={e => setFilterProject(e.target.value)}
-          className="text-xs border rounded px-2 py-1.5 bg-white"
+          className="text-xs border rounded px-2 py-1.5 bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
         >
           <option value="all">All Projects</option>
           {projectList.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -323,7 +323,7 @@ export default function ReviewsPage() {
         <select
           value={filterType}
           onChange={e => setFilterType(e.target.value)}
-          className="text-xs border rounded px-2 py-1.5 bg-white"
+          className="text-xs border rounded px-2 py-1.5 bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
         >
           <option value="all">All Types</option>
           {Object.keys(typeIcons).map(t => <option key={t} value={t}>{REVIEW_TYPE_LABELS[t] ?? t}</option>)}
@@ -331,7 +331,7 @@ export default function ReviewsPage() {
         <select
           value={sortDirection}
           onChange={e => setSortDirection(e.target.value as "newest" | "oldest")}
-          className="text-xs border rounded px-2 py-1.5 bg-white ml-auto"
+          className="text-xs border rounded px-2 py-1.5 bg-white dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 ml-auto"
         >
           <option value="newest">Newest First</option>
           <option value="oldest">Oldest First</option>
@@ -420,15 +420,15 @@ function ReviewTaskCard({
   onDelete: () => void;
 }) {
   const statusColors: Record<string, string> = {
-    pending:     "text-amber-700 border-amber-200 bg-amber-50",
-    in_progress: "text-blue-700 border-blue-200 bg-blue-50",
-    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50",
-    rejected:    "text-red-700 border-red-200 bg-red-50",
+    pending:     "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+    in_progress: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-800 dark:bg-emerald-500/10",
+    rejected:    "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
   };
   const priorityColors: Record<string, string> = {
-    high:   "text-red-700 border-red-200 bg-red-50",
-    medium: "text-amber-700 border-amber-200 bg-amber-50",
-    low:    "text-slate-700 border-slate-200 bg-slate-50",
+    high:   "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
+    medium: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+    low:    "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
   };
   return (
     <Card>
@@ -468,7 +468,7 @@ function ReviewTaskCard({
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+              className="h-7 w-7 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
               onClick={onDelete}
               title="Delete"
             >
@@ -491,15 +491,15 @@ function ViewReviewDialog({
   onOpenChange: (o: boolean) => void;
 }) {
   const statusColors: Record<string, string> = {
-    pending:     "text-amber-700 border-amber-200 bg-amber-50",
-    in_progress: "text-blue-700 border-blue-200 bg-blue-50",
-    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50",
-    rejected:    "text-red-700 border-red-200 bg-red-50",
+    pending:     "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+    in_progress: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+    completed:   "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-800 dark:bg-emerald-500/10",
+    rejected:    "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
   };
   const priorityColors: Record<string, string> = {
-    high:   "text-red-700 border-red-200 bg-red-50",
-    medium: "text-amber-700 border-amber-200 bg-amber-50",
-    low:    "text-slate-700 border-slate-200 bg-slate-50",
+    high:   "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
+    medium: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+    low:    "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
   };
 
   return (
@@ -527,7 +527,7 @@ function ViewReviewDialog({
           return (
           <div className="space-y-4 text-sm">
             {/* Title */}
-            <p className="font-semibold text-base text-slate-900">{review.title}</p>
+            <p className="font-semibold text-base text-slate-900 dark:text-slate-100">{review.title}</p>
 
             {/* Badges row */}
             <div className="flex items-center gap-2 flex-wrap">
@@ -543,34 +543,34 @@ function ViewReviewDialog({
             </div>
 
             {/* Meta grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs border rounded-lg p-3 bg-gray-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs border rounded-lg p-3 bg-gray-50 dark:bg-slate-800/60">
               {review.assignee_name && (
                 <div>
                   <p className="text-muted-foreground mb-0.5">Assigned To</p>
-                  <p className="font-medium text-slate-800">{review.assignee_name}</p>
+                  <p className="font-medium text-slate-800 dark:text-slate-200">{review.assignee_name}</p>
                 </div>
               )}
               {review.requester_name && (
                 <div>
                   <p className="text-muted-foreground mb-0.5">Requested By</p>
-                  <p className="font-medium text-slate-800">{review.requester_name}</p>
+                  <p className="font-medium text-slate-800 dark:text-slate-200">{review.requester_name}</p>
                 </div>
               )}
               {review.project_title && (
                 <div className="col-span-2">
                   <p className="text-muted-foreground mb-0.5">Project</p>
-                  <p className="font-medium text-slate-800">{review.project_title}</p>
+                  <p className="font-medium text-slate-800 dark:text-slate-200">{review.project_title}</p>
                 </div>
               )}
               {review.due_date && (
                 <div>
                   <p className="text-muted-foreground mb-0.5">Due Date</p>
-                  <p className="font-medium text-amber-700">{format(new Date(review.due_date), "MMM d, yyyy")}</p>
+                  <p className="font-medium text-amber-700 dark:text-amber-400">{format(new Date(review.due_date), "MMM d, yyyy")}</p>
                 </div>
               )}
               <div>
                 <p className="text-muted-foreground mb-0.5">Created</p>
-                <p className="font-medium text-slate-800">{format(new Date(review.created_at), "MMM d, yyyy")}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{format(new Date(review.created_at), "MMM d, yyyy")}</p>
               </div>
             </div>
 
@@ -578,7 +578,7 @@ function ViewReviewDialog({
             {review.description ? (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
-                <p className="text-slate-700 whitespace-pre-line leading-relaxed">{review.description}</p>
+                <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">{review.description}</p>
               </div>
             ) : (
               <p className="text-xs italic text-muted-foreground">No description provided.</p>
@@ -588,8 +588,8 @@ function ViewReviewDialog({
             {review.feedback_text && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Feedback</p>
-                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                  <p className="text-slate-700 whitespace-pre-line leading-relaxed">{review.feedback_text}</p>
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-800">
+                  <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">{review.feedback_text}</p>
                 </div>
               </div>
             )}

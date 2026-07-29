@@ -15,8 +15,8 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
         className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-white/10 hover:text-slate-200 transition-all"
       >
         {isDark
-          ? <Sun  className="h-4 w-4 text-amber-300" />
-          : <Moon className="h-4 w-4" />}
+          ? <Moon className="h-4 w-4" />
+          : <Sun  className="h-4 w-4 text-amber-300" />}
       </button>
     );
   }
@@ -27,10 +27,12 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-400 hover:bg-white/10 hover:text-slate-200 transition-all group"
     >
       <div className="relative h-4 w-4 shrink-0">
-        <Sun  className={cn("absolute inset-0 h-4 w-4 text-amber-300 transition-all duration-300", isDark ? "opacity-100 rotate-0" : "opacity-0 -rotate-90")} />
-        <Moon className={cn("absolute inset-0 h-4 w-4 transition-all duration-300", isDark ? "opacity-0 rotate-90" : "opacity-100 rotate-0")} />
+        <Sun  className={cn("absolute inset-0 h-4 w-4 text-amber-300 transition-all duration-300", isDark ? "opacity-0 -rotate-90" : "opacity-100 rotate-0")} />
+        <Moon className={cn("absolute inset-0 h-4 w-4 transition-all duration-300", isDark ? "opacity-100 rotate-0" : "opacity-0 rotate-90")} />
       </div>
-      <span className="text-xs font-medium">{isDark ? "Light mode" : "Dark mode"}</span>
+      {/* Label states the mode currently active — matches the icon/switch,
+          which also show current state, so all three always agree. */}
+      <span className="text-xs font-medium">{isDark ? "Dark mode" : "Light mode"}</span>
       {/* Toggle pill */}
       <div className={cn(
         "ml-auto h-4 w-7 rounded-full transition-colors duration-300 flex items-center px-0.5",

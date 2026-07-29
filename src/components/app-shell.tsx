@@ -65,13 +65,13 @@ function MobileTopBar({
 
   return (
     <header
-      className="animate-topbar sticky top-0 z-30 lg:hidden flex items-center gap-3 px-4 h-[60px] bg-white/95 border-b shadow-topbar"
+      className="animate-topbar sticky top-0 z-30 lg:hidden flex items-center gap-3 px-4 h-[60px] bg-white/95 dark:bg-slate-900/95 border-b shadow-topbar"
       style={{ borderColor: "rgba(59,130,246,0.08)" }}
     >
       {/* Hamburger */}
       <button
         onClick={onMenuClick}
-        className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
+        className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-all active:scale-95"
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
@@ -85,7 +85,7 @@ function MobileTopBar({
         >
           <Sparkles className="h-4 w-4 text-white" />
         </div>
-        <p className="text-[14px] font-bold text-slate-900 truncate">{title}</p>
+        <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 truncate">{title}</p>
       </div>
 
       {/* Right side */}
@@ -93,8 +93,8 @@ function MobileTopBar({
         {totalBadge > 0 && (
           <Link href="/reviews">
             <div className="relative">
-              <Bell className="h-5 w-5 text-slate-400" />
-              <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center border-2 border-white">
+              <Bell className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center border-2 border-white dark:border-slate-900">
                 {totalBadge > 9 ? "9+" : totalBadge}
               </span>
             </div>
@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-50">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="flex flex-col items-center gap-5">
           <div
             className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-glow-blue"
@@ -153,8 +153,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sparkles className="h-7 w-7 text-white animate-float" />
           </div>
           <div className="flex flex-col items-center gap-1.5">
-            <p className="text-[15px] font-bold text-slate-800">ProjectHub</p>
-            <p className="text-sm text-slate-400 animate-pulse">
+            <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200">ProjectHub</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500 animate-pulse">
               Loading your command center…
             </p>
           </div>
@@ -206,7 +206,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               "flex-1 bg-grid-pattern flex flex-col min-h-0",
               pathname === "/projects/timeline"
                 ? "overflow-hidden"
-                : "overflow-auto",
+                // Reserve the scrollbar's width permanently instead of only
+                // when content actually overflows — otherwise the usable
+                // content width silently shifts by ~15px between pages (or
+                // between states of the same page, e.g. a calendar month
+                // with 6 weeks vs 5) depending on whether a scrollbar
+                // happens to be showing.
+                : "overflow-auto [scrollbar-gutter:stable]",
             )}
           >
             <div

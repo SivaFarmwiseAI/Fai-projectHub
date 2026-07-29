@@ -149,14 +149,14 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
   }, [breakdown, unplannedPct, lastMinuteLeaves, totalDaysOff, totalLeaves, totalWfh, teamAvg]);
 
   return (
-    <Card className="border-violet-200 bg-gradient-to-br from-violet-50/30 to-white shadow-sm">
+    <Card className="border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50/30 to-white dark:from-violet-500/10 dark:to-slate-800 shadow-sm">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Eye className="h-4 w-4 text-violet-500" />
-            <h3 className="text-sm font-semibold">Leave Summary — {userName}</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leave Summary — {userName}</h3>
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="rounded-md p-1 text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -190,7 +190,7 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Type (days)</p>
+                    <p className="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">By Type (days)</p>
                     <div className="h-32">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -205,7 +205,7 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
                       {pieData.map(d => (
-                        <span key={d.name} className="flex items-center gap-1 text-[10px] text-gray-500">
+                        <span key={d.name} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
                           <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
                           {d.name.split(" ")[0]}
                         </span>
@@ -213,7 +213,7 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
                     </div>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Monthly (days)</p>
+                    <p className="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">Monthly (days)</p>
                     <div className="h-32">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={barData} margin={{ left: -20, right: 0, top: 0, bottom: 0 }}>
@@ -232,28 +232,28 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
             })()}
 
             {/* Overall Numbers */}
-            <div className="bg-white border border-gray-100 rounded-lg p-3 space-y-1.5">
-              <p className="text-sm">
+            <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 rounded-lg p-3 space-y-1.5">
+              <p className="text-sm text-slate-900 dark:text-slate-100">
                 <span className="font-semibold">{totalDaysOff} day{totalDaysOff !== 1 ? "s" : ""}</span> off this year
-                {totalWfh > 0 && <span className="text-teal-600"> + {totalWfh} WFH day{totalWfh !== 1 ? "s" : ""}</span>}
+                {totalWfh > 0 && <span className="text-teal-600 dark:text-teal-400"> + {totalWfh} WFH day{totalWfh !== 1 ? "s" : ""}</span>}
               </p>
               {teamAvg > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Team average: {teamAvg} days off
-                  {totalDaysOff > teamAvg + 2 && <span className="text-red-600 font-medium"> (above average)</span>}
-                  {totalDaysOff <= teamAvg && <span className="text-green-600 font-medium"> (at or below average)</span>}
+                  {totalDaysOff > teamAvg + 2 && <span className="text-red-600 dark:text-red-400 font-medium"> (above average)</span>}
+                  {totalDaysOff <= teamAvg && <span className="text-green-600 dark:text-green-400 font-medium"> (at or below average)</span>}
                 </p>
               )}
             </div>
 
-            <Separator className="bg-gray-100" />
+            <Separator className="bg-gray-100 dark:bg-slate-700" />
 
             {/* Breakdown */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Breakdown</h4>
+              <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Breakdown</h4>
               {Object.entries(breakdown).filter(([, v]) => v.count > 0).map(([type, v]) => (
                 <div key={type} className="text-sm space-y-0.5">
-                  <p>
+                  <p className="text-slate-700 dark:text-slate-300">
                     <span className="font-medium" style={{ color: TYPE_COLORS[type] ?? "#64748b" }}>
                       {TYPE_LABELS[type] ?? type}:
                     </span>{" "}
@@ -269,22 +269,22 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
               )}
             </div>
 
-            <Separator className="bg-gray-100" />
+            <Separator className="bg-gray-100 dark:bg-slate-700" />
 
             {/* Planning pattern */}
             <div className="space-y-1.5">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Planning Pattern</h4>
+              <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Planning Pattern</h4>
               {totalLeaves > 0 ? (
                 <div className="text-sm space-y-1">
-                  <p>
+                  <p className="text-slate-700 dark:text-slate-300">
                     <span className="font-medium">Unplanned leaves:</span>{" "}
                     {unplannedLeaves.length} of {totalLeaves}
                     <span className={`ml-1.5 text-xs font-medium ${
-                      unplannedPct > 50 ? "text-red-600" : unplannedPct > 25 ? "text-amber-600" : "text-green-600"
+                      unplannedPct > 50 ? "text-red-600 dark:text-red-400" : unplannedPct > 25 ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"
                     }`}>({unplannedPct}%)</span>
                   </p>
                   {lastMinuteLeaves.length > 0 && (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-red-600 dark:text-red-400">
                       {lastMinuteLeaves.length} leave{lastMinuteLeaves.length !== 1 ? "s" : ""} applied on the same day
                     </p>
                   )}
@@ -294,28 +294,28 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
               )}
             </div>
 
-            <Separator className="bg-gray-100" />
+            <Separator className="bg-gray-100 dark:bg-slate-700" />
 
             {/* Last 3 months */}
             <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Last 3 Months</h4>
+              <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Last 3 Months</h4>
               <div className="text-sm text-muted-foreground">
                 {monthlyPattern.map(m => (
                   <span key={m.label} className="inline-block mr-3">
-                    <span className="font-medium text-gray-700">{m.label}:</span>{" "}
+                    <span className="font-medium text-gray-700 dark:text-slate-300">{m.label}:</span>{" "}
                     {m.days > 0 ? `${m.days} day${m.days !== 1 ? "s" : ""} off` : "none"}
                   </span>
                 ))}
               </div>
             </div>
 
-            <Separator className="bg-gray-100" />
+            <Separator className="bg-gray-100 dark:bg-slate-700" />
 
             {/* Insights */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Insights</h4>
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Insights</h4>
               </div>
               <div className="space-y-1">
                 {insights.map((ins, i) => (
@@ -323,7 +323,7 @@ export function LeaveAnalytics({ userId, onClose }: LeaveAnalyticsProps) {
                     {ins.type === "warning"  && <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />}
                     {ins.type === "info"     && <span className="h-3.5 w-3.5 shrink-0 mt-0.5 flex items-center justify-center text-amber-500 font-bold text-[10px]">i</span>}
                     {ins.type === "positive" && <span className="h-3.5 w-3.5 shrink-0 mt-0.5 flex items-center justify-center text-green-500 font-bold text-[10px]">✓</span>}
-                    <span className={ins.type === "warning" ? "text-red-700" : ins.type === "positive" ? "text-green-700" : "text-gray-600"}>
+                    <span className={ins.type === "warning" ? "text-red-700 dark:text-red-400" : ins.type === "positive" ? "text-green-700 dark:text-green-400" : "text-gray-600 dark:text-slate-400"}>
                       {ins.text}
                     </span>
                   </div>

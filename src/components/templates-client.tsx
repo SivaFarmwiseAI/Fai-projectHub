@@ -10,6 +10,7 @@ import { PROJECT_TEMPLATES, getTemplatesByCategory, ProjectTemplate } from "@/li
 import { projects as projectsApi } from "@/lib/api-client";
 import type { Project } from "@/lib/api-client";
 import { showToast } from "@/lib/toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const CATEGORIES = [
   { id: "all",          label: "All",          count: PROJECT_TEMPLATES.length },
@@ -116,34 +117,32 @@ function TemplateCard({
 /* ── Preview Modal ───────────────────────────────────────── */
 function PreviewModal({
   template,
+  open,
   onClose,
   onUse,
 }: {
   template: ProjectTemplate;
+  open: boolean;
   onClose: () => void;
   onUse: (t: ProjectTemplate) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-start gap-4 p-6 border-b border-slate-100">
+        <DialogHeader className="flex-row items-start gap-4 p-6 pb-4 border-b border-slate-100 dark:border-slate-700 space-y-0">
           <div className="h-12 w-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
             style={{ background: `${template.color}15` }}>
             {template.icon}
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold text-slate-900">{template.name}</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{template.description}</p>
+          <div className="flex-1 min-w-0 text-left">
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">{template.name}</DialogTitle>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{template.description}</p>
           </div>
-          <button onClick={onClose}
-            className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors shrink-0">
-            ✕
-          </button>
-        </div>
+        </DialogHeader>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+        <div className="p-6 space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -151,16 +150,16 @@ function PreviewModal({
               { label: "Phases", value: template.phases.length },
               { label: "Sample Tasks", value: template.sampleTasks.length },
             ].map(s => (
-              <div key={s.label} className="text-center p-3 rounded-xl border border-slate-100">
-                <p className="text-lg font-bold text-slate-900">{s.value}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
+              <div key={s.label} className="text-center p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{s.value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
 
           {/* Phases */}
           <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3">Phases</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">Phases</h3>
             <div className="space-y-3">
               {template.phases.map((ph, i) => (
                 <div key={i} className="flex gap-3">
@@ -175,13 +174,13 @@ function PreviewModal({
                   </div>
                   <div className="flex-1 pb-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-semibold text-slate-800">{ph.name}</p>
-                      <span className="text-[10px] text-slate-400">{ph.estimatedDuration}</span>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{ph.name}</p>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{ph.estimatedDuration}</span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-2">{ph.description}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{ph.description}</p>
                     <div className="space-y-1">
                       {ph.checklist.map((item, j) => (
-                        <div key={j} className="flex items-center gap-2 text-xs text-slate-500">
+                        <div key={j} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                           <Check className="h-3 w-3 shrink-0" style={{ color: template.color }} />
                           {item}
                         </div>
@@ -195,18 +194,18 @@ function PreviewModal({
 
           {/* Sample Tasks */}
           <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3">Sample Tasks</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">Sample Tasks</h3>
             <div className="space-y-2">
               {template.sampleTasks.map((task, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100">
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
                   <div className="h-6 w-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                     style={{ background: template.color }}>
                     T{i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">{task.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{task.description}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">{task.estimatedHours}h · {task.category}</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{task.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{task.description}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{task.estimatedHours}h · {task.category}</p>
                   </div>
                 </div>
               ))}
@@ -214,16 +213,16 @@ function PreviewModal({
           </div>
 
           {/* AI hint */}
-          <div className="p-4 rounded-xl border border-dashed border-blue-200 bg-blue-50/50">
-            <p className="text-xs font-semibold text-blue-700 mb-1">AI Prompt Suggestion</p>
-            <p className="text-sm text-blue-800 italic">"{template.aiPromptHint}"</p>
+          <div className="p-4 rounded-xl border border-dashed border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/10">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">AI Prompt Suggestion</p>
+            <p className="text-sm text-blue-800 dark:text-blue-300 italic">"{template.aiPromptHint}"</p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 flex gap-3">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all">
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
             Close
           </button>
           <button
@@ -235,8 +234,8 @@ function PreviewModal({
             Use This Template
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -285,6 +284,7 @@ export function TemplatesClient() {
       {preview && (
         <PreviewModal
           template={preview}
+          open
           onClose={() => setPreview(null)}
           onUse={handleUse}
         />

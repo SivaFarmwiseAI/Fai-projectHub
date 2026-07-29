@@ -41,11 +41,11 @@ export function AiLeavePanel() {
   };
 
   return (
-    <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-3 space-y-2">
+    <div className="rounded-xl border border-violet-100 dark:border-violet-500/20 bg-violet-50/40 dark:bg-violet-500/10 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">AI Leave Assessment</h4>
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">AI Leave Assessment</h4>
         </div>
         <button
           onClick={generate}
@@ -57,18 +57,18 @@ export function AiLeavePanel() {
         </button>
       </div>
 
-      {summary && <p className="text-xs text-slate-700 leading-relaxed">{summary}</p>}
+      {summary && <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{summary}</p>}
       <div className="space-y-1.5">
         {items.map((it, idx) => (
           <div key={idx} className="flex items-start gap-2 text-xs">
             <div className="h-2 w-2 rounded-full mt-1 shrink-0" style={{ background: sevColor[it.severity] ?? "#94a3b8" }} />
             <div className="flex-1 min-w-0">
-              <span className="font-semibold text-slate-700">{it.name}: </span>
-              <span className="text-slate-600">{it.description}</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{it.name}: </span>
+              <span className="text-slate-600 dark:text-slate-400">{it.description}</span>
               {it.action_items?.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {it.action_items.slice(0, 2).map((a, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                       <ArrowRight className="h-2.5 w-2.5 shrink-0 text-violet-400" />{a}
                     </div>
                   ))}

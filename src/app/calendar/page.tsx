@@ -786,7 +786,7 @@ export default function CEOCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen p-0 max-w-[1600px] mx-auto space-y-5">
+    <div className="min-h-screen p-0 w-full max-w-[1600px] mx-auto space-y-5">
       {/* ---- Header ---- */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in-up">
         <div>
@@ -794,8 +794,8 @@ export default function CEOCalendarPage() {
             <Calendar className="h-4 w-4 text-blue-500" />
             <span className="text-xs font-bold uppercase tracking-widest text-blue-500">Schedule</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">CEO Calendar</h1>
-          <p className="text-gray-500 text-sm mt-0.5">All deliverables, leaves, and deadlines in one view</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 tracking-tight">CEO Calendar</h1>
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">All deliverables, leaves, and deadlines in one view</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -806,18 +806,18 @@ export default function CEOCalendarPage() {
             <Plus className="h-3.5 w-3.5" />
             Schedule
           </Button>
-          <div className="flex items-center gap-2 bg-white rounded-2xl border shadow-card px-4 py-2.5" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-            <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 rounded-2xl border shadow-card px-4 py-2.5">
+            <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8 rounded-xl text-gray-900 dark:text-slate-100 hover:bg-blue-50 dark:hover:bg-blue-500/10">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="min-w-[150px] text-center text-base font-bold text-gray-900">
+            <h2 className="min-w-[150px] text-center text-base font-bold text-gray-900 dark:text-slate-100">
               {format(currentMonth, "MMMM yyyy")}
             </h2>
-            <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-xl hover:bg-blue-50">
+            <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-xl text-gray-900 dark:text-slate-100 hover:bg-blue-50 dark:hover:bg-blue-500/10">
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <div className="w-px h-5 bg-gray-200 mx-1" />
-            <Button variant="outline" size="sm" onClick={handleToday} className="rounded-xl border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 text-xs font-semibold">
+            <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+            <Button variant="outline" size="sm" onClick={handleToday} className="rounded-xl border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-xs font-semibold">
               Today
             </Button>
           </div>
@@ -880,8 +880,8 @@ export default function CEOCalendarPage() {
       </div>
 
       {/* ---- Calendar Grid + Detail Panel ---- */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
-        <Card>
+      <div className="flex flex-col lg:flex-row gap-4 w-full">
+        <Card className="min-w-0 flex-1">
           <CardContent className="p-2 sm:p-4">
             <div className="grid grid-cols-7 mb-1">
               {WEEK_DAYS.map((day) => (
@@ -948,7 +948,7 @@ export default function CEOCalendarPage() {
         </Card>
 
         {/* ---- Detail Panel ---- */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:w-[360px] lg:shrink-0">
           {selectedDate ? (
             <Card>
               <CardHeader className="pb-3">
@@ -959,7 +959,9 @@ export default function CEOCalendarPage() {
                   {selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? "s" : ""}
                 </p>
               </CardHeader>
-              <CardContent className="space-y-4 max-h-[calc(100vh-280px)] overflow-y-auto">
+              {/* Capped to roughly 3 event cards tall — beyond that the list
+                  scrolls internally instead of growing the whole page. */}
+              <CardContent className="space-y-4 max-h-[420px] overflow-y-auto">
                 {selectedDateEvents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
                     <Calendar className="h-10 w-10 opacity-30" />

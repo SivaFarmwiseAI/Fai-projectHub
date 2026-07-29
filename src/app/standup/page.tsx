@@ -89,7 +89,7 @@ export default function StandupPage() {
   function StandupCard({ entry, index = 0 }: { entry: StandupEntry; index?: number }) {
     return (
       <div
-        className="bg-white rounded-2xl border shadow-card overflow-hidden animate-fade-in-up"
+        className="bg-white dark:bg-slate-800 rounded-2xl border shadow-card overflow-hidden animate-fade-in-up"
         style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${index * 60}ms` }}
       >
         <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #3b82f6, #6366f1)" }} />
@@ -102,13 +102,13 @@ export default function StandupPage() {
               {(entry.name ?? "?")[0]}
             </div>
             <div className="flex-1 min-w-0">
-              <span className="font-bold text-sm text-slate-900">{entry.name ?? entry.user_id}</span>
+              <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{entry.name ?? entry.user_id}</span>
               {entry.department && (
-                <p className="text-[11px] text-slate-400">{entry.department}</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">{entry.department}</p>
               )}
             </div>
             {entry.mood != null && (
-              <div className="text-right shrink-0 text-xs text-slate-500">
+              <div className="text-right shrink-0 text-xs text-slate-500 dark:text-slate-400">
                 Mood: {entry.mood}/5
               </div>
             )}
@@ -116,14 +116,14 @@ export default function StandupPage() {
           <div className="space-y-2.5 ml-12">
             {entry.yesterday && (
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Yesterday</p>
-                <p className="text-sm text-slate-600 leading-relaxed">{entry.yesterday}</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Yesterday</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{entry.yesterday}</p>
               </div>
             )}
             {entry.today && (
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Today</p>
-                <p className="text-sm text-slate-600 leading-relaxed">{entry.today}</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Today</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{entry.today}</p>
               </div>
             )}
             {entry.blockers && (
@@ -135,7 +135,7 @@ export default function StandupPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-3 pt-3 ml-12" style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
+          <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-3 pt-3 ml-12" style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
             <Clock className="h-3 w-3" />
             {format(new Date(entry.created_at), "h:mm a")}
           </div>
@@ -150,7 +150,7 @@ export default function StandupPage() {
       <div className="animate-fade-in-up">
         <button
           onClick={goBack}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 mb-3 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-3 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -163,20 +163,20 @@ export default function StandupPage() {
             <Activity className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-display text-slate-900">Daily Standup</h1>
-            <p className="text-sm font-medium text-slate-500">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+            <h1 className="text-display text-slate-900 dark:text-slate-100">Daily Standup</h1>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-gray-100/80 w-fit animate-fade-in-up stagger-1">
+      <div className="flex gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-slate-800/80 w-fit animate-fade-in-up stagger-1">
         {(isCEO || isLead || isAdmin) && (
           <button
             onClick={() => setActiveTab("team")}
             className={cn(
               "px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2",
-              activeTab === "team" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              activeTab === "team" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             )}
           >
             <Users className="h-4 w-4" />
@@ -192,7 +192,7 @@ export default function StandupPage() {
           onClick={() => setActiveTab("my")}
           className={cn(
             "px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2",
-            activeTab === "my" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "my" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
           )}
         >
           <TrendingUp className="h-4 w-4" />
@@ -202,7 +202,7 @@ export default function StandupPage() {
           onClick={() => setActiveTab("submit")}
           className={cn(
             "px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2",
-            activeTab === "submit" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "submit" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
           )}
         >
           <Plus className="h-4 w-4" />
@@ -224,13 +224,13 @@ export default function StandupPage() {
                 style={{ background: stat.bg, borderColor: `${stat.color}30` }}
               >
                 <p className="text-2xl font-extrabold stat-number" style={{ color: stat.color }}>{stat.value}</p>
-                <p className="text-[11px] font-semibold text-slate-500 mt-1">{stat.label}</p>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">{stat.label}</p>
               </div>
             ))}
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-2">
               <Calendar className="h-4 w-4 text-blue-500" />
               Date
             </label>
@@ -238,18 +238,18 @@ export default function StandupPage() {
               type="date"
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-medium text-slate-700 bg-white outline-none"
+              className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 outline-none"
             />
-            <span className="text-sm text-slate-400">{teamEntries.length} updates</span>
+            <span className="text-sm text-slate-400 dark:text-slate-500">{teamEntries.length} updates</span>
           </div>
 
           {loadingTeam ? (
-            <div className="text-center py-10 text-slate-400">Loading…</div>
+            <div className="text-center py-10 text-slate-400 dark:text-slate-500">Loading…</div>
           ) : teamEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50">
-              <Activity className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="font-semibold text-gray-600">No standups posted yet</p>
-              <p className="text-sm text-gray-400 mt-1">Check back after 9 AM</p>
+            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50">
+              <Activity className="h-10 w-10 text-gray-300 dark:text-slate-600 mb-3" />
+              <p className="font-semibold text-gray-600 dark:text-slate-400">No standups posted yet</p>
+              <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">Check back after 9 AM</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -265,14 +265,14 @@ export default function StandupPage() {
       {activeTab === "my" && (
         <div className="space-y-4 animate-fade-in-up">
           {loadingMy ? (
-            <div className="text-center py-10 text-slate-400">Loading…</div>
+            <div className="text-center py-10 text-slate-400 dark:text-slate-500">Loading…</div>
           ) : myEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50">
-              <TrendingUp className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="font-semibold text-gray-600">No updates posted yet</p>
+            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50">
+              <TrendingUp className="h-10 w-10 text-gray-300 dark:text-slate-600 mb-3" />
+              <p className="font-semibold text-gray-600 dark:text-slate-400">No updates posted yet</p>
               <button
                 onClick={() => setActiveTab("submit")}
-                className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                className="mt-3 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
               >
                 Post your first standup →
               </button>
@@ -280,7 +280,7 @@ export default function StandupPage() {
           ) : (
             myEntries.map((entry, i) => (
               <div key={entry.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
-                <p className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 mb-2 flex items-center gap-1.5">
                   <Calendar className="h-3 w-3" />
                   {format(new Date(entry.date), "EEEE, MMMM d")}
                 </p>
@@ -295,15 +295,15 @@ export default function StandupPage() {
       {activeTab === "submit" && (
         <div className="animate-fade-in-up">
           {submitted ? (
-            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 animate-scale-in">
-              <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+            <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-500/10 animate-scale-in">
+              <div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center mb-4">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500 dark:text-emerald-400" />
               </div>
-              <p className="text-xl font-bold text-emerald-800">Standup posted!</p>
-              <p className="text-sm text-emerald-600 mt-1">Your team is in the loop.</p>
+              <p className="text-xl font-bold text-emerald-800 dark:text-emerald-300">Standup posted!</p>
+              <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-1">Your team is in the loop.</p>
               <button
                 onClick={() => setActiveTab("my")}
-                className="mt-4 text-sm font-medium text-emerald-700 hover:underline"
+                className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
               >
                 View your history →
               </button>
@@ -311,7 +311,7 @@ export default function StandupPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div
-                className="bg-white rounded-2xl border shadow-card p-5 sm:p-6 space-y-5"
+                className="bg-white dark:bg-slate-800 rounded-2xl border shadow-card p-5 sm:p-6 space-y-5"
                 style={{ borderColor: "rgba(0,0,0,0.06)" }}
               >
                 <div className="flex items-center gap-3 pb-4" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
@@ -322,14 +322,14 @@ export default function StandupPage() {
                     {user?.initials ?? "?"}
                   </div>
                   <div>
-                    <p className="font-bold text-slate-900">{user?.name}</p>
-                    <p className="text-xs text-slate-400">{format(new Date(), "EEEE, MMMM d")}</p>
+                    <p className="font-bold text-slate-900 dark:text-slate-100">{user?.name}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{format(new Date(), "EEEE, MMMM d")}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <span className="h-5 w-5 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-[10px] font-bold">✓</span>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="h-5 w-5 rounded-full bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-300 text-[10px] font-bold">✓</span>
                     What did you do yesterday?
                   </label>
                   <textarea
@@ -338,13 +338,13 @@ export default function StandupPage() {
                     onChange={e => setForm(f => ({ ...f, yesterday: e.target.value }))}
                     placeholder="Describe what you accomplished..."
                     rows={3}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-none transition-colors focus:bg-white"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none transition-colors focus:bg-white dark:focus:bg-slate-800"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <span className="h-5 w-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-[10px] font-bold">→</span>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-300 text-[10px] font-bold">→</span>
                     What will you do today?
                   </label>
                   <textarea
@@ -353,13 +353,13 @@ export default function StandupPage() {
                     onChange={e => setForm(f => ({ ...f, today: e.target.value }))}
                     placeholder="Describe your plan for today..."
                     rows={3}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-none transition-colors focus:bg-white"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none transition-colors focus:bg-white dark:focus:bg-slate-800"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <span className="h-5 w-5 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-[10px] font-bold">!</span>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="h-5 w-5 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center text-red-500 dark:text-red-300 text-[10px] font-bold">!</span>
                     Any blockers?
                   </label>
                   <textarea
@@ -367,13 +367,13 @@ export default function StandupPage() {
                     onChange={e => setForm(f => ({ ...f, blockers: e.target.value }))}
                     placeholder="None, or describe what's blocking you..."
                     rows={2}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-slate-900 placeholder:text-slate-400 outline-none resize-none transition-colors focus:bg-white"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none resize-none transition-colors focus:bg-white dark:focus:bg-slate-800"
                   />
                 </div>
 
                 {/* Mood */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">How are you feeling?</label>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">How are you feeling?</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(Object.entries(moodConfig) as [StandupMood, typeof moodConfig.good][]).map(([key, cfg], idx) => {
                       const moodNum = idx + 1;
@@ -386,7 +386,7 @@ export default function StandupPage() {
                             "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all",
                             form.mood === moodNum
                               ? "border-current shadow-sm scale-[1.02]"
-                              : "border-gray-200 text-slate-500 hover:border-gray-300"
+                              : "border-gray-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-600"
                           )}
                           style={form.mood === moodNum ? { color: cfg.color, background: cfg.bg, borderColor: cfg.color } : {}}
                         >

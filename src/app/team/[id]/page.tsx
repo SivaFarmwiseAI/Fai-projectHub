@@ -218,12 +218,12 @@ const AI_INSIGHTS: Record<string, { summary: string; highlights: string[]; recom
 // ---- Badge/Color helpers ----
 
 const taskStatusColors: Record<string, string> = {
-  planning: "text-slate-700 border-slate-200 bg-slate-50",
-  in_progress: "text-blue-700 border-blue-200 bg-blue-50",
-  completed: "text-green-700 border-green-200 bg-green-50",
-  blocked: "text-red-700 border-red-200 bg-red-50",
-  killed: "text-gray-700 border-gray-200 bg-gray-50",
-  redefined: "text-purple-700 border-purple-200 bg-purple-50",
+  planning: "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
+  in_progress: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  completed: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  blocked: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
+  killed: "text-gray-700 border-gray-200 bg-gray-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
+  redefined: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-800 dark:bg-purple-500/10",
 };
 
 const taskStatusIcons: Record<string, React.ReactNode> = {
@@ -236,51 +236,51 @@ const taskStatusIcons: Record<string, React.ReactNode> = {
 };
 
 const outcomeStatusColors: Record<string, string> = {
-  pending: "text-amber-700 border-amber-200 bg-amber-50",
-  submitted: "text-blue-700 border-blue-200 bg-blue-50",
-  verified: "text-green-700 border-green-200 bg-green-50",
-  rejected: "text-red-700 border-red-200 bg-red-50",
+  pending: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+  submitted: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  verified: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  rejected: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
 };
 
 const extensionStatusColors: Record<string, string> = {
-  pending: "text-amber-700 border-amber-200 bg-amber-50",
-  approved: "text-green-700 border-green-200 bg-green-50",
-  rejected: "text-red-700 border-red-200 bg-red-50",
-  auto_escalated: "text-red-700 border-red-200 bg-red-50",
+  pending: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+  approved: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  rejected: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
+  auto_escalated: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
 };
 
 const leaveTypeColors: Record<string, string> = {
-  planned: "text-blue-700 border-blue-200 bg-blue-50",
-  sick: "text-red-700 border-red-200 bg-red-50",
-  personal: "text-purple-700 border-purple-200 bg-purple-50",
-  wfh: "text-teal-700 border-teal-200 bg-teal-50",
-  half_day: "text-amber-700 border-amber-200 bg-amber-50",
+  planned: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  sick: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
+  personal: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-800 dark:bg-purple-500/10",
+  wfh: "text-teal-700 border-teal-200 bg-teal-50 dark:text-teal-300 dark:border-teal-800 dark:bg-teal-500/10",
+  half_day: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
 };
 
 const leaveStatusColors: Record<string, string> = {
-  pending: "text-amber-700 border-amber-200 bg-amber-50",
-  approved: "text-green-700 border-green-200 bg-green-50",
-  rejected: "text-red-700 border-red-200 bg-red-50",
+  pending: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+  approved: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  rejected: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
 };
 
 const typeBadgeColors: Record<string, string> = {
-  code: "text-blue-700 border-blue-200 bg-blue-50",
-  architecture: "text-purple-700 border-purple-200 bg-purple-50",
-  notebook: "text-amber-700 border-amber-200 bg-amber-50",
-  document: "text-green-700 border-green-200 bg-green-50",
-  demo: "text-pink-700 border-pink-200 bg-pink-50",
-  status_update: "text-slate-700 border-slate-200 bg-slate-50",
-  meeting_notes: "text-cyan-700 border-cyan-200 bg-cyan-50",
+  code: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  architecture: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-800 dark:bg-purple-500/10",
+  notebook: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10",
+  document: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  demo: "text-pink-700 border-pink-200 bg-pink-50 dark:text-pink-300 dark:border-pink-800 dark:bg-pink-500/10",
+  status_update: "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
+  meeting_notes: "text-cyan-700 border-cyan-200 bg-cyan-50 dark:text-cyan-300 dark:border-cyan-800 dark:bg-cyan-500/10",
 };
 
 const typeIcons: Record<string, React.ReactNode> = {
-  code: <Code className="h-4 w-4 text-blue-600" />,
-  architecture: <FileText className="h-4 w-4 text-purple-600" />,
-  notebook: <BookOpen className="h-4 w-4 text-amber-600" />,
-  document: <FileText className="h-4 w-4 text-green-600" />,
-  demo: <Presentation className="h-4 w-4 text-pink-600" />,
-  status_update: <MessageSquare className="h-4 w-4 text-slate-500" />,
-  meeting_notes: <Users className="h-4 w-4 text-cyan-600" />,
+  code: <Code className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
+  architecture: <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />,
+  notebook: <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-400" />,
+  document: <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />,
+  demo: <Presentation className="h-4 w-4 text-pink-600 dark:text-pink-400" />,
+  status_update: <MessageSquare className="h-4 w-4 text-slate-500 dark:text-slate-400" />,
+  meeting_notes: <Users className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />,
 };
 
 // ---- Helper: find project for a task (populated at runtime) ----
@@ -469,11 +469,11 @@ function buildTimelineItems(userTasks: Task[], userId: string): TimelineItem[] {
 
 function getTimelineBarColor(status: TimelineItem["status"]) {
   switch (status) {
-    case "completed_on_time": return { planned: "bg-green-100", actual: "bg-green-500", text: "text-green-700", badge: "text-green-700 border-green-200 bg-green-50" };
-    case "completed_late": return { planned: "bg-amber-100", actual: "bg-amber-500", text: "text-amber-700", badge: "text-amber-700 border-amber-200 bg-amber-50" };
-    case "in_progress": return { planned: "bg-blue-100", actual: "bg-blue-500", text: "text-blue-700", badge: "text-blue-700 border-blue-200 bg-blue-50" };
-    case "overdue": return { planned: "bg-red-100", actual: "bg-red-500", text: "text-red-700", badge: "text-red-700 border-red-200 bg-red-50" };
-    case "upcoming": return { planned: "bg-slate-100", actual: "bg-slate-400", text: "text-slate-700", badge: "text-slate-700 border-slate-200 bg-slate-50" };
+    case "completed_on_time": return { planned: "bg-green-100 dark:bg-green-500/20", actual: "bg-green-500", text: "text-green-700 dark:text-green-400", badge: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10" };
+    case "completed_late": return { planned: "bg-amber-100 dark:bg-amber-500/20", actual: "bg-amber-500", text: "text-amber-700 dark:text-amber-400", badge: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10" };
+    case "in_progress": return { planned: "bg-blue-100 dark:bg-blue-500/20", actual: "bg-blue-500", text: "text-blue-700 dark:text-blue-400", badge: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10" };
+    case "overdue": return { planned: "bg-red-100 dark:bg-red-500/20", actual: "bg-red-500", text: "text-red-700 dark:text-red-400", badge: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10" };
+    case "upcoming": return { planned: "bg-slate-100 dark:bg-slate-700", actual: "bg-slate-400", text: "text-slate-700 dark:text-slate-300", badge: "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800" };
   }
 }
 
@@ -633,12 +633,12 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                     onClick={() => setSelectedDate(day)}
                     className={`
                       relative p-1.5 min-h-[60px] text-left border rounded-md transition-colors
-                      ${isSelected ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500" : "border-slate-200 hover:bg-slate-50"}
+                      ${isSelected ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500 dark:bg-indigo-500/10" : "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"}
                       ${!isCurrentMonth ? "opacity-40" : ""}
-                      ${dayIsToday ? "bg-blue-50/50" : ""}
+                      ${dayIsToday ? "bg-blue-50/50 dark:bg-blue-500/10" : ""}
                     `}
                   >
-                    <span className={`text-xs font-medium ${dayIsToday ? "text-blue-600 font-bold" : "text-slate-600"}`}>
+                    <span className={`text-xs font-medium ${dayIsToday ? "text-blue-600 dark:text-blue-400 font-bold" : "text-slate-600 dark:text-slate-400"}`}>
                       {format(day, "d")}
                     </span>
                     {dayItems.length > 0 && (
@@ -671,15 +671,15 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
           {/* B) Gantt-style Timeline View */}
           {visibleItems.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-indigo-500" />
                 Planned vs Actual Timeline
               </h3>
               <div className="space-y-1.5 overflow-x-auto">
                 {/* Date axis */}
-                <div className="flex items-center border-b border-slate-200 pb-1 min-w-[600px]">
+                <div className="flex items-center border-b border-slate-200 dark:border-slate-700 pb-1 min-w-[600px]">
                   <div className="w-[200px] shrink-0 text-xs text-muted-foreground pr-2">Deliverable</div>
-                  <div className="flex-1 flex">
+                  <div className="flex-1 relative">
                     {calendarDays.filter((_, i) => {
                       // Show every 3rd day for month view, every day for week
                       return viewMode === "week" || i % Math.max(1, Math.floor(totalCalendarDays / 10)) === 0;
@@ -689,7 +689,7 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                         className="text-[10px] text-muted-foreground"
                         style={{
                           position: "absolute" as const,
-                          left: `${200 + ((differenceInCalendarDays(d, calendarStart) / totalCalendarDays) * 100)}%`,
+                          left: `${(differenceInCalendarDays(d, calendarStart) / totalCalendarDays) * 100}%`,
                         }}
                       >
                         {format(d, "MMM d")}
@@ -726,7 +726,7 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                       <div className="flex-1 relative h-6">
                         {/* Planned bar (lighter) */}
                         <div
-                          className={`absolute top-0.5 h-5 rounded ${colors.planned} border border-slate-200/50`}
+                          className={`absolute top-0.5 h-5 rounded ${colors.planned} border border-slate-200/50 dark:border-slate-700/50`}
                           style={{ left: `${plannedLeft}%`, width: `${plannedWidth}%` }}
                           title={`Planned: ${format(item.plannedStart, "MMM d")} - ${format(item.plannedEnd, "MMM d")}`}
                         />
@@ -769,7 +769,7 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
           {/* C) Deliverable Cards for Selected Date */}
           {selectedDate && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                 <Eye className="h-4 w-4 text-indigo-500" />
                 Deliverables for {format(selectedDate, "EEEE, MMM d, yyyy")}
               </h3>
@@ -783,7 +783,7 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                   {selectedDateItems.map((item) => {
                     const colors = getTimelineBarColor(item.status);
                     return (
-                      <div key={item.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-2">
+                      <div key={item.id} className="p-3 rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-base">{deliverableTypeIcons[item.deliverableType] || "\u2705"}</span>
@@ -792,7 +792,7 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                               {getStatusLabel(item.status)}
                               {item.delayDays > 0 && ` (+${item.delayDays}d)`}
                             </Badge>
-                            <Badge variant="outline" className="text-slate-600 border-slate-200 bg-slate-50 text-xs">
+                            <Badge variant="outline" className="text-slate-600 border-slate-200 bg-slate-50 dark:text-slate-400 dark:border-slate-700 dark:bg-slate-800 text-xs">
                               {deliverableTypeLabels[item.deliverableType] || item.deliverableType}
                             </Badge>
                           </div>
@@ -800,13 +800,13 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
 
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>
-                            Planned: <span className="font-medium text-slate-700">{format(item.plannedStart, "MMM d")} - {format(item.plannedEnd, "MMM d")}</span>
+                            Planned: <span className="font-medium text-slate-700 dark:text-slate-300">{format(item.plannedStart, "MMM d")} - {format(item.plannedEnd, "MMM d")}</span>
                           </span>
                           {item.actualEnd && (
                             <>
                               <ArrowRight className="h-3 w-3" />
                               <span>
-                                Actual: <span className="font-medium text-slate-700">{format(item.actualEnd, "MMM d, yyyy")}</span>
+                                Actual: <span className="font-medium text-slate-700 dark:text-slate-300">{format(item.actualEnd, "MMM d, yyyy")}</span>
                               </span>
                             </>
                           )}
@@ -817,24 +817,24 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
                             {item.projectTitle}
                           </Link>
                           {" / "}
-                          <span className="text-slate-600">{item.taskTitle}</span>
+                          <span className="text-slate-600 dark:text-slate-400">{item.taskTitle}</span>
                         </div>
 
                         {/* Deliverable submissions */}
                         {item.deliverables.length > 0 && (
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-slate-600">Submissions:</p>
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Submissions:</p>
                             {item.deliverables.map((d, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs">
                                 <Badge variant="outline" className={
-                                  d.status === "verified" ? "text-green-700 border-green-200 bg-green-50" :
-                                  d.status === "submitted" ? "text-blue-700 border-blue-200 bg-blue-50" :
-                                  d.status === "rejected" ? "text-red-700 border-red-200 bg-red-50" :
-                                  "text-amber-700 border-amber-200 bg-amber-50"
+                                  d.status === "verified" ? "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10" :
+                                  d.status === "submitted" ? "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10" :
+                                  d.status === "rejected" ? "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10" :
+                                  "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10"
                                 }>
                                   {d.status}
                                 </Badge>
-                                <span className="text-slate-700">{d.title}</span>
+                                <span className="text-slate-700 dark:text-slate-300">{d.title}</span>
                               </div>
                             ))}
                           </div>
@@ -842,9 +842,9 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
 
                         {/* Latest updates */}
                         {item.updates.length > 0 && (
-                          <div className="space-y-1 border-t border-slate-100 pt-1.5">
-                            <p className="text-xs font-medium text-slate-600">Latest update:</p>
-                            <p className="text-xs text-slate-600">{item.updates[item.updates.length - 1].message}</p>
+                          <div className="space-y-1 border-t border-slate-100 dark:border-slate-800 pt-1.5">
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Latest update:</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">{item.updates[item.updates.length - 1].message}</p>
                             <p className="text-[10px] text-muted-foreground">
                               {formatDistanceToNow(new Date(item.updates[item.updates.length - 1].created_at), { addSuffix: true })}
                             </p>
@@ -859,31 +859,31 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
           )}
 
           {/* Summary stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-200">
-            <div className="text-center p-2 rounded-lg bg-slate-50">
-              <p className="text-lg font-bold text-slate-700">{timelineItems.length}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+            <div className="text-center p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+              <p className="text-lg font-bold text-slate-700 dark:text-slate-300">{timelineItems.length}</p>
               <p className="text-xs text-muted-foreground">Total Deliverables</p>
             </div>
-            <div className="text-center p-2 rounded-lg bg-green-50">
-              <p className="text-lg font-bold text-green-700">
+            <div className="text-center p-2 rounded-lg bg-green-50 dark:bg-green-500/10">
+              <p className="text-lg font-bold text-green-700 dark:text-green-400">
                 {timelineItems.filter((i) => i.status === "completed_on_time").length}
               </p>
               <p className="text-xs text-muted-foreground">On Time</p>
             </div>
-            <div className="text-center p-2 rounded-lg bg-amber-50">
-              <p className="text-lg font-bold text-amber-700">
+            <div className="text-center p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
+              <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
                 {timelineItems.filter((i) => i.status === "completed_late").length}
               </p>
               <p className="text-xs text-muted-foreground">Completed Late</p>
             </div>
-            <div className="text-center p-2 rounded-lg bg-blue-50">
-              <p className="text-lg font-bold text-blue-700">
+            <div className="text-center p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10">
+              <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
                 {timelineItems.filter((i) => i.status === "in_progress").length}
               </p>
               <p className="text-xs text-muted-foreground">In Progress</p>
             </div>
-            <div className="text-center p-2 rounded-lg bg-red-50">
-              <p className="text-lg font-bold text-red-700">
+            <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-500/10">
+              <p className="text-lg font-bold text-red-700 dark:text-red-400">
                 {timelineItems.filter((i) => i.status === "overdue").length}
               </p>
               <p className="text-xs text-muted-foreground">Overdue</p>
@@ -898,10 +898,10 @@ function DeliverableTimeline({ userTasks, userId }: { userTasks: Task[]; userId:
 // ---- Milestone status styling ----
 
 const milestoneStatusColors: Record<string, string> = {
-  pending: "text-slate-700 border-slate-200 bg-slate-50",
-  in_progress: "text-blue-700 border-blue-200 bg-blue-50",
-  completed: "text-green-700 border-green-200 bg-green-50",
-  blocked: "text-red-700 border-red-200 bg-red-50",
+  pending: "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800",
+  in_progress: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10",
+  completed: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10",
+  blocked: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10",
 };
 
 const milestoneStatusIcons: Record<string, React.ReactNode> = {
@@ -920,10 +920,10 @@ function fmtHrs(h?: number | null): string {
 
 function KpiTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className={`text-xl font-extrabold tabular-nums ${color ?? "text-slate-900"}`}>{value}</div>
-      <div className="text-[11px] font-semibold text-slate-500 mt-0.5">{label}</div>
-      {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
+    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+      <div className={`text-xl font-extrabold tabular-nums ${color ?? "text-slate-900 dark:text-slate-100"}`}>{value}</div>
+      <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">{label}</div>
+      {sub && <div className="text-[10px] text-slate-400 dark:text-slate-500">{sub}</div>}
     </div>
   );
 }
@@ -932,10 +932,10 @@ function HoursBar({ label, hours, max, color }: { label: string; hours: number; 
   return (
     <div>
       <div className="flex items-center justify-between text-[11px] mb-1">
-        <span className="font-medium text-slate-600">{label}</span>
-        <span className="font-mono text-slate-500">{fmtHrs(hours)}</span>
+        <span className="font-medium text-slate-600 dark:text-slate-400">{label}</span>
+        <span className="font-mono text-slate-500 dark:text-slate-400">{fmtHrs(hours)}</span>
       </div>
-      <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (hours / max) * 100)}%`, background: color }} />
       </div>
     </div>
@@ -947,11 +947,11 @@ function DailyActivityList({ items, empty }: { items: DailyActivityItem[]; empty
     return <p className="text-sm text-muted-foreground italic">{empty}</p>;
   }
   const style: Record<DailyActivityKind, { icon: React.ReactNode; text: string }> = {
-    done: { icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />, text: "text-slate-700" },
-    update: { icon: <Activity className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />, text: "text-slate-700" },
-    due: { icon: <Calendar className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />, text: "text-amber-700 font-medium" },
-    in_progress: { icon: <Clock className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />, text: "text-slate-700" },
-    blocked: { icon: <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />, text: "text-red-700 font-medium" },
+    done: { icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />, text: "text-slate-700 dark:text-slate-300" },
+    update: { icon: <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />, text: "text-slate-700 dark:text-slate-300" },
+    due: { icon: <Calendar className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />, text: "text-amber-700 dark:text-amber-400 font-medium" },
+    in_progress: { icon: <Clock className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />, text: "text-slate-700 dark:text-slate-300" },
+    blocked: { icon: <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />, text: "text-red-700 dark:text-red-400 font-medium" },
   };
   return (
     <ul className="space-y-2.5">
@@ -973,8 +973,8 @@ function DailyActivityList({ items, empty }: { items: DailyActivityItem[]; empty
 
 function WeekStat({ value, label, color }: { value: number; label: string; color?: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 border border-slate-100 py-2">
-      <p className={`text-lg font-bold tabular-nums ${color ?? "text-slate-800"}`}>{value}</p>
+    <div className="rounded-lg bg-slate-50 border border-slate-100 py-2 dark:bg-slate-800 dark:border-slate-700">
+      <p className={`text-lg font-bold tabular-nums ${color ?? "text-slate-800 dark:text-slate-200"}`}>{value}</p>
       <p className="text-[10px] text-muted-foreground">{label}</p>
     </div>
   );
@@ -987,14 +987,14 @@ function AttachmentPill({ d }: { d: Deliverable }) {
   const label = d.title || deliverableTypeLabels[d.type] || d.type;
   const statusCls =
     d.status === "verified"
-      ? "text-green-700 border-green-200 bg-green-50"
+      ? "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-800 dark:bg-green-500/10"
       : d.status === "submitted"
-        ? "text-blue-700 border-blue-200 bg-blue-50"
+        ? "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-500/10"
         : d.status === "rejected"
-          ? "text-red-700 border-red-200 bg-red-50"
-          : "text-amber-700 border-amber-200 bg-amber-50";
+          ? "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10"
+          : "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10";
   const inner = (
-    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 transition-colors">
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/60">
       <span className="shrink-0">{deliverableTypeIcons[d.type] || "📎"}</span>
       <span className="truncate max-w-[150px] font-medium">{label}</span>
       <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold border ${statusCls}`}>{d.status}</span>
@@ -1022,18 +1022,18 @@ function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId:
   const statusCls = milestoneStatusColors[ms.status] || milestoneStatusColors.pending;
 
   return (
-    <div className={`rounded-lg border p-2.5 space-y-2 ${mine ? "border-indigo-200 bg-indigo-50/40" : "border-slate-200 bg-white"}`}>
+    <div className={`rounded-lg border p-2.5 space-y-2 ${mine ? "border-indigo-200 bg-indigo-50/40 dark:border-indigo-800 dark:bg-indigo-500/10" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"}`}>
       {/* header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           <Milestone className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-          <span className="text-xs font-semibold text-slate-800">{ms.title}</span>
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{ms.title}</span>
           {mine ? (
-            <Badge variant="outline" className="text-[9px] py-0 px-1.5 text-indigo-700 border-indigo-200 bg-indigo-100">
+            <Badge variant="outline" className="text-[9px] py-0 px-1.5 text-indigo-700 border-indigo-200 bg-indigo-100 dark:text-indigo-300 dark:border-indigo-800 dark:bg-indigo-500/10">
               Allotted
             </Badge>
           ) : ms.assignee_id ? (
-            <UserLink userId={ms.assignee_id} className="text-[10px] text-slate-500">
+            <UserLink userId={ms.assignee_id} className="text-[10px] text-slate-500 dark:text-slate-400">
               Another member →
             </UserLink>
           ) : null}
@@ -1047,22 +1047,22 @@ function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId:
       {/* meta chips */}
       <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
         {ms.target_date ? (
-          <span className="inline-flex items-center gap-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 font-medium">
+          <span className="inline-flex items-center gap-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 font-medium dark:bg-indigo-500/10 dark:border-indigo-800 dark:text-indigo-300">
             <Calendar className="h-2.5 w-2.5" /> {format(new Date(`${ms.target_date}T00:00:00`), "MMM d, yyyy")}
           </span>
         ) : ms.target_day != null ? (
-          <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 font-medium">
+          <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 font-medium dark:bg-amber-500/10 dark:border-amber-800 dark:text-amber-300">
             <Calendar className="h-2.5 w-2.5" /> Day {ms.target_day}
           </span>
         ) : null}
         {ms.deliverable_type && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">{ms.deliverable_type}</span>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">{ms.deliverable_type}</span>
         )}
-        <span className={`inline-flex items-center gap-1 font-medium ${over ? "text-red-600" : "text-slate-500"}`}>
+        <span className={`inline-flex items-center gap-1 font-medium ${over ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
           <Clock className="h-2.5 w-2.5" /> {fmtHrs(act)} / {fmtHrs(est)}{over ? " · over" : ""}
         </span>
         {ms.completed_at && (
-          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
             <CheckCircle2 className="h-2.5 w-2.5" /> {format(new Date(ms.completed_at), "MMM d")}
           </span>
         )}
@@ -1070,23 +1070,23 @@ function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId:
 
       {/* hours bar */}
       {(est > 0 || act > 0) && (
-        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
           <div className="h-full rounded-full" style={{ width: `${hoursPct}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
         </div>
       )}
 
       {/* outcome */}
       {(ms.outcome || ms.outcome_notes) && (
-        <div className="rounded-md border border-green-200/70 bg-green-50/60 px-2 py-1.5">
-          {ms.outcome && <p className="text-[11px] font-semibold text-green-800">{ms.outcome}</p>}
-          {ms.outcome_notes && <p className="text-[11px] text-green-700/90 whitespace-pre-wrap mt-0.5">{ms.outcome_notes}</p>}
+        <div className="rounded-md border border-green-200/70 bg-green-50/60 px-2 py-1.5 dark:border-green-800/70 dark:bg-green-500/10">
+          {ms.outcome && <p className="text-[11px] font-semibold text-green-800 dark:text-green-300">{ms.outcome}</p>}
+          {ms.outcome_notes && <p className="text-[11px] text-green-700/90 dark:text-green-400/90 whitespace-pre-wrap mt-0.5">{ms.outcome_notes}</p>}
         </div>
       )}
 
       {/* deliverables */}
       {dels.length > 0 && (
         <div>
-          <p className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 mb-1">
+          <p className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">
             <Paperclip className="h-2.5 w-2.5" /> Deliverables ({dels.length})
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1101,9 +1101,9 @@ function MilestoneRow({ ms, subjectId, taskId }: { ms: TaskMilestone; subjectId:
 
       {/* latest update */}
       {updates.length > 0 && (
-        <div className="border-t border-slate-100 pt-1.5">
-          <p className="text-[11px] text-slate-600">
-            <MessageSquare className="inline h-2.5 w-2.5 mr-1 text-slate-400" />
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-1.5">
+          <p className="text-[11px] text-slate-600 dark:text-slate-400">
+            <MessageSquare className="inline h-2.5 w-2.5 mr-1 text-slate-400 dark:text-slate-500" />
             {updates[updates.length - 1].message}
           </p>
           <p className="text-[9px] text-muted-foreground mt-0.5">
@@ -1533,7 +1533,7 @@ export default function TeamMemberPage({
 
         {/* Total-view KPI strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-          <KpiTile label="Planned hours" value={`${fmtHrs(analysis.totalPlanned)}`} sub="estimated / revised" color="text-slate-900" />
+          <KpiTile label="Planned hours" value={`${fmtHrs(analysis.totalPlanned)}`} sub="estimated / revised" color="text-slate-900 dark:text-slate-100" />
           <KpiTile label="Working hours" value={`${fmtHrs(analysis.totalActual)}`} sub="actually logged" color="text-violet-600" />
           <KpiTile
             label="Utilization"
@@ -1562,7 +1562,7 @@ export default function TeamMemberPage({
                 <HoursBar label="Worked" hours={analysis.totalActual} max={Math.max(analysis.totalPlanned, analysis.totalActual, 1)} color={analysis.variance > 0 ? "#ef4444" : "#8b5cf6"} />
               </div>
               <div className="flex items-center gap-2 text-xs">
-                <Badge variant="outline" className={analysis.variance > 0 ? "text-red-700 border-red-200 bg-red-50" : "text-emerald-700 border-emerald-200 bg-emerald-50"}>
+                <Badge variant="outline" className={analysis.variance > 0 ? "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10" : "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-800 dark:bg-emerald-500/10"}>
                   {analysis.utilization}% utilization
                 </Badge>
                 <span className="text-muted-foreground">
@@ -1576,7 +1576,7 @@ export default function TeamMemberPage({
 
               {/* Per-project breakdown */}
               {analysis.perProject.length > 0 && (
-                <div className="pt-1 border-t border-slate-100">
+                <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 mt-2">By project</p>
                   <div className="space-y-2.5">
                     {analysis.perProject.slice(0, 6).map((p) => {
@@ -1584,14 +1584,14 @@ export default function TeamMemberPage({
                       return (
                         <div key={p.title}>
                           <div className="flex items-center justify-between text-[11px] mb-1">
-                            <span className="font-medium text-slate-700 truncate pr-2">{p.title}</span>
-                            <span className={`font-mono shrink-0 ${over ? "text-red-600" : "text-slate-500"}`}>
+                            <span className="font-medium text-slate-700 dark:text-slate-300 truncate pr-2">{p.title}</span>
+                            <span className={`font-mono shrink-0 ${over ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
                               {fmtHrs(p.actual)} / {fmtHrs(p.planned)}
                             </span>
                           </div>
-                          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                             {/* planned (light) */}
-                            <div className="absolute inset-y-0 left-0 bg-slate-300/70 rounded-full" style={{ width: `${Math.min(100, (p.planned / analysis.maxHours) * 100)}%` }} />
+                            <div className="absolute inset-y-0 left-0 bg-slate-300/70 dark:bg-slate-600/70 rounded-full" style={{ width: `${Math.min(100, (p.planned / analysis.maxHours) * 100)}%` }} />
                             {/* actual (solid) */}
                             <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (p.actual / analysis.maxHours) * 100)}%`, background: over ? "#ef4444" : "#8b5cf6" }} />
                           </div>
@@ -1600,7 +1600,7 @@ export default function TeamMemberPage({
                     })}
                   </div>
                   <div className="flex items-center gap-3 mt-2.5 text-[10px] text-muted-foreground">
-                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block" /> Planned</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-300 dark:bg-slate-600 inline-block" /> Planned</span>
                     <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-violet-500 inline-block" /> Worked</span>
                   </div>
                 </div>
@@ -1625,12 +1625,12 @@ export default function TeamMemberPage({
                 <WeekStat value={analysis.msDoneThisWeek.length} label="Milestones" color="text-indigo-600" />
                 <WeekStat value={analysis.tasksDoneThisWeek.length} label="Tasks" color="text-emerald-600" />
                 <WeekStat value={analysis.deliverablesThisWeek.length} label="Deliverables" color="text-blue-600" />
-                <WeekStat value={analysis.updatesThisWeek} label="Updates" color="text-slate-700" />
+                <WeekStat value={analysis.updatesThisWeek} label="Updates" color="text-slate-700 dark:text-slate-300" />
               </div>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 <span>
-                  Effort delivered: <span className="font-semibold text-slate-700">{fmtHrs(analysis.effortDeliveredThisWeek)}</span> planned
+                  Effort delivered: <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtHrs(analysis.effortDeliveredThisWeek)}</span> planned
                   {analysis.actualDeliveredThisWeek > 0 && <> · <span className="font-semibold text-violet-600">{fmtHrs(analysis.actualDeliveredThisWeek)}</span> worked</>}
                 </span>
               </div>
@@ -1643,19 +1643,19 @@ export default function TeamMemberPage({
               ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
                   {analysis.msDoneThisWeek.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span className="font-medium text-slate-800 truncate flex-1">{m.title}</span>
+                    <div key={m.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-emerald-100 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-500/10">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate flex-1">{m.title}</span>
                       <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{m._taskTitle}</span>
                       {m.completed_at && (
-                        <span className="text-[10px] text-emerald-600 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 shrink-0">{format(parseISO(m.completed_at), "EEE")}</span>
                       )}
                     </div>
                   ))}
                   {analysis.deliverablesThisWeek.map((d) => (
-                    <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50">
-                      <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                      <span className="font-medium text-slate-800 truncate flex-1">{d.title}</span>
+                    <div key={d.id} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-blue-100 bg-blue-50/50 dark:border-blue-800/50 dark:bg-blue-500/10">
+                      <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate flex-1">{d.title}</span>
                       <span className="text-[10px] text-muted-foreground truncate max-w-[120px] shrink-0">{d.msTitle}</span>
                     </div>
                   ))}
@@ -1677,9 +1677,9 @@ export default function TeamMemberPage({
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Yesterday */}
-          <Card className="border-slate-200">
+          <Card className="border-slate-200 dark:border-slate-700">
             <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-600 dark:text-slate-400">
                 <Sunset className="h-4 w-4" />
                 Yesterday
               </CardTitle>
@@ -1690,9 +1690,9 @@ export default function TeamMemberPage({
           </Card>
 
           {/* Today */}
-          <Card className="border-blue-200 bg-blue-50/30">
+          <Card className="border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-500/10">
             <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-600">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-600 dark:text-blue-400">
                 <Sun className="h-4 w-4" />
                 Today
               </CardTitle>
@@ -1703,9 +1703,9 @@ export default function TeamMemberPage({
           </Card>
 
           {/* Tomorrow */}
-          <Card className="border-slate-200">
+          <Card className="border-slate-200 dark:border-slate-700">
             <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-600 dark:text-slate-400">
                 <Sunrise className="h-4 w-4" />
                 Tomorrow
               </CardTitle>
@@ -1757,7 +1757,7 @@ export default function TeamMemberPage({
                         {project.title}
                       </CardTitle>
                     </Link>
-                    <Badge variant="outline" className={project.status === "active" ? "text-emerald-700 border-emerald-200 bg-emerald-50" : "text-slate-700 border-slate-200 bg-slate-50"}>
+                    <Badge variant="outline" className={project.status === "active" ? "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-800 dark:bg-emerald-500/10" : "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800"}>
                       {project.status}
                     </Badge>
                   </div>
@@ -1792,13 +1792,13 @@ export default function TeamMemberPage({
                       const plannedHrs = task.revised_estimate_hours ?? task.estimated_hours ?? 0;
 
                       return (
-                        <div key={task.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-3">
+                        <div key={task.id} className="p-3 rounded-lg border border-slate-200 bg-white space-y-3 dark:border-slate-700 dark:bg-slate-800">
                           {/* Task header */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-2 flex-wrap min-w-0">
                               <Link
                                 href={`/projects/${project.id}?tab=tasks&task=${task.id}`}
-                                className="font-medium text-sm text-slate-800 hover:text-blue-600 hover:underline"
+                                className="font-medium text-sm text-slate-800 hover:text-blue-600 hover:underline dark:text-slate-200 dark:hover:text-blue-400"
                               >
                                 {task.title}
                               </Link>
@@ -1808,9 +1808,9 @@ export default function TeamMemberPage({
                               </Badge>
                             </div>
                             <Badge variant="outline" className={
-                              task.priority === "high" ? "text-red-700 border-red-200 bg-red-50" :
-                              task.priority === "medium" ? "text-amber-700 border-amber-200 bg-amber-50" :
-                              "text-slate-700 border-slate-200 bg-slate-50"
+                              task.priority === "high" ? "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10" :
+                              task.priority === "medium" ? "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10" :
+                              "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800"
                             }>
                               {task.priority}
                             </Badge>
@@ -1829,12 +1829,12 @@ export default function TeamMemberPage({
                               </span>
                             )}
                             {totalSteps > 0 && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
                                 <ListChecks className="h-3 w-3" /> {completedSteps}/{totalSteps} steps
                               </span>
                             )}
                             {attachmentCount > 0 && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 font-medium dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
                                 <Paperclip className="h-3 w-3" /> {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
                               </span>
                             )}
@@ -1843,7 +1843,7 @@ export default function TeamMemberPage({
                               {task.revised_estimate_hours ? (
                                 <span>
                                   {fmtHrs(estHrs)} / <span className="line-through">{task.estimated_hours}h</span>{" "}
-                                  <span className="font-medium text-slate-700">{task.revised_estimate_hours}h</span>
+                                  <span className="font-medium text-slate-700 dark:text-slate-300">{task.revised_estimate_hours}h</span>
                                 </span>
                               ) : (
                                 <span>{fmtHrs(estHrs)} / {fmtHrs(plannedHrs)}</span>
@@ -1911,7 +1911,7 @@ export default function TeamMemberPage({
                             {ext.status.replace(/_/g, " ")}
                           </Badge>
                           {ext.escalation_level > 0 && (
-                            <Badge variant="outline" className="text-red-700 border-red-200 bg-red-50">
+                            <Badge variant="outline" className="text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-800 dark:bg-red-500/10">
                               Escalation #{ext.escalation_level}
                             </Badge>
                           )}
@@ -1922,7 +1922,7 @@ export default function TeamMemberPage({
                           </Link>
                         )}
                       </div>
-                      <Badge variant="outline" className="text-slate-700 border-slate-200 bg-slate-50 text-xs whitespace-nowrap">
+                      <Badge variant="outline" className="text-slate-700 border-slate-200 bg-slate-50 text-xs whitespace-nowrap dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800">
                         {ext.reason.replace(/_/g, " ")}
                       </Badge>
                     </div>
@@ -1933,31 +1933,31 @@ export default function TeamMemberPage({
                       {ext.original_deadline && (
                         <>
                           <span>
-                            Original: <span className="font-medium text-slate-700">{format(new Date(ext.original_deadline), "MMM d, yyyy")}</span>
+                            Original: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(ext.original_deadline), "MMM d, yyyy")}</span>
                           </span>
                           <ArrowRight className="h-3 w-3" />
                         </>
                       )}
                       <span>
-                        Requested: <span className="font-medium text-slate-700">{format(new Date(ext.requested_deadline), "MMM d, yyyy")}</span>
+                        Requested: <span className="font-medium text-slate-700 dark:text-slate-300">{format(new Date(ext.requested_deadline), "MMM d, yyyy")}</span>
                       </span>
                     </div>
 
                     {ext.impact && (
-                      <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-200">
+                      <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-200 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-800">
                         Impact: {ext.impact}
                       </p>
                     )}
 
                     {ext.ceo_comment && (
-                      <div className="text-xs p-2 rounded bg-slate-50 border border-slate-200">
-                        <span className="font-medium text-slate-600">CEO Response: </span>
-                        <span className="text-slate-700">{ext.ceo_comment}</span>
+                      <div className="text-xs p-2 rounded bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">CEO Response: </span>
+                        <span className="text-slate-700 dark:text-slate-300">{ext.ceo_comment}</span>
                       </div>
                     )}
 
                     {ext.action_taken && (
-                      <Badge variant="outline" className="text-indigo-700 border-indigo-200 bg-indigo-50 text-xs">
+                      <Badge variant="outline" className="text-indigo-700 border-indigo-200 bg-indigo-50 text-xs dark:text-indigo-300 dark:border-indigo-800 dark:bg-indigo-500/10">
                         Action: {ext.action_taken.replace(/_/g, " ")}
                       </Badge>
                     )}
@@ -1979,7 +1979,7 @@ export default function TeamMemberPage({
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+            className="gap-1.5 text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-500/10"
             onClick={() => setShowLeaveAnalytics((v) => !v)}
           >
             <Eye className="h-4 w-4" />
@@ -2027,9 +2027,9 @@ export default function TeamMemberPage({
                   <p className="text-sm text-muted-foreground">{leave.reason}</p>
 
                   {leave.coverage_plan && (
-                    <div className="text-xs p-2 rounded bg-slate-50 border border-slate-200">
-                      <span className="font-medium text-slate-600">Coverage: </span>
-                      <span className="text-slate-700">{leave.coverage_plan}</span>
+                    <div className="text-xs p-2 rounded bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+                      <span className="font-medium text-slate-600 dark:text-slate-400">Coverage: </span>
+                      <span className="text-slate-700 dark:text-slate-300">{leave.coverage_plan}</span>
                     </div>
                   )}
                 </CardContent>
@@ -2066,7 +2066,7 @@ export default function TeamMemberPage({
                         <Badge variant="outline" className={typeBadgeColors[update.type] || ""}>
                           {update.type.replace(/_/g, " ")}
                         </Badge>
-                        <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">
+                        <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:bg-amber-500/10">
                           <Clock className="h-3 w-3 mr-1" />
                           Pending
                         </Badge>
@@ -2103,12 +2103,12 @@ export default function TeamMemberPage({
           <BarChart3 className="h-5 w-5 text-indigo-600" />
           Performance Profile
         </h2>
-        <Card className="border-indigo-200">
+        <Card className="border-indigo-200 dark:border-indigo-800">
           <CardContent className="py-5 px-5 space-y-5">
 
             {/* 1. Deadline Adherence */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Deadline Adherence</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Deadline Adherence</p>
               <div className="space-y-1 text-sm">
                 <p>
                   On-time completions:{" "}
@@ -2140,7 +2140,7 @@ export default function TeamMemberPage({
 
             {/* 2. Extension History */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Extension History</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Extension History</p>
               <div className="space-y-1 text-sm">
                 <p>
                   Deadline extensions requested:{" "}
@@ -2169,7 +2169,7 @@ export default function TeamMemberPage({
 
             {/* 3. Submission Record */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Submission Record</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Submission Record</p>
               <div className="space-y-1 text-sm">
                 <p>Total submissions: <span className="font-semibold">{performanceProfile.totalSubmissions}</span></p>
                 <p>
@@ -2187,11 +2187,11 @@ export default function TeamMemberPage({
 
             {/* 4. Monthly Scorecard — Last 3 Months */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Monthly Scorecard — Last 3 Months</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Monthly Scorecard — Last 3 Months</p>
               <div className="overflow-x-auto">
                 <table className="text-sm w-full">
                   <thead>
-                    <tr className="text-xs text-gray-500">
+                    <tr className="text-xs text-gray-500 dark:text-slate-400">
                       <th className="text-left pr-6 py-1 font-medium"></th>
                       {performanceProfile.scorecard.map((m) => (
                         <th key={m.label} className="text-center px-4 py-1 font-semibold">{m.label}</th>
@@ -2232,7 +2232,7 @@ export default function TeamMemberPage({
 
             {/* 5. Commitment Summary */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Commitment Summary</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Commitment Summary</p>
               <div className="space-y-1 text-sm">
                 <p>
                   Active tasks: <span className="font-semibold">{performanceProfile.activeTasks}</span>
@@ -2261,7 +2261,7 @@ export default function TeamMemberPage({
 
             {/* 6. Organizational Contributions */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Organizational Contributions</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Organizational Contributions</p>
               <div className="space-y-1 text-sm">
                 <p>
                   Projects: <span className="font-semibold">{performanceProfile.activeProjectCount} active</span>, {performanceProfile.totalProjects} total
@@ -2294,21 +2294,21 @@ export default function TeamMemberPage({
             <Brain className="h-5 w-5 text-purple-600" />
             AI Performance Insight
           </h2>
-          <Card className="border-purple-200 bg-purple-50/30">
+          <Card className="border-purple-200 bg-purple-50/30 dark:border-purple-800 dark:bg-purple-500/10">
             <CardContent className="py-5 px-5 space-y-3">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-purple-50 border border-purple-200">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-purple-50 border border-purple-200 dark:bg-purple-500/10 dark:border-purple-800">
+                  <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="flex-1 space-y-3">
-                  <p className="text-sm text-slate-700 leading-relaxed">{aiInsight.summary}</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{aiInsight.summary}</p>
 
                   <div className="space-y-1.5">
-                    <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Key Highlights</p>
+                    <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">Key Highlights</p>
                     {aiInsight.highlights.map((h, i) => (
                       <div key={i} className="flex items-start gap-2">
-                        <TrendingUp className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
-                        <span className="text-sm text-slate-700">{h}</span>
+                        <TrendingUp className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
+                        <span className="text-sm text-slate-700 dark:text-slate-300">{h}</span>
                       </div>
                     ))}
                   </div>
@@ -2316,10 +2316,10 @@ export default function TeamMemberPage({
                   <Separator />
 
                   <div className="flex items-start gap-2">
-                    <Shield className="h-3.5 w-3.5 text-purple-600 mt-0.5 shrink-0" />
+                    <Shield className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
                     <div>
-                      <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Recommendation</span>
-                      <p className="text-sm text-slate-700 mt-0.5">{aiInsight.recommendation}</p>
+                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">Recommendation</span>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5">{aiInsight.recommendation}</p>
                     </div>
                   </div>
                 </div>

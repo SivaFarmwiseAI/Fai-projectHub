@@ -657,6 +657,8 @@ export interface Task {
   order_index: number;
   created_at: string;
   completed_at?: string;
+  /** Present when the task was fetched via a query scoped by assignee (e.g. "my tasks") — the backend joins it in directly since the caller may not have list-level access to the project itself. */
+  project_title?: string;
 }
 
 export interface TaskStep {

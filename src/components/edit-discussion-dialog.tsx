@@ -147,12 +147,12 @@ export function EditDiscussionDialog({ open, onOpenChange, discussion, onSaved }
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={isResolved}
               onChange={e => setIsResolved(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
             />
             Mark as resolved
           </label>

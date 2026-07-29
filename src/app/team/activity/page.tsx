@@ -305,7 +305,7 @@ export default function TeamActivityPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Link href="/team" className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-blue-600 transition-colors mb-2">
+          <Link href="/team" className="inline-flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-2">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Team
           </Link>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -323,7 +323,7 @@ export default function TeamActivityPage() {
         <CardContent className="p-4 space-y-3">
           {/* Date presets */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
               <Filter className="h-3.5 w-3.5" /> Date
             </div>
             {([
@@ -337,7 +337,7 @@ export default function TeamActivityPage() {
                 key={p.id}
                 onClick={() => setPreset(p.id)}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                  preset === p.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  preset === p.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 }`}
               >
                 {p.label}
@@ -349,14 +349,14 @@ export default function TeamActivityPage() {
                   type="date"
                   value={customFrom}
                   onChange={e => setCustomFrom(e.target.value)}
-                  className="text-xs border rounded px-2 py-1"
+                  className="text-xs border rounded px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
                 />
-                <span className="text-xs text-slate-400">to</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">to</span>
                 <input
                   type="date"
                   value={customTo}
                   onChange={e => setCustomTo(e.target.value)}
-                  className="text-xs border rounded px-2 py-1"
+                  className="text-xs border rounded px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
                 />
               </div>
             )}
@@ -364,7 +364,7 @@ export default function TeamActivityPage() {
 
           {/* Kind filter */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
               <ListChecks className="h-3.5 w-3.5" /> Type
             </div>
             {([
@@ -381,7 +381,7 @@ export default function TeamActivityPage() {
                   key={k.id}
                   onClick={() => toggleKind(k.id)}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border ${
-                    active ? "text-white border-transparent" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    active ? "text-white border-transparent" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800/60"
                   }`}
                   style={active ? { backgroundColor: k.color } : {}}
                 >
@@ -390,7 +390,7 @@ export default function TeamActivityPage() {
               );
             })}
             {selectedKinds.length > 0 && (
-              <button onClick={() => setSelectedKinds([])} className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1">
+              <button onClick={() => setSelectedKinds([])} className="text-[10px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 underline ml-1">
                 clear
               </button>
             )}
@@ -398,25 +398,25 @@ export default function TeamActivityPage() {
 
           {/* User filter */}
           <div className="flex items-center gap-2 flex-wrap relative">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
               <Users className="h-3.5 w-3.5" /> Members
             </div>
             <button
               onClick={() => setUserMenuOpen(o => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {selectedUserIds.length === 0 ? "All members" : `${selectedUserIds.length} selected`}
               <ChevronDown className="h-3 w-3" />
             </button>
             {selectedUserIds.length > 0 && (
-              <button onClick={() => setSelectedUserIds([])} className="text-[10px] text-slate-400 hover:text-slate-600 underline">
+              <button onClick={() => setSelectedUserIds([])} className="text-[10px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 underline">
                 clear
               </button>
             )}
             {userMenuOpen && (
-              <div className="absolute top-full left-32 mt-1 z-20 bg-white border rounded-xl shadow-lg p-2 max-h-72 overflow-y-auto w-64">
+              <div className="absolute top-full left-32 mt-1 z-20 bg-white border rounded-xl shadow-lg p-2 max-h-72 overflow-y-auto w-64 dark:bg-slate-800 dark:border-slate-700">
                 {users.map(u => (
-                  <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                  <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/60 rounded cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedUserIds.includes(u.id)}
@@ -449,13 +449,13 @@ export default function TeamActivityPage() {
       {/* ── Per-Member Summary ── */}
       <Card>
         <CardContent className="p-0">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-900">Per-member summary</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Activity per member in the selected period</p>
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Per-member summary</h3>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Activity per member in the selected period</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
                 <tr>
                   <th className="text-left px-4 py-2 font-bold">Member</th>
                   <th className="text-center px-3 py-2 font-bold">Completed</th>
@@ -468,7 +468,7 @@ export default function TeamActivityPage() {
               </thead>
               <tbody>
                 {perUserSummary.map(({ user, completed, overdue, updates, submissions, standups }) => (
-                  <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                  <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/60">
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <div
@@ -478,25 +478,25 @@ export default function TeamActivityPage() {
                           {user.name?.[0] ?? "?"}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-slate-900 truncate text-xs">{user.name}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{user.department || user.role}</p>
+                          <p className="font-semibold text-slate-900 dark:text-slate-100 truncate text-xs">{user.name}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{user.department || user.role}</p>
                         </div>
                       </div>
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      <span className="text-sm font-bold text-emerald-600">{completed}</span>
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{completed}</span>
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      <span className={`text-sm font-bold ${overdue > 0 ? "text-red-600" : "text-slate-300"}`}>{overdue}</span>
+                      <span className={`text-sm font-bold ${overdue > 0 ? "text-red-600 dark:text-red-400" : "text-slate-300 dark:text-slate-600"}`}>{overdue}</span>
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      <span className="text-sm font-bold text-blue-600">{updates}</span>
+                      <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{updates}</span>
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      <span className="text-sm font-bold text-purple-600">{submissions}</span>
+                      <span className="text-sm font-bold text-purple-600 dark:text-purple-400">{submissions}</span>
                     </td>
                     <td className="text-center px-3 py-2.5">
-                      <span className="text-sm font-bold text-amber-600">{standups}</span>
+                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{standups}</span>
                     </td>
                     <td className="text-right px-4 py-2.5">
                       <Link href={`/team/${user.id}`} className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1">
@@ -514,23 +514,23 @@ export default function TeamActivityPage() {
       {/* ── Feed ── */}
       <Card>
         <CardContent className="p-0">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Activity feed</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">{feed.length} event{feed.length !== 1 ? "s" : ""} in this view</p>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Activity feed</h3>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{feed.length} event{feed.length !== 1 ? "s" : ""} in this view</p>
             </div>
           </div>
           {feed.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-slate-400">
+            <div className="px-4 py-12 text-center text-sm text-slate-400 dark:text-slate-500">
               No activity matches the current filters.
             </div>
           ) : (
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-50 dark:divide-slate-800">
               {feed.slice(0, 200).map(item => (
                 <FeedRow key={item.id} item={item} />
               ))}
               {feed.length > 200 && (
-                <div className="px-4 py-3 text-center text-xs text-slate-400">
+                <div className="px-4 py-3 text-center text-xs text-slate-400 dark:text-slate-500">
                   Showing 200 of {feed.length} events — narrow the filters to see more.
                 </div>
               )}
@@ -554,8 +554,8 @@ function SummaryCard({
           {icon}
         </div>
         <div className="min-w-0">
-          <p className="text-2xl font-bold text-slate-900 leading-none">{value}</p>
-          <p className="text-xs font-semibold text-slate-500 mt-1">{label}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-none">{value}</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">{label}</p>
         </div>
       </div>
     </Card>
@@ -578,7 +578,7 @@ function FeedRow({ item }: { item: FeedItem }) {
   })();
 
   return (
-    <div className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50/60 transition-colors">
+    <div className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/60 transition-colors">
       <div
         className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
         style={{ background: cfg.bg, color: cfg.color }}
@@ -593,7 +593,7 @@ function FeedRow({ item }: { item: FeedItem }) {
           >
             {item.userName[0]}
           </div>
-          <span className="text-xs font-semibold text-slate-900">{item.userName}</span>
+          <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">{item.userName}</span>
           {item.projectTitle && item.projectId && (
             <Link
               href={`/projects/${item.projectId}`}
@@ -602,11 +602,11 @@ function FeedRow({ item }: { item: FeedItem }) {
               {item.projectTitle}
             </Link>
           )}
-          <span className="text-[10px] text-slate-400 ml-auto">{when}</span>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">{when}</span>
         </div>
-        <p className="text-sm text-slate-700 mt-1 truncate">{item.title}</p>
+        <p className="text-sm text-slate-700 dark:text-slate-300 mt-1 truncate">{item.title}</p>
         {item.subtitle && (
-          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{item.subtitle}</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{item.subtitle}</p>
         )}
       </div>
     </div>

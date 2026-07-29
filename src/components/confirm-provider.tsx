@@ -54,9 +54,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const Icon = isDanger ? Trash2 : isWarning ? AlertTriangle : null;
   const iconWrap =
     isDanger
-      ? "bg-red-50 text-red-600 ring-1 ring-red-100"
+      ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 ring-1 ring-red-100 dark:ring-red-500/20"
       : isWarning
-      ? "bg-amber-50 text-amber-600 ring-1 ring-amber-100"
+      ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-100 dark:ring-amber-500/20"
       : "";
 
   return (

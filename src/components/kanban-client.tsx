@@ -184,11 +184,15 @@ function TaskCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
       onDragStart={e => { e.dataTransfer.setData("id", task.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       onClick={() => onOpen(task.id)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(task.id); } }}
       className={cn(
         "bg-white rounded-xl border shadow-card p-3 group cursor-pointer relative transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1",
         dragging ? "opacity-40 scale-95" : "hover:-translate-y-0.5 hover:shadow-card-hover"
       )}
     >
@@ -325,11 +329,15 @@ function MilestoneCard({
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
       onDragStart={e => { e.dataTransfer.setData("id", ms.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       onClick={() => onOpen(ms._taskId)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(ms._taskId); } }}
       className={cn(
         "bg-white rounded-xl border shadow-card p-3 relative cursor-pointer transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1",
         dragging ? "opacity-40 scale-95" : "hover:-translate-y-0.5 hover:shadow-card-hover"
       )}
     >

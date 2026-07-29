@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 
 type Theme = "light" | "dark";
-const KEY = "ph_theme";
+// v2: bumped so any previously-saved preference (e.g. from testing) is
+// dropped and everyone lands back on the light default once, cleanly.
+const KEY = "ph_theme_v2";
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("light");

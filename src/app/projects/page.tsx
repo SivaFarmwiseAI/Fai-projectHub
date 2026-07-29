@@ -44,19 +44,19 @@ const priorityDotColors: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  engineering: "text-blue-700 border-blue-200 bg-blue-50",
-  research: "text-purple-700 border-purple-200 bg-purple-50",
-  mixed: "text-teal-700 border-teal-200 bg-teal-50",
-  data_science: "text-violet-700 border-violet-200 bg-violet-50",
-  design: "text-pink-700 border-pink-200 bg-pink-50",
-  sales: "text-orange-700 border-orange-200 bg-orange-50",
-  marketing: "text-rose-700 border-rose-200 bg-rose-50",
-  operations: "text-slate-700 border-slate-200 bg-slate-50",
-  hr: "text-cyan-700 border-cyan-200 bg-cyan-50",
-  legal: "text-gray-700 border-gray-200 bg-gray-50",
-  strategy: "text-indigo-700 border-indigo-200 bg-indigo-50",
-  product: "text-emerald-700 border-emerald-200 bg-emerald-50",
-  finance: "text-amber-700 border-amber-200 bg-amber-50",
+  engineering: "text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-500/10",
+  research: "text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-500/10",
+  mixed: "text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-500/10",
+  data_science: "text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-500/10",
+  design: "text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-500/10",
+  sales: "text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-500/10",
+  marketing: "text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-500/10",
+  operations: "text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800",
+  hr: "text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-500/10",
+  legal: "text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800",
+  strategy: "text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-500/10",
+  product: "text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-500/10",
+  finance: "text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-500/10",
 };
 
 const typeLabels: Record<string, string> = {
@@ -76,10 +76,10 @@ const typeLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  active: "text-emerald-700 border-emerald-200 bg-emerald-50",
-  completed: "text-green-700 border-green-200 bg-green-50",
-  killed: "text-red-700 border-red-200 bg-red-50",
-  paused: "text-amber-700 border-amber-200 bg-amber-50",
+  active: "text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-500/10",
+  completed: "text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-500/10",
+  killed: "text-red-700 dark:text-red-300 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-500/10",
+  paused: "text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-500/10",
 };
 
 export default function ProjectsPage() {
@@ -274,7 +274,7 @@ export default function ProjectsPage() {
 
           return (
             <Link key={project.id} href={`/projects/${project.id}`}>
-              <Card className="hover:bg-gray-100 transition-colors cursor-pointer group">
+              <Card className="hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
                 <CardContent className="py-4">
                   <div className="flex items-center gap-4">
                     {/* Priority dot */}
@@ -291,7 +291,7 @@ export default function ProjectsPage() {
                         </h3>
                         <Badge
                           variant="outline"
-                          className={typeColors[project.type] || "text-gray-700 border-gray-200 bg-gray-50"}
+                          className={typeColors[project.type] || "text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800"}
                         >
                           {typeLabels[project.type] || project.type}
                         </Badge>
@@ -313,7 +313,7 @@ export default function ProjectsPage() {
                             >
                               {project.owner_name[0]}
                             </div>
-                            <span className="text-xs font-medium text-gray-700">{project.owner_name}</span>
+                            <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{project.owner_name}</span>
                           </div>
                         )}
                         {project.co_owners && project.co_owners.length > 0 && (
@@ -327,7 +327,7 @@ export default function ProjectsPage() {
                                 >
                                   {co.name[0]}
                                 </div>
-                                <span className="text-xs font-medium text-gray-700">{co.name}</span>
+                                <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{co.name}</span>
                               </div>
                             ))}
                           </>

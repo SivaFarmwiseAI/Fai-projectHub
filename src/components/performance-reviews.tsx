@@ -37,7 +37,7 @@ const isManagerKind = (k?: string | null) => k === "manager";
 function KindChip({ kind }: { kind?: string | null }) {
   if (!isManagerKind(kind)) return null;
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
       <Crown className="h-3 w-3" /> Manager
     </span>
   );
@@ -83,7 +83,7 @@ export function PerformanceReviews() {
       <section>
         <div className="flex items-center gap-2 mb-3">
           <Inbox className="h-4 w-4 text-blue-500" />
-          <h3 className="text-sm font-bold text-slate-900">Reviews to complete</h3>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Reviews to complete</h3>
           {pending.length > 0 && (
             <span className="flex items-center justify-center h-6 min-w-[24px] rounded-full bg-amber-500 text-xs font-bold text-white px-1.5">{pending.length}</span>
           )}
@@ -93,14 +93,14 @@ export function PerformanceReviews() {
         ) : (
           <div className="space-y-3">
             {pending.map((r) => (
-              <div key={r.id} className="bg-white rounded-2xl border p-4 shadow-card flex items-center gap-3 animate-fade-in-up" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+              <div key={r.id} className="bg-white dark:bg-slate-800 rounded-2xl border p-4 shadow-card flex items-center gap-3 animate-fade-in-up">
                 <Avatar name={r.subject_name} color={r.subject_color} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{r.subject_name}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{r.subject_name}</p>
                     <KindChip kind={r.kind} />
                   </div>
-                  <p className="text-[13px] text-slate-400 font-medium truncate">
+                  <p className="text-[13px] text-slate-400 dark:text-slate-500 font-medium truncate">
                     {isManagerKind(r.kind) ? "Reports to you" : r.subject_role || "—"}
                     {!isManagerKind(r.kind) && r.subject_department ? ` · ${r.subject_department}` : ""}
                     {r.cycle_name ? ` · ${r.cycle_name}` : ""}
@@ -122,22 +122,22 @@ export function PerformanceReviews() {
         <section>
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <h3 className="text-sm font-bold text-slate-900">Completed</h3>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Completed</h3>
           </div>
           <div className="space-y-2">
             {done.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+              <div key={r.id} className="bg-white dark:bg-slate-800 rounded-xl border px-4 py-3 flex items-center gap-3">
                 <Avatar name={r.subject_name} color={r.subject_color} small />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-[13px] font-semibold text-slate-800 truncate">{r.subject_name}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">{r.subject_name}</p>
                     <KindChip kind={r.kind} />
                   </div>
-                  <p className="text-[12px] text-slate-400">Submitted {fmtDate(r.submitted_at || r.created_at)}</p>
+                  <p className="text-[12px] text-slate-400 dark:text-slate-500">Submitted {fmtDate(r.submitted_at || r.created_at)}</p>
                 </div>
                 {r.rating_band && <Band band={r.rating_band} />}
-                <span className="stat-number text-sm font-bold text-slate-700 w-10 text-right">{fmtScore(r.total_score)}</span>
-                <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100"
+                <span className="stat-number text-sm font-bold text-slate-700 dark:text-slate-300 w-10 text-right">{fmtScore(r.total_score)}</span>
+                <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 dark:text-slate-500 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700"
                   title="Submitted reviews are final and can no longer be edited">
                   <Lock className="h-3 w-3" /> Final
                 </span>
@@ -152,21 +152,21 @@ export function PerformanceReviews() {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <ShieldCheck className="h-5 w-5 text-indigo-500" />
-            <h3 className="text-base font-bold text-slate-900">Reviews about you</h3>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Reviews about you</h3>
           </div>
           <div className="space-y-3">
             {received.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl border px-5 py-4 flex items-center gap-4" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+              <div key={r.id} className="bg-white dark:bg-slate-800 rounded-xl border px-5 py-4 flex items-center gap-4">
                 <Avatar name={r.author_name} color={r.author_color} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-base font-semibold text-slate-800 truncate">{r.author_name || (isManagerKind(r.kind) ? "Your manager" : "Peer reviewer")}</p>
+                    <p className="text-base font-semibold text-slate-800 dark:text-slate-200 truncate">{r.author_name || (isManagerKind(r.kind) ? "Your manager" : "Peer reviewer")}</p>
                     <KindChip kind={r.kind} />
                   </div>
-                  <p className="text-[13px] text-slate-400">{r.status === "submitted" ? `Submitted ${fmtDate(r.submitted_at || r.created_at)}` : "Pending"}</p>
+                  <p className="text-[13px] text-slate-400 dark:text-slate-500">{r.status === "submitted" ? `Submitted ${fmtDate(r.submitted_at || r.created_at)}` : "Pending"}</p>
                 </div>
                 {r.status === "submitted" ? (r.rating_band && <Band band={r.rating_band} />) : (
-                  <span className="text-sm font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full">Awaiting</span>
+                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 px-3.5 py-1.5 rounded-full">Awaiting</span>
                 )}
               </div>
             ))}
@@ -198,15 +198,15 @@ function SubmitConfirmDialog({ label, onCancel, onConfirm }: { label: string; on
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onCancel}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-extrabold text-slate-900">Submit {label}?</h3>
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-          Once submitted, <strong className="text-slate-700">you cannot edit or make any changes</strong> to this review.
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Submit {label}?</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+          Once submitted, <strong className="text-slate-700 dark:text-slate-300">you cannot edit or make any changes</strong> to this review.
         </p>
-        <p className="text-[13px] text-slate-400 mt-1.5">Are you sure you want to submit?</p>
+        <p className="text-[13px] text-slate-400 dark:text-slate-500 mt-1.5">Are you sure you want to submit?</p>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button onClick={onCancel}
-            className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">
+            className="rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700">
             Go back &amp; review
           </button>
           <button onClick={onConfirm}
@@ -260,39 +260,39 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
   return (
     <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <Avatar name={assignment.subject_name} color={assignment.subject_color} />
               <div className="min-w-0">
-                <h2 className="text-base font-extrabold text-slate-900 truncate">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100 truncate">
                   Peer review · {assignment.subject_name}
                 </h2>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                   {assignment.subject_role || ""}
                   {assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shrink-0">
               <X className="h-4.5 w-4.5" />
             </button>
           </div>
           {/* Progress */}
           <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-300"
                 style={{ width: `${(doneCount / PEER_QUESTIONS.length) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
             </div>
-            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600" : "text-slate-400")}>
+            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500")}>
               {doneCount}/{PEER_QUESTIONS.length} answered
             </span>
           </div>
         </div>
 
         <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
-          <p className="text-[12px] text-slate-500 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2">
+          <p className="text-[12px] text-slate-500 dark:text-slate-400 bg-blue-50/60 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-lg px-3 py-2">
             All questions are required. Be honest, specific and constructive — your answers are shared with the reporting manager.
           </p>
 
@@ -300,15 +300,15 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
             const done = isDone(q);
             return (
               <div key={q.key}
-                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-white")}>
+                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-500/10" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900")}>
                 <div className="flex items-start gap-3 mb-2.5">
                   <span className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold text-white shrink-0 mt-0.5",
                     done ? "bg-emerald-500" : "btn-gradient")}>
                     {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{q.short}</p>
-                    <p className="text-[13px] font-semibold text-slate-800 leading-snug">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{q.short}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 leading-snug">
                       {q.question} <span className="text-red-500">*</span>
                     </p>
                   </div>
@@ -318,26 +318,26 @@ function PeerReviewForm({ assignment, initial, onClose, onDone }: { assignment: 
 
                 <textarea value={answers[q.key] ?? ""} onChange={(e) => setAnswers((p) => ({ ...p, [q.key]: e.target.value }))}
                   placeholder={q.placeholder} rows={3} required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm resize-y bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400 dark:focus:border-blue-500/50 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/20" />
               </div>
             );
           })}
 
           {overall != null && (
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-              <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
-              <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 px-4 py-3">
+              <span className="stat-number text-2xl font-extrabold text-slate-900 dark:text-slate-100">{overall}</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">overall / 5</span>
               <span className="ml-auto"><Band band={bandForScore(overall)} /></span>
             </div>
           )}
-          {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
+          {error && <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
-          <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
           <button onClick={askSubmit} disabled={!complete || saving}
             className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
-              complete && !saving ? "btn-gradient shadow-glow-blue" : "bg-slate-300 cursor-not-allowed")}>
+              complete && !saving ? "btn-gradient shadow-glow-blue" : "bg-slate-300 dark:bg-slate-700 cursor-not-allowed")}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {saving ? "Submitting…" : "Submit review"}
           </button>
@@ -438,41 +438,41 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
   return (
     <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-indigo-100 bg-gradient-to-b from-indigo-50/60 to-white rounded-t-2xl">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl my-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-indigo-100 dark:border-indigo-500/20 bg-gradient-to-b from-indigo-50/60 to-white dark:from-indigo-500/10 dark:to-slate-800 rounded-t-2xl">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <Avatar name={assignment.subject_name} color={assignment.subject_color} />
               <div className="min-w-0">
-                <h2 className="text-base font-extrabold text-slate-900 truncate flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-slate-100 truncate flex items-center gap-2">
                   Manager review · {assignment.subject_name}
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-500/30 px-2 py-0.5 rounded-full">
                     <Crown className="h-3 w-3" /> Authoritative
                   </span>
                 </h2>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                   Your appraisal as reporting manager{assignment.cycle_name ? ` · ${assignment.cycle_name}` : ""}
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shrink-0">
               <X className="h-4.5 w-4.5" />
             </button>
           </div>
           {/* Progress */}
           <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 h-1.5 bg-indigo-100/70 rounded-full overflow-hidden">
+            <div className="flex-1 h-1.5 bg-indigo-100/70 dark:bg-indigo-500/20 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-300"
                 style={{ width: `${(doneCount / MANAGER_QUESTIONS.length) * 100}%`, background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }} />
             </div>
-            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600" : "text-slate-400")}>
+            <span className={cn("text-[11px] font-bold whitespace-nowrap", complete ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500")}>
               {doneCount}/{MANAGER_QUESTIONS.length} answered
             </span>
           </div>
         </div>
 
         <div className="p-5 max-h-[62vh] overflow-y-auto space-y-4">
-          <p className="text-[12px] text-indigo-900/70 bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2">
+          <p className="text-[12px] text-indigo-900/70 dark:text-indigo-300 bg-indigo-50/60 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-lg px-3 py-2">
             Every question needs a 1–5 rating and a written answer; the Culture &amp; Integrity Gate needs a
             severity call instead. This is the authoritative review — the overall summary is shared with the
             employee during the appraisal discussion.
@@ -482,7 +482,7 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
             const done = isDone(q);
             return (
               <div key={q.key}
-                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 bg-white")}>
+                className={cn("rounded-xl border p-4 transition-colors", done ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-500/10" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900")}>
                 <div className="flex items-start gap-3 mb-2.5">
                   <span className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold text-white shrink-0 mt-0.5",
                     done ? "bg-emerald-500" : "bg-gradient-to-br from-indigo-500 to-violet-500")}>
@@ -490,24 +490,24 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
                   </span>
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-400">{q.short}</p>
-                    <p className="text-[13px] font-semibold text-slate-800 leading-snug">
+                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 leading-snug">
                       {q.question} <span className="text-red-500">*</span>
                     </p>
                   </div>
                 </div>
 
                 {q.grid ? (
-                  <div className="space-y-2 mb-2.5 rounded-lg bg-slate-50/80 border border-slate-100 p-3">
+                  <div className="space-y-2 mb-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 p-3">
                     {MANAGER_PARAMETERS.map((p) => (
                       <div key={p.key} className="flex items-center gap-3">
-                        <span className="flex-1 text-[13px] font-medium text-slate-600">{p.label} <span className="text-red-500">*</span></span>
+                        <span className="flex-1 text-[13px] font-medium text-slate-600 dark:text-slate-400">{p.label} <span className="text-red-500">*</span></span>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map((n) => (
                             <button key={n} type="button" title={PEER_SCALE_LABELS[n - 1]}
                               onClick={() => setParams((prev) => ({ ...prev, [p.key]: n }))}
                               className={cn("h-8 w-8 rounded-lg border text-[13px] font-bold transition-all",
-                                params[p.key] === n ? "border-indigo-500 bg-indigo-50 text-indigo-600 shadow-sm"
-                                  : "border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-500")}>
+                                params[p.key] === n ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 shadow-sm"
+                                  : "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-indigo-300 hover:text-indigo-500")}>
                               {n}
                             </button>
                           ))}
@@ -516,33 +516,33 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
                     ))}
                   </div>
                 ) : q.gate ? (
-                  <div className="space-y-3 mb-2.5 rounded-lg bg-slate-50/80 border border-slate-100 p-3">
+                  <div className="space-y-3 mb-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 p-3">
                     <div className="flex flex-wrap gap-1.5">
                       {GATE_FLAGS.map((flag) => (
                         <button key={flag} type="button" onClick={() => toggleGateFlag(flag)}
                           className={cn("rounded-full border px-3 py-1 text-[12px] font-semibold transition-all",
-                            gateFlags.has(flag) ? "border-red-400 bg-red-50 text-red-600"
-                              : "border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:text-red-500")}>
+                            gateFlags.has(flag) ? "border-red-400 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"
+                              : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-500")}>
                           {flag}
                         </button>
                       ))}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Severity <span className="text-red-500">*</span></span>
-                      <div className="inline-flex rounded-lg border border-slate-200 bg-white overflow-hidden">
+                      <span className="text-[12px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Severity <span className="text-red-500">*</span></span>
+                      <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
                         {GATE_SEVERITIES.map((s) => (
                           <button key={s.key} type="button" onClick={() => setSeverity(s.key)}
                             className={cn("px-3.5 py-1.5 text-[12.5px] font-semibold transition-all",
                               severity === s.key
                                 ? s.key === "none" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
-                                : "text-slate-500 hover:bg-slate-50")}>
+                                : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800")}>
                             {s.label}
                           </button>
                         ))}
                       </div>
                     </div>
                     {severity === "serious" && (
-                      <p className="text-[12px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">
+                      <p className="text-[12px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-800 rounded-lg px-2.5 py-1.5">
                         Serious concern — the overall rating will be capped one band lower.
                       </p>
                     )}
@@ -553,34 +553,34 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
 
                 <textarea value={texts[q.key] ?? ""} onChange={(e) => setTexts((prev) => ({ ...prev, [q.key]: e.target.value }))}
                   placeholder={q.placeholder} rows={3} required={!q.gate || severity !== "none"}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-y bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm resize-y bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20" />
               </div>
             );
           })}
 
           {overall != null && (
-            <div className="rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3">
+            <div className="rounded-xl bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-4 py-3">
               <div className="flex items-center gap-3">
-                <span className="stat-number text-2xl font-extrabold text-slate-900">{overall}</span>
-                <span className="text-[11px] text-slate-400 font-medium">overall / 5</span>
+                <span className="stat-number text-2xl font-extrabold text-slate-900 dark:text-slate-100">{overall}</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">overall / 5</span>
                 <span className="ml-auto"><Band band={finalBand} /></span>
               </div>
               {capped && (
-                <p className="text-[12px] font-semibold text-red-600 mt-2">
+                <p className="text-[12px] font-semibold text-red-600 dark:text-red-400 mt-2">
                   Integrity gate: a serious concern was flagged, so the rating is capped one band lower
                   ({overallBand} → {finalBand}).
                 </p>
               )}
             </div>
           )}
-          {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
+          {error && <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
-          <button onClick={onClose} className="rounded-xl border border-slate-200 text-slate-600 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
           <button onClick={askSubmit} disabled={!complete || saving}
             className={cn("inline-flex items-center gap-1.5 rounded-xl text-white px-4 py-2 text-sm font-semibold",
-              complete && !saving ? "bg-gradient-to-r from-indigo-500 to-violet-500 shadow-lg shadow-indigo-200" : "bg-slate-300 cursor-not-allowed")}>
+              complete && !saving ? "bg-gradient-to-r from-indigo-500 to-violet-500 shadow-lg shadow-indigo-200 dark:shadow-none" : "bg-slate-300 dark:bg-slate-700 cursor-not-allowed")}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {saving ? "Submitting…" : "Submit manager review"}
           </button>
@@ -600,8 +600,8 @@ export function ManagerReviewForm({ assignment, initial, onClose, onDone }: { as
 // ── Bits ──────────────────────────────────────────────────────────────────────
 /** 1–5 selector with the band label under each option. */
 function ScalePicker({ value, onSelect, accent = "blue" }: { value: number | null; onSelect: (n: number) => void; accent?: "blue" | "indigo" }) {
-  const on  = accent === "indigo" ? "border-indigo-500 bg-indigo-50 text-indigo-600 shadow-sm" : "border-blue-500 bg-blue-50 text-blue-600 shadow-sm";
-  const off = accent === "indigo" ? "border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-500" : "border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500";
+  const on  = accent === "indigo" ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 shadow-sm" : "border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 shadow-sm";
+  const off = accent === "indigo" ? "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-indigo-300 hover:text-indigo-500" : "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-blue-300 hover:text-blue-500";
   return (
     <div className="grid grid-cols-5 gap-1.5 mb-2.5">
       {[1, 2, 3, 4, 5].map((n) => (
@@ -637,10 +637,10 @@ function Band({ band }: { band?: string | null }) {
 
 function Empty({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="bg-white rounded-2xl border p-8 shadow-card text-center" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-      <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-3 ring-1 ring-slate-100">{icon}</div>
-      <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-      <p className="text-xs text-slate-500 mt-1">{body}</p>
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border p-8 shadow-card text-center">
+      <div className="h-12 w-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center mx-auto mb-3 ring-1 ring-slate-100 dark:ring-slate-700">{icon}</div>
+      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{body}</p>
     </div>
   );
 }

@@ -31,18 +31,18 @@ function nameColor(name: string): string {
 }
 
 const typeColors: Record<string, string> = {
-  engineering: "text-blue-700 border-blue-200 bg-blue-50",
-  research: "text-purple-700 border-purple-200 bg-purple-50",
-  mixed: "text-teal-700 border-teal-200 bg-teal-50",
-  data_science: "text-violet-700 border-violet-200 bg-violet-50",
-  design: "text-pink-700 border-pink-200 bg-pink-50",
-  product: "text-emerald-700 border-emerald-200 bg-emerald-50",
+  engineering: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-500/30 dark:bg-blue-500/10",
+  research: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-500/30 dark:bg-purple-500/10",
+  mixed: "text-teal-700 border-teal-200 bg-teal-50 dark:text-teal-300 dark:border-teal-500/30 dark:bg-teal-500/10",
+  data_science: "text-violet-700 border-violet-200 bg-violet-50 dark:text-violet-300 dark:border-violet-500/30 dark:bg-violet-500/10",
+  design: "text-pink-700 border-pink-200 bg-pink-50 dark:text-pink-300 dark:border-pink-500/30 dark:bg-pink-500/10",
+  product: "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-500/30 dark:bg-emerald-500/10",
 };
 
 const statusColors: Record<string, string> = {
-  active: "text-emerald-700 border-emerald-200 bg-emerald-50",
-  completed: "text-green-700 border-green-200 bg-green-50",
-  killed: "text-red-700 border-red-200 bg-red-50",
+  active: "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+  completed: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-500/30 dark:bg-green-500/10",
+  killed: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-500/30 dark:bg-red-500/10",
 };
 
 function getGreeting() {
@@ -112,10 +112,10 @@ export function MemberDashboard() {
             {hasTeamView ? (isAdmin ? "Admin View" : "Team Lead View") : "My Workspace"}
           </span>
         </div>
-        <h1 className="text-display text-slate-900">
+        <h1 className="text-display text-slate-900 dark:text-slate-100">
           Good {getGreeting()}, {user?.name?.split(" ")[0]} 👋
         </h1>
-        <p className="text-sm sm:text-base text-slate-500 mt-1.5 font-medium">
+        <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
           {hasTeamView
             ? `Managing ${activeMyProjects.length} active project${activeMyProjects.length !== 1 ? "s" : ""} · ${teamMemberCount} team member${teamMemberCount !== 1 ? "s" : ""}`
             : `${openTasks.length} open task${openTasks.length !== 1 ? "s" : ""} across ${activeMyProjects.length} project${activeMyProjects.length !== 1 ? "s" : ""}`}
@@ -132,21 +132,21 @@ export function MemberDashboard() {
         ].map((s, i) => (
           <div
             key={s.label}
-            className="bg-white rounded-2xl border p-4 sm:p-5 shadow-card card-interactive animate-fade-in-up"
-            style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 70}ms` }}
+            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/60 p-4 sm:p-5 shadow-card card-interactive animate-fade-in-up"
+            style={{ animationDelay: `${i * 70}ms` }}
           >
             <div className="flex items-start justify-between mb-3">
               <div className="h-10 w-10 rounded-xl flex items-center justify-center relative"
                 style={{ backgroundColor: s.bg, color: s.color }}>
                 {s.icon}
-                {s.alert && <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white animate-pulse" />}
+                {s.alert && <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800 animate-pulse" />}
               </div>
             </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 stat-number animate-number-count">{s.value}</p>
-            <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">{s.label}</p>
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5">
+            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 stat-number animate-number-count">{s.value}</p>
+            <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-1.5">
               <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.alert ? "#ef4444" : s.color }} />
-              <span className="text-[11px] font-medium text-slate-400">{s.sub}</span>
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">{s.sub}</span>
             </div>
           </div>
         ))}
@@ -155,20 +155,20 @@ export function MemberDashboard() {
       {/* Standup status */}
       <div className="animate-fade-in-up stagger-1">
         {myTodayStandup ? (
-          <div className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+          <div className="flex items-center gap-3 p-4 rounded-2xl border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10">
             <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-emerald-800">Today's standup posted</p>
-              <p className="text-xs text-emerald-600 mt-0.5 truncate">{myTodayStandup.today}</p>
+              <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Today's standup posted</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">{myTodayStandup.today}</p>
             </div>
-            <Link href="/standup" className="text-xs font-semibold text-emerald-700 hover:underline shrink-0">View →</Link>
+            <Link href="/standup" className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline shrink-0">View →</Link>
           </div>
         ) : (
-          <div className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
+          <div className="flex items-center gap-3 p-4 rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
             <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-amber-800">You haven't posted today's standup</p>
-              <p className="text-xs text-amber-600 mt-0.5">Keep your team in the loop — takes 2 minutes</p>
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">You haven't posted today's standup</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Keep your team in the loop — takes 2 minutes</p>
             </div>
             <Link
               href="/standup"
@@ -185,16 +185,16 @@ export function MemberDashboard() {
       {/* Blocked tasks alert */}
       {blockedTasks.length > 0 && (
         <div className="space-y-2 animate-fade-in-up stagger-2">
-          <p className="text-label-upper text-slate-400 px-1">Needs Attention</p>
+          <p className="text-label-upper text-slate-400 dark:text-slate-500 px-1">Needs Attention</p>
           {blockedTasks.slice(0, 3).map(task => (
             <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
-              <div className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-all group">
-                <div className="h-8 w-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
+              <div className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:hover:bg-red-500/20 transition-all group">
+                <div className="h-8 w-8 rounded-lg bg-red-100 border border-red-200 dark:bg-red-500/15 dark:border-red-500/30 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-red-800 truncate">{task.title}</p>
-                  <p className="text-xs text-red-500 mt-0.5">{projectMap[task.project_id] ?? "Unknown project"}</p>
+                  <p className="text-sm font-bold text-red-800 dark:text-red-300 truncate">{task.title}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400/80 mt-0.5">{task.project_title ?? projectMap[task.project_id] ?? "Unknown project"}</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-red-400 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
@@ -207,18 +207,18 @@ export function MemberDashboard() {
       <div className="animate-fade-in-up stagger-2">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-section-title text-slate-900">My Projects</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{myProjects.length} total</p>
+            <h2 className="text-section-title text-slate-900 dark:text-slate-100">My Projects</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{myProjects.length} total</p>
           </div>
-          <Link href="/projects" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors group">
+          <Link href="/projects" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group">
             All projects <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
 
         {myProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
-            <FolderKanban className="h-10 w-10 text-slate-300 mb-3" />
-            <p className="text-slate-500 font-semibold">No projects assigned yet</p>
+          <div className="flex flex-col items-center justify-center py-16 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+            <FolderKanban className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-slate-500 dark:text-slate-400 font-semibold">No projects assigned yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -232,18 +232,18 @@ export function MemberDashboard() {
               return (
                 <Link key={project.id} href={`/projects/${project.id}`}>
                   <div
-                    className="card-interactive rounded-2xl border bg-white p-4 sm:p-5 shadow-card cursor-pointer group h-full flex flex-col"
-                    style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 40}ms` }}
+                    className="card-interactive rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800 p-4 sm:p-5 shadow-card cursor-pointer group h-full flex flex-col"
+                    style={{ animationDelay: `${i * 40}ms` }}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0 pr-2">
-                        <h3 className="font-bold text-sm sm:text-[15px] text-slate-900 leading-snug truncate group-hover:text-blue-600 transition-colors">
+                        <h3 className="font-bold text-sm sm:text-[15px] text-slate-900 dark:text-slate-100 leading-snug truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {project.title}
                         </h3>
-                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-1 font-medium">{project.objective}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 font-medium">{project.objective}</p>
                       </div>
                       {isOverdue && (
-                        <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full shrink-0">
+                        <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-500/10 dark:border-red-500/30 px-1.5 py-0.5 rounded-full shrink-0">
                           OVERDUE
                         </span>
                       )}
@@ -259,11 +259,11 @@ export function MemberDashboard() {
                     </div>
 
                     <div className="space-y-1.5 mb-3 mt-auto">
-                      <div className="flex justify-between text-[11px] font-medium text-slate-400">
+                      <div className="flex justify-between text-[11px] font-medium text-slate-400 dark:text-slate-500">
                         <span className="truncate max-w-[120px]">{project.current_phase || "Not started"}</span>
-                        <span className="font-bold text-slate-600">{progress}%</span>
+                        <span className="font-bold text-slate-600 dark:text-slate-300">{progress}%</span>
                       </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all duration-700 progress-animate"
                           style={{
                             width: `${progress}%`,
@@ -275,11 +275,11 @@ export function MemberDashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium mt-auto">
+                    <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-auto">
                       <Clock className="h-3 w-3" />
                       {project.status === "active"
                         ? isOverdue
-                          ? <span className="text-red-500 font-bold">{Math.abs(daysLeft)}d overdue</span>
+                          ? <span className="text-red-500 dark:text-red-400 font-bold">{Math.abs(daysLeft)}d overdue</span>
                           : <span>{daysLeft}d remaining</span>
                         : <span>Completed</span>}
                     </div>
@@ -296,8 +296,8 @@ export function MemberDashboard() {
         <div className="animate-fade-in-up stagger-3">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-section-title text-slate-900">My Tasks</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{openTasks.length} open</p>
+              <h2 className="text-section-title text-slate-900 dark:text-slate-100">My Tasks</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{openTasks.length} open</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -308,13 +308,13 @@ export function MemberDashboard() {
               return (
                 <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
                   <div
-                    className="flex items-center gap-3 p-3.5 rounded-xl border bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-pointer animate-fade-in-up"
-                    style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 40}ms` }}
+                    className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800 hover:border-blue-200 hover:bg-blue-50/30 dark:hover:border-blue-500/30 dark:hover:bg-blue-500/10 transition-all group cursor-pointer animate-fade-in-up"
+                    style={{ animationDelay: `${i * 40}ms` }}
                   >
                     <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: statusDot[task.status] ?? "#94a3b8" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-blue-600 transition-colors">{task.title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{projectMap[task.project_id] ?? "Unknown project"}</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{task.title}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{task.project_title ?? projectMap[task.project_id] ?? "Unknown project"}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span
@@ -326,7 +326,7 @@ export function MemberDashboard() {
                       >
                         {task.priority}
                       </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
                     </div>
                   </div>
                 </Link>
@@ -341,10 +341,10 @@ export function MemberDashboard() {
         <div className="animate-fade-in-up stagger-3">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-section-title text-slate-900">Team Standups Today</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{teamStandups.length} update{teamStandups.length !== 1 ? "s" : ""} posted</p>
+              <h2 className="text-section-title text-slate-900 dark:text-slate-100">Team Standups Today</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{teamStandups.length} update{teamStandups.length !== 1 ? "s" : ""} posted</p>
             </div>
-            <Link href="/standup" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors group">
+            <Link href="/standup" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group">
               Full feed <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
@@ -354,8 +354,8 @@ export function MemberDashboard() {
               return (
                 <div
                   key={entry.id}
-                  className="bg-white rounded-2xl border shadow-card p-4 animate-fade-in-up"
-                  style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 50}ms` }}
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-card p-4 animate-fade-in-up"
+                  style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <div className="flex items-start gap-3">
                     <UserLink userId={entry.user_id} title={entry.name ?? undefined} className="shrink-0 inline-flex hover:no-underline">
@@ -368,12 +368,12 @@ export function MemberDashboard() {
                     </UserLink>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <UserLink userId={entry.user_id} className="font-bold text-sm text-slate-900">{entry.name}</UserLink>
-                        {entry.department && <span className="text-xs text-slate-400">{entry.department}</span>}
+                        <UserLink userId={entry.user_id} className="font-bold text-sm text-slate-900 dark:text-slate-100">{entry.name}</UserLink>
+                        {entry.department && <span className="text-xs text-slate-400 dark:text-slate-500">{entry.department}</span>}
                       </div>
-                      {entry.today && <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{entry.today}</p>}
+                      {entry.today && <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">{entry.today}</p>}
                       {entry.blockers && !entry.blockers.toLowerCase().startsWith("none") && (
-                        <p className="text-xs text-red-500 mt-1 line-clamp-1">⚠ {entry.blockers}</p>
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1 line-clamp-1">⚠ {entry.blockers}</p>
                       )}
                     </div>
                   </div>
@@ -389,31 +389,31 @@ export function MemberDashboard() {
         <div className="animate-fade-in-up stagger-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-section-title text-slate-900">Active Discussions</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{openDiscussions.length} open threads</p>
+              <h2 className="text-section-title text-slate-900 dark:text-slate-100">Active Discussions</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{openDiscussions.length} open threads</p>
             </div>
-            <Link href="/discussions" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors group">
+            <Link href="/discussions" className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group">
               View all <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
           <div className="space-y-2">
             {openDiscussions.map((d, i) => (
-              <Link key={d.id} href="/discussions">
+              <Link key={d.id} href={`/discussions?thread=${d.id}`}>
                 <div
-                  className="flex items-center gap-3 p-3.5 rounded-xl border bg-white hover:border-purple-200 hover:bg-purple-50/30 transition-all group cursor-pointer animate-fade-in-up"
-                  style={{ borderColor: "rgba(0,0,0,0.06)", animationDelay: `${i * 40}ms` }}
+                  className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800 hover:border-purple-200 hover:bg-purple-50/30 dark:hover:border-purple-500/30 dark:hover:bg-purple-500/10 transition-all group cursor-pointer animate-fade-in-up"
+                  style={{ animationDelay: `${i * 40}ms` }}
                 >
-                  <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-purple-50">
-                    <MessageSquare className="h-3.5 w-3.5 text-purple-500" />
+                  <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-purple-50 dark:bg-purple-500/15">
+                    <MessageSquare className="h-3.5 w-3.5 text-purple-500 dark:text-purple-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-purple-600 transition-colors">{d.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{d.title}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                       {d.author_name ?? "Unknown"}{d.message_count != null ? ` · ${d.message_count} messages` : ""}
                     </p>
                   </div>
                   {d.project_title && (
-                    <span className="text-[10px] font-medium text-slate-400 shrink-0 truncate max-w-[80px]">{d.project_title}</span>
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 shrink-0 truncate max-w-[80px]">{d.project_title}</span>
                   )}
                 </div>
               </Link>

@@ -22,11 +22,11 @@ import {
   EyeOff,
   Plane,
   Thermometer,
-  Home,
   UserCheck,
   Hourglass,
   Search,
 } from "lucide-react";
+import { WfhIcon } from "@/components/icons/wfh-icon";
 import { ScheduleDialog } from "@/components/schedule-dialog";
 import {
   users as usersApi,
@@ -84,7 +84,7 @@ const leaveTypeIcons: Record<string, React.ReactNode> = {
   planned: <Plane className="h-3.5 w-3.5" />,
   sick: <Thermometer className="h-3.5 w-3.5" />,
   personal: <CalendarDays className="h-3.5 w-3.5" />,
-  wfh: <Home className="h-3.5 w-3.5" />,
+  wfh: <WfhIcon className="h-3.5 w-3.5" />,
   half_day: <Clock className="h-3.5 w-3.5" />,
 };
 
@@ -104,7 +104,9 @@ export default function LeaveAvailabilityPage() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [analyticsUserId, setAnalyticsUserId] = useState<string | null>(null);
+  // Keyed by the leave *request* id (not user id) — a user can have more than
+  // one pending/upcoming request, and each row's summary toggles independently.
+  const [analyticsRequestId, setAnalyticsRequestId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   async function loadLeaveData() {
@@ -187,11 +189,14 @@ export default function LeaveAvailabilityPage() {
     calendarDays.push({ date, dayLabel, users });
   }
 
-  const availabilityColors: Record<string, string> = {
-    available: "bg-emerald-500",
-    on_leave: "bg-red-500",
-    wfh: "bg-teal-500",
-    half_day: "bg-amber-500",
+  // Full literal class strings — Tailwind's compiler only picks up classes it
+  // can see written out in source, so these can't be assembled at runtime via
+  // `${bgColor}/30` (that produced an invisible class in production builds).
+  const availabilityCellColors: Record<string, string> = {
+    available: "bg-emerald-500/30 hover:bg-emerald-500/50",
+    on_leave: "bg-red-500/30 hover:bg-red-500/50",
+    wfh: "bg-teal-500/30 hover:bg-teal-500/50",
+    half_day: "bg-amber-500/30 hover:bg-amber-500/50",
   };
 
   async function handleApprove(lr: LeaveRequest) {
@@ -320,26 +325,31 @@ export default function LeaveAvailabilityPage() {
             <CardTitle className="text-sm flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-blue-600" /> Team Availability — Next 14 Days
             </CardTitle>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search employees…"
-                className="h-8 pl-8 pr-8 text-xs"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            {/* Only worth searching when there's more than one person to find —
+                a plain Member only ever sees themselves here (see visibleUsers
+                above), so the box would have nothing useful to filter. */}
+            {visibleUsers.length > 1 && (
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search employees…"
+                  className="h-8 pl-8 pr-8 text-xs"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          {q && (
+          {visibleUsers.length > 1 && q && (
             <p className="text-[10px] text-muted-foreground mt-1">
               {searchedUsers.length} of {visibleUsers.length} shown
             </p>
@@ -375,15 +385,15 @@ export default function LeaveAvailabilityPage() {
                     const userDay = day.users.find(u => u.userId === user.id);
                     const isWeekend = day.date.getDay() === 0 || day.date.getDay() === 6;
                     const status = isWeekend ? "weekend" : (userDay?.status || "available");
-                    const bgColor = isWeekend ? "bg-muted/20" : availabilityColors[status] || "bg-emerald-500";
+                    const cellColor = isWeekend ? "bg-muted/20" : availabilityCellColors[status] || availabilityCellColors.available;
                     return (
                       <div
                         key={i}
-                        className={`h-8 rounded-sm ${isWeekend ? bgColor : `${bgColor}/30 hover:${bgColor}/50`} cursor-default transition-colors flex items-center justify-center`}
+                        className={`h-8 rounded-sm ${cellColor} cursor-default transition-colors flex items-center justify-center`}
                         title={`${user.name} — ${isWeekend ? "Weekend" : status.replace("_", " ")}`}
                       >
                         {status === "on_leave" && <Plane className="h-3 w-3 text-red-600" />}
-                        {status === "wfh" && <Home className="h-3 w-3 text-teal-600" />}
+                        {status === "wfh" && <WfhIcon className="h-3 w-3 text-teal-600 dark:text-teal-400" />}
                         {status === "half_day" && <Clock className="h-3 w-3 text-amber-600" />}
                       </div>
                     );
@@ -427,14 +437,14 @@ export default function LeaveAvailabilityPage() {
                       </Badge>
                       <Badge variant="outline" className={`text-[10px] ${statusColors[lr.status]}`}>Pending</Badge>
                       <button
-                        onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
-                        className={`ml-1 p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
+                        onClick={() => setAnalyticsRequestId(analyticsRequestId === lr.id ? null : lr.id)}
+                        className={`ml-1 p-1 rounded-md transition-colors ${analyticsRequestId === lr.id
                             ? "bg-violet-100 text-violet-600"
                             : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                           }`}
-                        title={analyticsUserId === lr.user_id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
+                        title={analyticsRequestId === lr.id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
                       >
-                        {analyticsUserId === lr.user_id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        {analyticsRequestId === lr.id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{formatDate(lr.created_at)}</span>
@@ -468,8 +478,8 @@ export default function LeaveAvailabilityPage() {
                     </div>
                   )}
 
-                  {analyticsUserId === lr.user_id && (
-                    <LeaveAnalytics userId={lr.user_id} onClose={() => setAnalyticsUserId(null)} />
+                  {analyticsRequestId === lr.id && (
+                    <LeaveAnalytics userId={lr.user_id} onClose={() => setAnalyticsRequestId(null)} />
                   )}
 
                   {canApprove(lr) && (
@@ -566,14 +576,14 @@ export default function LeaveAvailabilityPage() {
                         <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">Past</Badge>
                       )}
                       <button
-                        onClick={() => setAnalyticsUserId(analyticsUserId === lr.user_id ? null : lr.user_id)}
-                        className={`p-1 rounded-md transition-colors ${analyticsUserId === lr.user_id
+                        onClick={() => setAnalyticsRequestId(analyticsRequestId === lr.id ? null : lr.id)}
+                        className={`p-1 rounded-md transition-colors ${analyticsRequestId === lr.id
                             ? "bg-violet-100 text-violet-600"
                             : "text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                           }`}
-                        title={analyticsUserId === lr.user_id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
+                        title={analyticsRequestId === lr.id ? "Hide leave summary" : `View leave summary for ${user?.name}`}
                       >
-                        {analyticsUserId === lr.user_id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        {analyticsRequestId === lr.id ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                       </button>
                       {(authUser?.id === lr.user_id || isAdmin || isCEO) && (
                         <button
@@ -586,9 +596,9 @@ export default function LeaveAvailabilityPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1.5 ml-9">{lr.reason}</p>
-                    {analyticsUserId === lr.user_id && (
+                    {analyticsRequestId === lr.id && (
                       <div className="mt-2">
-                        <LeaveAnalytics userId={lr.user_id} onClose={() => setAnalyticsUserId(null)} />
+                        <LeaveAnalytics userId={lr.user_id} onClose={() => setAnalyticsRequestId(null)} />
                       </div>
                     )}
                   </CardContent>

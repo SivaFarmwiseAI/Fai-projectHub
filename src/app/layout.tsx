@@ -45,14 +45,21 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${plusJakartaSans.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <head>
         <meta name="theme-color" content="#3b82f6" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('ph_theme_v2')==='dark')document.documentElement.classList.add('dark')}catch(e){}",
+          }}
+        />
       </head>
-      <body className="min-h-full flex bg-slate-50/60">
+      <body className="min-h-full flex">
         <AuthProvider>
           <MenuAccessProvider>
           <ConfirmProvider>

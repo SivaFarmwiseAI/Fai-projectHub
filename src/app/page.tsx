@@ -34,6 +34,9 @@ function getDaysRemaining(startDate: string | undefined, timeboxDays: number): n
   return Math.round((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+// TODO: dark-mode chart colors — `color`/`bg` below are inline hex values applied via
+// style={{...}} in the swimlane UI, so they can't be themed with `dark:` classes. They'd
+// need a JS-level conditional reading the current theme (see src/lib/use-theme.ts).
 const PIPELINE_STAGES = [
   { label: "Kickoff / Planning", color: "#6366f1", bg: "#eef2ff" },
   { label: "In Development", color: "#3b82f6", bg: "#eff6ff" },
@@ -59,11 +62,11 @@ const insightIcons: Record<string, React.ReactNode> = {
 };
 
 const insightBorders: Record<string, string> = {
-  risk: "border-red-200 bg-red-50",
-  blocker: "border-red-200 bg-red-50",
-  opportunity: "border-green-200 bg-green-50",
-  suggestion: "border-amber-200 bg-amber-50",
-  performance: "border-blue-200 bg-blue-50",
+  risk: "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10",
+  blocker: "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10",
+  opportunity: "border-green-200 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10",
+  suggestion: "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10",
+  performance: "border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10",
 };
 
 const priorityColors: Record<string, string> = {
@@ -71,26 +74,26 @@ const priorityColors: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  engineering: "text-blue-700 border-blue-200 bg-blue-50",
-  research: "text-purple-700 border-purple-200 bg-purple-50",
-  mixed: "text-teal-700 border-teal-200 bg-teal-50",
-  data_science: "text-violet-700 border-violet-200 bg-violet-50",
-  design: "text-pink-700 border-pink-200 bg-pink-50",
-  sales: "text-orange-700 border-orange-200 bg-orange-50",
-  marketing: "text-rose-700 border-rose-200 bg-rose-50",
-  operations: "text-slate-700 border-slate-200 bg-slate-50",
-  hr: "text-cyan-700 border-cyan-200 bg-cyan-50",
-  legal: "text-gray-700 border-gray-200 bg-gray-50",
-  strategy: "text-indigo-700 border-indigo-200 bg-indigo-50",
-  product: "text-emerald-700 border-emerald-200 bg-emerald-50",
-  finance: "text-amber-700 border-amber-200 bg-amber-50",
+  engineering: "text-blue-700 border-blue-200 bg-blue-50 dark:text-blue-300 dark:border-blue-500/30 dark:bg-blue-500/10",
+  research: "text-purple-700 border-purple-200 bg-purple-50 dark:text-purple-300 dark:border-purple-500/30 dark:bg-purple-500/10",
+  mixed: "text-teal-700 border-teal-200 bg-teal-50 dark:text-teal-300 dark:border-teal-500/30 dark:bg-teal-500/10",
+  data_science: "text-violet-700 border-violet-200 bg-violet-50 dark:text-violet-300 dark:border-violet-500/30 dark:bg-violet-500/10",
+  design: "text-pink-700 border-pink-200 bg-pink-50 dark:text-pink-300 dark:border-pink-500/30 dark:bg-pink-500/10",
+  sales: "text-orange-700 border-orange-200 bg-orange-50 dark:text-orange-300 dark:border-orange-500/30 dark:bg-orange-500/10",
+  marketing: "text-rose-700 border-rose-200 bg-rose-50 dark:text-rose-300 dark:border-rose-500/30 dark:bg-rose-500/10",
+  operations: "text-slate-700 border-slate-200 bg-slate-50 dark:text-slate-300 dark:border-slate-500/30 dark:bg-slate-500/10",
+  hr: "text-cyan-700 border-cyan-200 bg-cyan-50 dark:text-cyan-300 dark:border-cyan-500/30 dark:bg-cyan-500/10",
+  legal: "text-gray-700 border-gray-200 bg-gray-50 dark:text-gray-300 dark:border-gray-500/30 dark:bg-gray-500/10",
+  strategy: "text-indigo-700 border-indigo-200 bg-indigo-50 dark:text-indigo-300 dark:border-indigo-500/30 dark:bg-indigo-500/10",
+  product: "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+  finance: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-500/30 dark:bg-amber-500/10",
 };
 
 const statusColors: Record<string, string> = {
-  active: "text-emerald-700 border-emerald-200 bg-emerald-50",
-  completed: "text-green-700 border-green-200 bg-green-50",
-  killed: "text-red-700 border-red-200 bg-red-50",
-  paused: "text-amber-700 border-amber-200 bg-amber-50",
+  active: "text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+  completed: "text-green-700 border-green-200 bg-green-50 dark:text-green-300 dark:border-green-500/30 dark:bg-green-500/10",
+  killed: "text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-500/30 dark:bg-red-500/10",
+  paused: "text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-500/30 dark:bg-amber-500/10",
 };
 
 function StatCard({ icon, label, value, alert }: { icon: React.ReactNode; label: string; value: number; alert?: boolean }) {
@@ -202,7 +205,7 @@ export default function DashboardPage() {
 
       {/* My Day */}
       {(stats?.pending_reviews ?? 0) + (stats?.pending_captures ?? 0) + (stats?.pending_leave ?? 0) + (stats?.blocked_tasks ?? 0) > 0 && (
-        <Card className="border-blue-200 bg-gradient-to-br from-blue-50/60 to-indigo-50/40">
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 dark:border-blue-500/20 dark:from-blue-500/10 dark:to-indigo-500/10">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -210,7 +213,7 @@ export default function DashboardPage() {
                   <Sun className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">My Day</h2>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">My Day</h2>
                   <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
                 </div>
               </div>
@@ -223,7 +226,7 @@ export default function DashboardPage() {
                 { label: "AI Captures", value: stats?.pending_captures ?? 0, href: "/capture", color: "text-purple-600", icon: <Sparkles className="h-4 w-4" /> },
               ].filter(s => s.value > 0).map(s => (
                 <Link key={s.label} href={s.href}>
-                  <div className={`flex items-center gap-2 p-3 rounded-xl bg-white/70 border hover:bg-white transition-colors ${s.color}`}>
+                  <div className={`flex items-center gap-2 p-3 rounded-xl bg-white/70 border hover:bg-white dark:bg-slate-800/70 dark:hover:bg-slate-800 transition-colors ${s.color}`}>
                     {s.icon}
                     <div>
                       <p className="text-lg font-bold">{s.value}</p>
@@ -237,13 +240,13 @@ export default function DashboardPage() {
             {/* Pending leave list */}
             {pendingLeave.length > 0 && (
               <div className="mt-4 space-y-1">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Pending Leave Approvals</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Pending Leave Approvals</p>
                 {pendingLeave.slice(0, 3).map(lr => (
-                  <div key={lr.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/60 border border-blue-100 text-xs">
+                  <div key={lr.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/60 border border-blue-100 dark:bg-slate-800/60 dark:border-blue-500/20 text-xs">
                     <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center text-[9px] font-bold text-white">
                       {(lr.user_name ?? "?")[0]}
                     </div>
-                    <span className="font-medium text-slate-700">{lr.user_name}</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{lr.user_name}</span>
                     <span className="text-muted-foreground">{lr.type}</span>
                     <span className="text-muted-foreground ml-auto">{lr.start_date} – {lr.end_date}</span>
                   </div>
@@ -291,17 +294,17 @@ export default function DashboardPage() {
             return (
               <div className="flex flex-wrap gap-3">
                 {blockedCount > 0 && (
-                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 border border-red-200">
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 border border-red-200 dark:bg-red-500/10 dark:border-red-500/30">
                     <AlertTriangle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm font-semibold text-red-700">
+                    <span className="text-sm font-semibold text-red-700 dark:text-red-300">
                       {blockedCount} project{blockedCount > 1 ? "s" : ""} blocked — intervention needed
                     </span>
                   </div>
                 )}
                 {overdueCount > 0 && (
-                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30">
                     <Clock className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-semibold text-amber-700">
+                    <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
                       {overdueCount} project{overdueCount > 1 ? "s" : ""} past deadline
                     </span>
                   </div>
@@ -320,6 +323,8 @@ export default function DashboardPage() {
                 <div
                   key={stage.label}
                   className="rounded-xl border-2 border-dashed p-3 min-h-[120px]"
+                  // TODO: dark-mode chart colors — `style` background/border use stage.color/stage.bg
+                  // hex values, which stay light-mode pastel here regardless of theme.
                   style={{ borderColor: stage.color + "40", background: stage.bg }}
                 >
                   {/* Column header */}
@@ -330,7 +335,7 @@ export default function DashboardPage() {
                     >
                       {stageIdx + 1}
                     </div>
-                    <span className="text-[11px] font-bold text-slate-700 leading-tight">{stage.label}</span>
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-tight">{stage.label}</span>
                     {stageProjects.length > 0 && (
                       <span
                         className="ml-auto h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
@@ -356,36 +361,36 @@ export default function DashboardPage() {
                         <Link key={p.id} href={`/projects/${p.id}`}>
                           <div
                             className={cn(
-                              "p-2.5 rounded-xl bg-white border cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all",
-                              isBlocked ? "border-red-300" :
-                                isOverdue ? "border-amber-300" : "border-slate-100/80"
+                              "p-2.5 rounded-xl bg-white border cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all dark:bg-slate-800",
+                              isBlocked ? "border-red-300 dark:border-red-500/40" :
+                                isOverdue ? "border-amber-300 dark:border-amber-500/40" : "border-slate-100/80 dark:border-slate-700/60"
                             )}
                           >
                             {/* Status badges */}
                             {(isBlocked || isOverdue) && (
                               <div className="flex gap-1 mb-1.5">
                                 {isBlocked && (
-                                  <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
+                                  <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-500/10 dark:border-red-500/30 px-1.5 py-0.5 rounded-full">
                                     BLOCKED
                                   </span>
                                 )}
                                 {isOverdue && (
-                                  <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                                  <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-500/30 px-1.5 py-0.5 rounded-full">
                                     OVERDUE
                                   </span>
                                 )}
                               </div>
                             )}
 
-                            <p className="text-[11px] font-bold text-slate-900 truncate leading-tight mb-0.5">
+                            <p className="text-[11px] font-bold text-slate-900 dark:text-slate-100 truncate leading-tight mb-0.5">
                               {p.title}
                             </p>
-                            <p className="text-[10px] text-slate-400 truncate mb-2">
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mb-2">
                               {p.current_phase}
                             </p>
 
                             {/* Progress bar */}
-                            <div className="w-full bg-slate-100 rounded-full h-1 mb-1.5">
+                            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1 mb-1.5">
                               <div
                                 className="h-1 rounded-full transition-all"
                                 style={{ width: `${Math.min(progress, 100)}%`, background: barColor }}
@@ -394,14 +399,14 @@ export default function DashboardPage() {
 
                             {/* Meta row */}
                             <div className="flex items-center justify-between">
-                              <span className="text-[9px] font-semibold text-slate-400">
+                              <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
                                 {completed}/{taskCount} tasks
                               </span>
                               <span
                                 className={cn(
                                   "text-[9px] font-bold",
                                   isBlocked ? "text-red-500" :
-                                    isOverdue ? "text-amber-600" : "text-slate-400"
+                                    isOverdue ? "text-amber-600" : "text-slate-400 dark:text-slate-500"
                                 )}
                               >
                                 {isOverdue
@@ -417,7 +422,7 @@ export default function DashboardPage() {
 
                     {stageProjects.length === 0 && (
                       <div className="flex items-center justify-center py-6">
-                        <p className="text-[10px] text-slate-300 font-medium">No projects</p>
+                        <p className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">No projects</p>
                       </div>
                     )}
                   </div>
@@ -428,14 +433,14 @@ export default function DashboardPage() {
 
           {/* Phase legend */}
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Flow:</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mr-1">Flow:</span>
             {PIPELINE_STAGES.map((s, i) => (
               <span key={s.label} className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: s.color }}>
                   {s.label}
                 </span>
                 {i < PIPELINE_STAGES.length - 1 && (
-                  <span className="text-slate-300 text-xs">→</span>
+                  <span className="text-slate-300 dark:text-slate-600 text-xs">→</span>
                 )}
               </span>
             ))}
@@ -454,10 +459,10 @@ export default function DashboardPage() {
             {insights.slice(0, 6).map(insight => (
               <div
                 key={insight.id}
-                className={`p-4 rounded-xl border ${insightBorders[insight.type] ?? "border-gray-200 bg-gray-50"}`}
+                className={`p-4 rounded-xl border ${insightBorders[insight.type] ?? "border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50"}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 shrink-0">{insightIcons[insight.type] ?? <Star className="h-4 w-4 text-gray-500" />}</div>
+                  <div className="mt-0.5 shrink-0">{insightIcons[insight.type] ?? <Star className="h-4 w-4 text-gray-500 dark:text-gray-400" />}</div>
                   <div>
                     <p className="text-sm font-semibold">{insight.title}</p>
                     {insight.description && (
@@ -483,7 +488,7 @@ export default function DashboardPage() {
           <select
             value={selectedPerson ?? ""}
             onChange={e => setSelectedPerson(e.target.value || null)}
-            className="text-xs border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="text-xs border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Team Members</option>
             {userList.map(u => (
@@ -498,7 +503,7 @@ export default function DashboardPage() {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${statusFilter === s
                   ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700 dark:hover:border-slate-600"
                 }`}
             >
               {s}
@@ -508,7 +513,7 @@ export default function DashboardPage() {
           {hasActiveFilters && (
             <button
               onClick={() => { setSelectedPerson(null); setStatusFilter("All"); setPriorityFilter("All"); }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-red-600 border border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/10 transition-colors"
             >
               <X className="h-3 w-3" /> Clear
             </button>
@@ -516,7 +521,7 @@ export default function DashboardPage() {
         </div>
 
         {selectedUser && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/30">
             <div
               className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
               style={{ backgroundColor: selectedUser.avatar_color }}
@@ -524,10 +529,10 @@ export default function DashboardPage() {
               {selectedUser.name[0]}
             </div>
             <div>
-              <p className="text-sm font-semibold text-blue-900">{selectedUser.name}</p>
-              <p className="text-xs text-blue-600">{selectedUser.role} · {selectedUser.department}</p>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">{selectedUser.name}</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">{selectedUser.role} · {selectedUser.department}</p>
             </div>
-            <div className="ml-auto flex items-center gap-4 text-xs text-blue-700">
+            <div className="ml-auto flex items-center gap-4 text-xs text-blue-700 dark:text-blue-300">
               <span><strong>{filteredTasks.filter(t => t.status !== "completed").length}</strong> active tasks</span>
               <span><strong>{filteredTasks.filter(t => t.status === "completed").length}</strong> done</span>
               <span><strong>{filteredTasks.filter(t => t.status === "blocked").length}</strong> blocked</span>
@@ -561,7 +566,7 @@ export default function DashboardPage() {
 
             return (
               <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card className="hover:bg-gray-50 transition-colors cursor-pointer group">
+                <Card className="hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group">
                   <CardContent className="py-4">
                     <div className="flex items-center gap-4">
                       <div className={`h-3 w-3 rounded-full shrink-0 ${priorityColors[project.priority]}`} />
@@ -570,7 +575,7 @@ export default function DashboardPage() {
                           <h3 className="font-semibold text-sm group-hover:text-blue-600 transition-colors truncate">
                             {project.title}
                           </h3>
-                          <Badge variant="outline" className={typeColors[project.type] ?? "text-gray-700 border-gray-200 bg-gray-50"}>
+                          <Badge variant="outline" className={typeColors[project.type] ?? "text-gray-700 border-gray-200 bg-gray-50 dark:text-gray-300 dark:border-gray-500/30 dark:bg-gray-500/10"}>
                             {project.type.replace(/_/g, " ")}
                           </Badge>
                           <Badge variant="outline" className={statusColors[project.status]}>
@@ -630,7 +635,7 @@ export default function DashboardPage() {
               const project = projectList.find(p => p.id === task.project_id);
               return (
                 <Link key={task.id} href={`/projects/${task.project_id}?tab=tasks&task=${task.id}`}>
-                <Card className="hover:bg-gray-50 transition-colors cursor-pointer">
+                <Card className="hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer">
                   <CardContent className="py-3">
                     <div className="flex items-center gap-3">
                       <div className={`h-2 w-2 rounded-full shrink-0 ${task.status === "completed" ? "bg-green-500" :

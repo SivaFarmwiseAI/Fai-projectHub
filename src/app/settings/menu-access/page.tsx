@@ -68,22 +68,22 @@ const ITEM_ICONS: Record<string, typeof LayoutDashboard> = {
 const ROLES: RoleType[] = ["Admin", "CEO", "HR", "Leadership", "Team Lead", "Member"];
 
 const ROLE_CONFIG: Record<RoleType, { color: string; bg: string; border: string; dot: string }> = {
-  Admin:        { color: "text-orange-700",  bg: "bg-orange-50",  border: "border-orange-200", dot: "bg-orange-500" },
-  CEO:          { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500" },
-  HR:           { color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200", dot: "bg-violet-500" },
-  Leadership:   { color: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200", dot: "bg-indigo-500" },
-  "Team Lead":  { color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-500" },
-  Member:       { color: "text-pink-700",    bg: "bg-pink-50",    border: "border-pink-200",   dot: "bg-pink-500" },
+  Admin:        { color: "text-orange-700 dark:text-orange-300",  bg: "bg-orange-50 dark:bg-orange-500/10",  border: "border-orange-200 dark:border-orange-800/40", dot: "bg-orange-500" },
+  CEO:          { color: "text-blue-700 dark:text-blue-300",    bg: "bg-blue-50 dark:bg-blue-500/10",    border: "border-blue-200 dark:border-blue-800/40",   dot: "bg-blue-500" },
+  HR:           { color: "text-violet-700 dark:text-violet-300",  bg: "bg-violet-50 dark:bg-violet-500/10",  border: "border-violet-200 dark:border-violet-800/40", dot: "bg-violet-500" },
+  Leadership:   { color: "text-indigo-700 dark:text-indigo-300",  bg: "bg-indigo-50 dark:bg-indigo-500/10",  border: "border-indigo-200 dark:border-indigo-800/40", dot: "bg-indigo-500" },
+  "Team Lead":  { color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-500/10", border: "border-emerald-200 dark:border-emerald-800/40",dot: "bg-emerald-500" },
+  Member:       { color: "text-pink-700 dark:text-pink-300",    bg: "bg-pink-50 dark:bg-pink-500/10",    border: "border-pink-200 dark:border-pink-800/40",   dot: "bg-pink-500" },
 };
 
 /* ── Section colour accent ────────────────────────────────── */
 const SECTION_ACCENTS: Record<string, string> = {
-  Overview: "text-blue-600",
-  Projects: "text-violet-600",
-  Work:     "text-amber-600",
-  Team:     "text-emerald-600",
-  AI:       "text-purple-600",
-  Settings: "text-slate-600",
+  Overview: "text-blue-600 dark:text-blue-400",
+  Projects: "text-violet-600 dark:text-violet-400",
+  Work:     "text-amber-600 dark:text-amber-400",
+  Team:     "text-emerald-600 dark:text-emerald-400",
+  AI:       "text-purple-600 dark:text-purple-400",
+  Settings: "text-slate-600 dark:text-slate-400",
 };
 
 /* ── Preview panel: shows what a role's menu looks like ─────── */
@@ -110,20 +110,20 @@ function RolePreview({
       <div className="flex items-center gap-1.5 mb-3">
         <span className={cn("h-2 w-2 rounded-full", rc.dot)} />
         <p className={cn("text-xs font-bold", rc.color)}>{role}</p>
-        <span className="ml-auto text-[10px] text-slate-500">{visible.length} items</span>
+        <span className="ml-auto text-[10px] text-slate-500 dark:text-slate-400">{visible.length} items</span>
       </div>
       <div className="space-y-2">
         {sections.map((section) => (
           <div key={section.title}>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
               {section.title}
             </p>
             <div className="space-y-0.5 pl-1">
               {section.items.map((item) => {
                 const Icon = ITEM_ICONS[item.key] ?? LayoutDashboard;
                 return (
-                  <div key={item.key} className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                    <Icon className="h-3 w-3 text-slate-400 shrink-0" />
+                  <div key={item.key} className="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-300">
+                    <Icon className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
                     <span className="truncate">{item.label}</span>
                   </div>
                 );
@@ -211,20 +211,20 @@ export default function MenuAccessPage() {
         <div>
           <Link
             href="/settings"
-            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-2"
+            className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors mb-2"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Settings
           </Link>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
-              <ShieldCheck className="h-5 w-5 text-blue-600" />
+            <div className="h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
+              <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
                 Menu Access Control
               </h1>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Configure which navigation items each role can see.
               </p>
             </div>
@@ -246,7 +246,7 @@ export default function MenuAccessPage() {
             variant="outline"
             size="sm"
             onClick={handleReset}
-            className="gap-1.5 text-xs text-slate-600"
+            className="gap-1.5 text-xs text-slate-600 dark:text-slate-400"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Reset Defaults
@@ -269,8 +269,8 @@ export default function MenuAccessPage() {
       </div>
 
       {/* ── Info banner ── */}
-      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
-        <Info className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800/40 text-sm text-amber-800 dark:text-amber-300">
+        <Info className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <p>
           Changes apply immediately in the sidebar after saving. Items marked{" "}
           <Lock className="h-3.5 w-3.5 inline mb-0.5" /> are <strong>locked</strong> and cannot be
@@ -305,7 +305,7 @@ export default function MenuAccessPage() {
             "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
             activeSection === "all"
               ? "bg-slate-900 text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700"
           )}
         >
           All Sections
@@ -318,7 +318,7 @@ export default function MenuAccessPage() {
               "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
               activeSection === s
                 ? "bg-slate-900 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700"
             )}
           >
             {s}
@@ -329,11 +329,11 @@ export default function MenuAccessPage() {
       {/* ── Access matrix ── */}
       <div className="space-y-4">
         {displayedSections.map((section) => {
-          const sectionAccent = SECTION_ACCENTS[section.title] ?? "text-slate-600";
+          const sectionAccent = SECTION_ACCENTS[section.title] ?? "text-slate-600 dark:text-slate-400";
           return (
-            <Card key={section.title} className="overflow-hidden border-slate-200/80 shadow-sm">
+            <Card key={section.title} className="overflow-hidden border-slate-200/80 dark:border-slate-700/80 shadow-sm">
               {/* Section header row */}
-              <CardHeader className="px-5 py-3 bg-slate-50/70 border-b border-slate-200/60">
+              <CardHeader className="px-5 py-3 bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-200/60 dark:border-slate-700/60">
                 <div className="flex items-center justify-between">
                   <CardTitle
                     className={cn("text-xs font-extrabold uppercase tracking-widest", sectionAccent)}
@@ -351,12 +351,12 @@ export default function MenuAccessPage() {
                         <div key={role} className="flex flex-col items-center gap-1 w-16">
                           <span className={cn("text-[9px] font-bold", rc.color)}>{role}</span>
                           {allLocked ? (
-                            <Lock className="h-3.5 w-3.5 text-slate-300" />
+                            <Lock className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
                           ) : (
                             <button
                               onClick={() => toggleSectionRole(section.items, role)}
                               title={`${allOn ? "Deselect" : "Select"} all ${role} in ${section.title}`}
-                              className="text-slate-400 hover:text-slate-700 transition-colors"
+                              className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
                             >
                               {allOn ? (
                                 <CheckSquare2 className={cn("h-4 w-4", rc.color)} />
@@ -366,7 +366,7 @@ export default function MenuAccessPage() {
                             </button>
                           )}
                           {hasLocked && !allLocked && (
-                            <span className="text-[8px] text-slate-400">some locked</span>
+                            <span className="text-[8px] text-slate-400 dark:text-slate-500">some locked</span>
                           )}
                         </div>
                       );
@@ -384,28 +384,28 @@ export default function MenuAccessPage() {
                       key={item.key}
                       className={cn(
                         "flex items-center gap-4 px-5 py-3.5 transition-colors",
-                        idx % 2 === 0 ? "bg-white" : "bg-slate-50/40",
-                        "hover:bg-blue-50/30",
-                        idx < section.items.length - 1 && "border-b border-slate-100"
+                        idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/40 dark:bg-slate-800/40",
+                        "hover:bg-blue-50/30 dark:hover:bg-blue-500/10",
+                        idx < section.items.length - 1 && "border-b border-slate-100 dark:border-slate-800"
                       )}
                     >
                       {/* Icon + label */}
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Icon className="h-4 w-4 text-slate-500" />
+                        <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                          <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-800 truncate">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
                               {item.label}
                             </p>
                             {item.locked && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-slate-400 shrink-0">
+                              <span className="flex items-center gap-0.5 text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
                                 <Lock className="h-3 w-3" /> locked
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400 font-mono truncate">{item.href}</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate">{item.href}</p>
                         </div>
                       </div>
 
@@ -443,7 +443,7 @@ export default function MenuAccessPage() {
                                     "h-4.5 w-4.5 rounded border-2 flex items-center justify-center",
                                     checked
                                       ? cn(rc.bg, rc.border)
-                                      : "bg-slate-100 border-slate-200"
+                                      : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                                   )}
                                 >
                                   {checked && (
@@ -487,8 +487,8 @@ export default function MenuAccessPage() {
         <>
           <Separator />
           <div>
-            <h2 className="text-sm font-bold text-slate-700 mb-1">Live Role Preview</h2>
-            <p className="text-xs text-slate-500 mb-4">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Live Role Preview</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               This shows the exact sidebar menu each role would see with the current (unsaved) settings.
             </p>
             <div className="flex gap-3 flex-wrap">
